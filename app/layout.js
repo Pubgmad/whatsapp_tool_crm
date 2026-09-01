@@ -2,7 +2,7 @@ import "./globals.css";
 
 export const metadata = {
   title: "WhatsApp Growth Desk",
-  description: "Dynamic WhatsApp marketing campaign and inbox prototype"
+  description: "Production-ready WhatsApp CRM for campaigns, inbox, suppression, and Meta Cloud API workflows"
 };
 
 export default function RootLayout({ children }) {
@@ -11,4 +11,4 @@ export default function RootLayout({ children }) {
       <body>{children}</body>
     </html>
   );
-}
+}

@@ -1,3 +1,6 @@
-import { updateSetup } from "@/lib/actions";
+﻿import { updateSetup } from "@/lib/actions";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function PUT(request) { return updateSetup(request); }
+
+

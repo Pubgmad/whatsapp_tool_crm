@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  BadgeCheck, Ban, BarChart3, ChevronRight, CircleAlert, Database, Inbox,
-  LayoutDashboard, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send,
-  Settings2, ShieldCheck, Sparkles, Upload, UsersRound
+  BadgeCheck, Ban, BarChart3, ChevronRight, CircleAlert, Inbox, LayoutDashboard,
+  LogOut, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
+  ShieldCheck, Sparkles, Upload, UsersRound
 } from "lucide-react";
 
 const navItems = [
@@ -21,7 +21,11 @@ const navItems = [
 const api = async (path, options = {}) => {
   const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || "Action failed");
+  if (!response.ok) {
+    const error = new Error(payload.error || "Action failed");
+    error.code = payload.code;
+    throw error;
+  }
   return payload;
 };
 
@@ -30,6 +34,9 @@ const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: 
 
 export default function Home() {
   const [state, setState] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState("");
   const [activeView, setActiveView] = useState("overview");
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [notice, setNotice] = useState("");
@@ -38,16 +45,46 @@ export default function Home() {
   const marketableContacts = useMemo(() => state?.contacts.filter((contact) => contact.marketingPermission && !contact.unsubscribed) || [], [state]);
   const suppressedContacts = useMemo(() => state?.contacts.filter((contact) => contact.unsubscribed || !contact.marketingPermission) || [], [state]);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { bootstrap(); }, []);
 
-  const refresh = async () => setState(await api("/api/state"));
-  const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2400); };
+  const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2600); };
+
+  const bootstrap = async () => {
+    try {
+      setLoading(true);
+      const me = await api("/api/me");
+      setAccount(me);
+      setState(await api("/api/state"));
+      setConfigError("");
+    } catch (error) {
+      setState(null);
+      setAccount(null);
+      if (["DB_NOT_CONFIGURED", "AUTH_NOT_CONFIGURED"].includes(error.code)) setConfigError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refresh = async () => {
+    try { setState(await api("/api/state")); }
+    catch (error) { notify(error.message); if (error.code === "AUTH_REQUIRED") setAccount(null); }
+  };
+
   const mutate = async (promise, message) => {
     try { setState(await promise); notify(message); }
     catch (error) { notify(error.message); }
   };
 
-  if (!state) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
+  const logout = async () => {
+    await postJson("/api/auth/logout", {});
+    setAccount(null);
+    setState(null);
+  };
+
+  if (loading) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
+  if (configError) return <SystemSetup message={configError} />;
+  if (!account) return <AuthScreen onDone={bootstrap} />;
+  if (!state) return <main className="loading"><Sparkles size={32} /><p>Preparing workspace</p></main>;
 
   const activeConversation = state.conversations.find((conversation) => conversation.id === activeConversationId) || state.conversations[0];
   const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
@@ -57,19 +94,43 @@ export default function Home() {
   return (
     <main className="shell">
       <aside className="sideRail">
-        <div className="brandBlock"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>Growth Desk</strong><span>WhatsApp Business</span></div></div>
+        <div className="brandBlock"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>Growth Desk</strong><span>{account.business.name}</span></div></div>
         <nav className="navList" aria-label="Product sections">
           {navItems.map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => setActiveView(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
         </nav>
-        <div className="railNote"><ShieldCheck size={18} /><span>Compliance active</span></div>
+        <div className="railNote"><ShieldCheck size={18} /><span>{account.user.email}</span></div>
       </aside>
       <section className="workspace">
-        <header className="heroBar"><div><p className="kicker">{navItems.find((item) => item.id === activeView)?.label}</p><h1>{pageTitle(activeView)}</h1></div><div className="topActions"><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><span className={`statusPill ${state.setup.status === "Connected" ? "good" : "warn"}`}>{state.setup.status}</span></div></header>
+        <header className="heroBar">
+          <div><p className="kicker">{navItems.find((item) => item.id === activeView)?.label}</p><h1>{pageTitle(activeView)}</h1></div>
+          <div className="topActions"><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><button className="iconButton" title="Sign out" onClick={logout}><LogOut size={18} /></button><span className={`statusPill ${state.setup.status === "Connected" ? "good" : "warn"}`}>{state.setup.status}</span></div>
+        </header>
         {notice && <div className="toast">{notice}</div>}
         <Screens activeView={activeView} {...screenProps} />
       </section>
     </main>
   );
+}
+
+function AuthScreen({ onDone }) {
+  const [mode, setMode] = useState("signin");
+  const [error, setError] = useState("");
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+    const form = Object.fromEntries(new FormData(event.currentTarget));
+    try {
+      await postJson(mode === "signin" ? "/api/auth/login" : "/api/auth/register", form);
+      await onDone();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>Growth Desk</strong><span>WhatsApp Business CRM</span></div></div><div><p className="kicker">Secure workspace</p><h1>{mode === "signin" ? "Sign in" : "Create workspace"}</h1></div><form className="formGrid" onSubmit={submit}>{mode === "signup" && <><Input name="name" label="Your name" required /><Input name="businessName" label="Business name" required /></>}<Input name="email" label="Email" type="email" required /><Input name="password" label="Password" type="password" minLength="8" required />{error && <div className="formError">{error}</div>}<button className="primaryAction" type="submit"><ShieldCheck size={18} /> {mode === "signin" ? "Sign in" : "Create account"}</button></form><button className="textButton" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>{mode === "signin" ? "Create a new workspace" : "Use an existing account"}</button></section></main>;
+}
+
+function SystemSetup({ message }) {
+  return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><Settings2 size={22} /></div><div><strong>Configuration required</strong><span>Production database setup</span></div></div><h1>Connect PostgreSQL</h1><p className="setupCopy">{message}</p><div className="envBox"><code>DATABASE_URL</code><code>AUTH_SECRET</code><code>ENCRYPTION_KEY</code></div></section></main>;
 }
 
 function Screens({ activeView, ...props }) {
@@ -81,17 +142,17 @@ function pageTitle(view) {
   return { overview: "Command center", setup: "Business connection", contacts: "Audience", templates: "Template library", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
 }
 
-function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView, mutate }) {
-  return <div className="screenGrid"><section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2></div><div className="heroMetrics"><Metric label="Marketable" value={marketableContacts.length} /><Metric label="Approved" value={approvedTemplates.length} /><Metric label="Campaigns" value={state.campaigns.length} /></div></section><section className="actionBand"><button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> New campaign <ChevronRight size={18} /></button><button className="secondaryAction" onClick={() => setActiveView("inbox")}><Inbox size={18} /> Inbox</button><button className="secondaryAction" onClick={() => mutate(postJson("/api/admin/reset", { demo: true }), "Demo restored")}><Database size={18} /> Reset</button><button className="secondaryAction dangerText" onClick={() => mutate(postJson("/api/admin/reset", { demo: false }), "Data cleared")}><Ban size={18} /> Clear</button></section><Panel title="Latest campaign" subtitle={latestCampaign ? formatTime(latestCampaign.createdAt) : "No campaigns"}>{latestCampaign ? <ResultMeters stats={latestCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel></div>;
+function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView }) {
+  return <div className="screenGrid"><section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>Manage opted-in WhatsApp contacts, approved templates, campaign delivery, customer replies, and unsubscribe safety from one business workspace.</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableContacts.length} /><Metric label="Approved" value={approvedTemplates.length} /><Metric label="Campaigns" value={state.campaigns.length} /></div></section><section className="actionBand"><button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> New campaign <ChevronRight size={18} /></button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> Add audience</button><button className="secondaryAction" onClick={() => setActiveView("inbox")}><Inbox size={18} /> Inbox</button></section><Panel title="Latest campaign" subtitle={latestCampaign ? formatTime(latestCampaign.createdAt) : "No campaigns"}>{latestCampaign ? <ResultMeters stats={latestCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel></div>;
 }
 
 function Setup({ state, mutate }) {
   const submit = (event) => { event.preventDefault(); mutate(postJson("/api/setup", Object.fromEntries(new FormData(event.currentTarget)), "PUT"), "Setup saved"); };
-  return <div className="contentGrid twoColumns"><Panel title="Credentials"><form className="formGrid" onSubmit={submit}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><label>Mode<select name="mode" defaultValue={state.setup.mode}><option>Mock Meta</option><option>Live Meta</option></select></label><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save</button></form></Panel><Panel title="Status"><div className="statusGrid"><Metric label="Mode" value={state.setup.mode} /><Metric label="WABA" value={state.setup.wabaId ? "Set" : "Missing"} /><Metric label="Phone ID" value={state.setup.phoneNumberId ? "Set" : "Missing"} /><Metric label="Token" value={state.setup.accessToken ? "Saved" : "Missing"} /></div></Panel></div>;
+  return <div className="contentGrid twoColumns"><Panel title="Meta credentials" subtitle="Save the business number details used by WhatsApp Cloud API"><form className="formGrid" onSubmit={submit}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><label>Mode<select name="mode" defaultValue={state.setup.mode}><option>Mock Meta</option><option>Live Meta</option></select></label><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save</button></form></Panel><Panel title="Connection status"><div className="statusGrid"><Metric label="Mode" value={state.setup.mode} /><Metric label="WABA" value={state.setup.wabaId ? "Set" : "Missing"} /><Metric label="Phone ID" value={state.setup.phoneNumberId ? "Set" : "Missing"} /><Metric label="Token" value={state.setup.accessToken ? "Saved" : "Missing"} /></div></Panel></div>;
 }
 
 function Contacts({ state, mutate }) {
-  const add = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/contacts", { name: form.get("name"), phone: form.get("phone"), marketingPermission: form.get("marketingPermission") === "on" }), "Contact added"); event.currentTarget.reset(); };
+  const add = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/contacts", { name: form.get("name"), phone: form.get("phone"), marketingPermission: form.get("marketingPermission") === "on" }), "Contact saved"); event.currentTarget.reset(); };
   const importRows = (event) => { event.preventDefault(); mutate(postJson("/api/contacts/import", { csv: new FormData(event.currentTarget).get("csv") }), "Contacts imported"); };
   return <div className="screenGrid"><div className="contentGrid twoColumns"><Panel title="Add contact"><form className="formGrid" onSubmit={add}><Input name="name" label="Name" placeholder="Priya Shah" /><Input name="phone" label="Phone" placeholder="+91 98765 10006" /><label className="checkRow"><input name="marketingPermission" type="checkbox" defaultChecked /> Marketing permission</label><button className="primaryAction" type="submit"><Plus size={18} /> Add</button></form></Panel><Panel title="Import"><form className="formGrid" onSubmit={importRows}><label>CSV<textarea name="csv" placeholder={"Aisha,+91 98765 10006,Yes\nDev,+91 98765 10007,No"}></textarea></label><button className="secondaryAction" type="submit"><Upload size={18} /> Import</button></form></Panel></div><Panel title="Contacts" subtitle={`${state.contacts.length} total`}><DataTable headers={["Name", "Phone", "Permission", "Last message", "Actions"]}>{state.contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions"><button onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, { marketingPermission: !contact.marketingPermission, unsubscribed: contact.marketingPermission }, "PATCH"), "Updated")}>{contact.marketingPermission ? "Suppress" : "Allow"}</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE"), "Removed")}>Remove</button></td></tr>)}</DataTable></Panel></div>;
 }
@@ -108,16 +169,16 @@ function Campaigns({ approvedTemplates, marketableContacts, mutate, setActiveVie
   const previewContact = marketableContacts[0] || { name: "Customer" };
   const preview = template ? template.body.replace(/{{\s*name\s*}}/g, previewContact.name).replace(/{{\s*discount\s*}}/g, discount) : "Approve a template first.";
   const submit = async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const next = await postJson("/api/campaigns", { name: form.get("name"), templateId: form.get("templateId"), variables: { discount }, contactIds: form.getAll("contactIds") }); await mutate(Promise.resolve(next), "Campaign sent"); setActiveView("results"); } catch (error) { mutate(Promise.reject(error)); } };
-  return <div className="campaignLayout"><Panel title="Campaign"><form className="formGrid" onSubmit={submit}><Input name="name" label="Name" defaultValue="Diwali Sale 2026" /><label>Template<select name="templateId" value={template?.id || ""} onChange={(event) => setTemplateId(event.target.value)}>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Discount<input value={discount} onChange={(event) => setDiscount(event.target.value)} /></label><div className="recipientBox">{marketableContacts.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input name="contactIds" value={contact.id} type="checkbox" defaultChecked /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!approvedTemplates.length || !marketableContacts.length}><Send size={18} /> Send</button></form></Panel><Panel title="Preview"><div className="phonePreview"><div className="waBubble">{preview}</div></div></Panel></div>;
+  return <div className="campaignLayout"><Panel title="Campaign"><form className="formGrid" onSubmit={submit}><Input name="name" label="Name" defaultValue="Seasonal Sale" /><label>Template<select name="templateId" value={template?.id || ""} onChange={(event) => setTemplateId(event.target.value)}>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Discount<input value={discount} onChange={(event) => setDiscount(event.target.value)} /></label><div className="recipientBox">{marketableContacts.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input name="contactIds" value={contact.id} type="checkbox" defaultChecked /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!approvedTemplates.length || !marketableContacts.length}><Send size={18} /> Send</button></form></Panel><Panel title="Preview"><div className="phonePreview"><div className="waBubble">{preview}</div></div></Panel></div>;
 }
 
 function Results({ state }) {
-  return <div className="screenGrid">{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={formatTime(campaign.createdAt)}><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.metaMessageId}><td><strong>{contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : "good"}>{recipient.status}</Badge></td><td>{recipient.message}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
+  return <div className="screenGrid">{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={formatTime(campaign.createdAt)}><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.id || recipient.metaMessageId}><td><strong>{contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : "good"}>{recipient.status}</Badge></td><td>{recipient.message}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
 }
 
 function InboxView({ state, activeConversation, activeContact, approvedTemplates, setActiveConversationId, mutate }) {
-  const reply = (event) => { event.preventDefault(); const body = new FormData(event.currentTarget).get("body"); mutate(postJson("/api/messages/reply", { contactId: activeContact.id, body }), "Sent"); };
-  const templateReply = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/messages/template-reply", { contactId: activeContact.id, templateId: form.get("templateId"), variables: { discount: form.get("discount") } }), "Sent"); };
+  const reply = (event) => { event.preventDefault(); const body = new FormData(event.currentTarget).get("body"); if (!activeContact) return; mutate(postJson("/api/messages/reply", { contactId: activeContact.id, body }), "Sent"); event.currentTarget.reset(); };
+  const templateReply = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); if (!activeContact) return; mutate(postJson("/api/messages/template-reply", { contactId: activeContact.id, templateId: form.get("templateId"), variables: { discount: form.get("discount") } }), "Sent"); };
   return <section className="inboxShell"><aside className="threadList">{state.conversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => setActiveConversationId(conversation.id)}><strong>{contact.name}</strong><span>{latest?.body}</span></button>; })}</aside><div className="threadPane">{activeConversation && activeContact ? <><header><strong>{activeContact.name}</strong><Badge kind={activeConversation.canReply ? "good" : "warn"}>{activeConversation.canReply ? "Open" : "Template"}</Badge></header><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><p>{message.body}</p><small>{formatTime(message.at)}</small></div>)}</div><form className="composer" onSubmit={reply}><textarea name="body" disabled={!activeConversation.canReply} placeholder={activeConversation.canReply ? "Message" : "Template required"}></textarea><button className="primaryAction" disabled={!activeConversation.canReply}><Send size={18} /> Send</button></form>{!activeConversation.canReply && <form className="composer templateLine" onSubmit={templateReply}><select name="templateId">{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select><input name="discount" defaultValue="20%" /><button className="secondaryAction" disabled={!approvedTemplates.length}>Send</button></form>}<div className="quickTools"><button onClick={() => mutate(postJson("/api/webhooks/mock-incoming", { contactId: activeContact.id, body: "Is this offer still available?" }), "Received")}>Test reply</button><button className="dangerText" onClick={() => mutate(postJson("/api/webhooks/mock-incoming", { contactId: activeContact.id, body: "STOP" }), "Suppressed")}>Test STOP</button></div></> : <EmptyState text="No conversations" />}</div></section>;
 }
 

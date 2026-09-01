@@ -1,16 +1,19 @@
 {
-  "name": "whatsapp-marketing-tool-prototype",
-  "version": "2.0.0",
+  "name": "whatsapp-growth-desk",
+  "version": "3.0.0",
   "private": true,
-  "description": "Next.js dynamic prototype for a WhatsApp marketing and inbox tool.",
+  "description": "Production-ready Next.js WhatsApp CRM with PostgreSQL-backed contacts, campaigns, inbox, and Meta Cloud API hooks.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "db:init": "node scripts/db-init.mjs",
+    "db:seed": "node scripts/db-seed.mjs"
   },
   "dependencies": {
     "lucide-react": "latest",
     "next": "latest",
+    "pg": "^8.23.0",
     "react": "latest",
     "react-dom": "latest"
   }
