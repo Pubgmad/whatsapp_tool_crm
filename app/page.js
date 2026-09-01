@@ -2,20 +2,41 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  BadgeCheck, Ban, BarChart3, ChevronRight, CircleAlert, Database, Inbox,
-  LayoutDashboard, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send,
-  Settings2, ShieldCheck, Sparkles, Upload, UsersRound
+  Activity,
+  BadgeCheck,
+  Ban,
+  BarChart3,
+  CheckCircle2,
+  ChevronRight,
+  CircleAlert,
+  Clock3,
+  Database,
+  Download,
+  Inbox,
+  KeyRound,
+  LayoutDashboard,
+  MessageSquareText,
+  PhoneCall,
+  Plus,
+  RefreshCcw,
+  Search,
+  Send,
+  Settings2,
+  ShieldCheck,
+  Upload,
+  UsersRound
 } from "lucide-react";
 
 const navItems = [
   { id: "overview", label: "Command", icon: LayoutDashboard },
-  { id: "setup", label: "Meta Setup", icon: Settings2 },
+  { id: "setup", label: "Setup", icon: Settings2 },
   { id: "contacts", label: "Audience", icon: UsersRound },
   { id: "templates", label: "Templates", icon: MessageSquareText },
   { id: "campaigns", label: "Campaigns", icon: Send },
   { id: "results", label: "Results", icon: BarChart3 },
   { id: "inbox", label: "Inbox", icon: Inbox },
-  { id: "unsubscribes", label: "Suppression", icon: Ban }
+  { id: "unsubscribes", label: "Suppression", icon: Ban },
+  { id: "operations", label: "Ops", icon: Activity }
 ];
 
 const api = async (path, options = {}) => {
@@ -27,6 +48,18 @@ const api = async (path, options = {}) => {
 
 const postJson = (path, body, method = "POST") => api(path, { method, body: JSON.stringify(body) });
 const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Never";
+const normalize = (value) => String(value || "").toLowerCase();
+
+function downloadCsv(filename, rows) {
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Home() {
   const [state, setState] = useState(null);
@@ -43,11 +76,17 @@ export default function Home() {
   const refresh = async () => setState(await api("/api/state"));
   const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2400); };
   const mutate = async (promise, message) => {
-    try { setState(await promise); notify(message); }
-    catch (error) { notify(error.message); }
+    try {
+      setState(await promise);
+      notify(message);
+      return true;
+    } catch (error) {
+      notify(error.message);
+      return false;
+    }
   };
 
-  if (!state) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
+  if (!state) return <main className="loading"><Activity size={34} /><p>Loading workspace</p></main>;
 
   const activeConversation = state.conversations.find((conversation) => conversation.id === activeConversationId) || state.conversations[0];
   const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
@@ -57,14 +96,24 @@ export default function Home() {
   return (
     <main className="shell">
       <aside className="sideRail">
-        <div className="brandBlock"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>Growth Desk</strong><span>WhatsApp Business</span></div></div>
+        <div className="brandBlock">
+          <div className="brandIcon"><PhoneCall size={22} /></div>
+          <div><strong>Growth Desk</strong><span>WhatsApp CRM</span></div>
+        </div>
         <nav className="navList" aria-label="Product sections">
-          {navItems.map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => setActiveView(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => setActiveView(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
+          })}
         </nav>
-        <div className="railNote"><ShieldCheck size={18} /><span>Compliance active</span></div>
+        <div className="railNote"><ShieldCheck size={18} /><span>V1 controls</span></div>
       </aside>
+
       <section className="workspace">
-        <header className="heroBar"><div><p className="kicker">{navItems.find((item) => item.id === activeView)?.label}</p><h1>{pageTitle(activeView)}</h1></div><div className="topActions"><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><span className={`statusPill ${state.setup.status === "Connected" ? "good" : "warn"}`}>{state.setup.status}</span></div></header>
+        <header className="heroBar">
+          <div><p className="kicker">{navItems.find((item) => item.id === activeView)?.label}</p><h1>{pageTitle(activeView)}</h1></div>
+          <div className="topActions"><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><span className={`statusPill ${state.setup.status === "Connected" ? "good" : "warn"}`}>{state.setup.status}</span></div>
+        </header>
         {notice && <div className="toast">{notice}</div>}
         <Screens activeView={activeView} {...screenProps} />
       </section>
@@ -73,56 +122,181 @@ export default function Home() {
 }
 
 function Screens({ activeView, ...props }) {
-  const screens = { overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, templates: <Templates {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
+  const screens = {
+    overview: <Overview {...props} />,
+    setup: <Setup {...props} />,
+    contacts: <Contacts {...props} />,
+    templates: <Templates {...props} />,
+    campaigns: <Campaigns {...props} />,
+    results: <Results {...props} />,
+    inbox: <InboxView {...props} />,
+    unsubscribes: <Unsubscribes {...props} />,
+    operations: <Operations {...props} />
+  };
   return screens[activeView];
 }
 
 function pageTitle(view) {
-  return { overview: "Command center", setup: "Business connection", contacts: "Audience", templates: "Template library", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
+  return {
+    overview: "Command center",
+    setup: "Business connection",
+    contacts: "Audience",
+    templates: "Template library",
+    campaigns: "Campaign builder",
+    results: "Campaign results",
+    inbox: "Inbox",
+    unsubscribes: "Suppression list",
+    operations: "Operations"
+  }[view];
 }
 
-function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView, mutate }) {
-  return <div className="screenGrid"><section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2></div><div className="heroMetrics"><Metric label="Marketable" value={marketableContacts.length} /><Metric label="Approved" value={approvedTemplates.length} /><Metric label="Campaigns" value={state.campaigns.length} /></div></section><section className="actionBand"><button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> New campaign <ChevronRight size={18} /></button><button className="secondaryAction" onClick={() => setActiveView("inbox")}><Inbox size={18} /> Inbox</button><button className="secondaryAction" onClick={() => mutate(postJson("/api/admin/reset", { demo: true }), "Demo restored")}><Database size={18} /> Reset</button><button className="secondaryAction dangerText" onClick={() => mutate(postJson("/api/admin/reset", { demo: false }), "Data cleared")}><Ban size={18} /> Clear</button></section><Panel title="Latest campaign" subtitle={latestCampaign ? formatTime(latestCampaign.createdAt) : "No campaigns"}>{latestCampaign ? <ResultMeters stats={latestCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel></div>;
+function Overview({ state, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, setActiveView, mutate }) {
+  const readiness = getReadiness(state, approvedTemplates, marketableContacts);
+  return <div className="screenGrid">
+    <section className="heroPanel">
+      <div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2></div>
+      <div className="heroMetrics"><Metric label="Marketable" value={marketableContacts.length} /><Metric label="Approved" value={approvedTemplates.length} /><Metric label="Suppressed" value={suppressedContacts.length} /></div>
+    </section>
+    <section className="actionBand">
+      <button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> New campaign <ChevronRight size={18} /></button>
+      <button className="secondaryAction" onClick={() => setActiveView("inbox")}><Inbox size={18} /> Inbox</button>
+      <button className="secondaryAction" onClick={() => mutate(postJson("/api/admin/reset", { demo: true }), "Demo restored")}><Database size={18} /> Reset</button>
+      <button className="secondaryAction dangerText" onClick={() => mutate(postJson("/api/admin/reset", { demo: false }), "Data cleared")}><Ban size={18} /> Clear</button>
+    </section>
+    <section className="readinessGrid">{readiness.map((item) => <ReadinessCard key={item.label} {...item} />)}</section>
+    <Panel title="Latest campaign" subtitle={latestCampaign ? formatTime(latestCampaign.createdAt) : "No campaigns"}>{latestCampaign ? <ResultMeters stats={latestCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel>
+  </div>;
 }
 
 function Setup({ state, mutate }) {
   const submit = (event) => { event.preventDefault(); mutate(postJson("/api/setup", Object.fromEntries(new FormData(event.currentTarget)), "PUT"), "Setup saved"); };
-  return <div className="contentGrid twoColumns"><Panel title="Credentials"><form className="formGrid" onSubmit={submit}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><label>Mode<select name="mode" defaultValue={state.setup.mode}><option>Mock Meta</option><option>Live Meta</option></select></label><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save</button></form></Panel><Panel title="Status"><div className="statusGrid"><Metric label="Mode" value={state.setup.mode} /><Metric label="WABA" value={state.setup.wabaId ? "Set" : "Missing"} /><Metric label="Phone ID" value={state.setup.phoneNumberId ? "Set" : "Missing"} /><Metric label="Token" value={state.setup.accessToken ? "Saved" : "Missing"} /></div></Panel></div>;
+  return <div className="contentGrid twoColumns">
+    <Panel title="Credentials">
+      <form className="formGrid" onSubmit={submit}>
+        <Input name="businessName" label="Business name" defaultValue={state.setup.businessName} />
+        <Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} />
+        <Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} />
+        <Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} />
+        <Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} />
+        <Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" />
+        <label>Mode<select name="mode" defaultValue={state.setup.mode}><option>Mock Meta</option><option>Live Meta</option></select></label>
+        <button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save</button>
+      </form>
+    </Panel>
+    <Panel title="Readiness">
+      <div className="statusGrid">
+        <Metric label="Mode" value={state.setup.mode} />
+        <Metric label="WABA" value={state.setup.wabaId ? "Set" : "Missing"} />
+        <Metric label="Phone ID" value={state.setup.phoneNumberId ? "Set" : "Missing"} />
+        <Metric label="Token" value={state.setup.accessToken ? "Saved" : "Missing"} />
+      </div>
+    </Panel>
+  </div>;
 }
 
 function Contacts({ state, mutate }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const contacts = state.contacts.filter((contact) => {
+    const matchesQuery = normalize(`${contact.name} ${contact.phone}`).includes(normalize(query));
+    const matchesFilter = filter === "all" || (filter === "allowed" && contact.marketingPermission && !contact.unsubscribed) || (filter === "suppressed" && (contact.unsubscribed || !contact.marketingPermission));
+    return matchesQuery && matchesFilter;
+  });
   const add = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/contacts", { name: form.get("name"), phone: form.get("phone"), marketingPermission: form.get("marketingPermission") === "on" }), "Contact added"); event.currentTarget.reset(); };
   const importRows = (event) => { event.preventDefault(); mutate(postJson("/api/contacts/import", { csv: new FormData(event.currentTarget).get("csv") }), "Contacts imported"); };
-  return <div className="screenGrid"><div className="contentGrid twoColumns"><Panel title="Add contact"><form className="formGrid" onSubmit={add}><Input name="name" label="Name" placeholder="Priya Shah" /><Input name="phone" label="Phone" placeholder="+91 98765 10006" /><label className="checkRow"><input name="marketingPermission" type="checkbox" defaultChecked /> Marketing permission</label><button className="primaryAction" type="submit"><Plus size={18} /> Add</button></form></Panel><Panel title="Import"><form className="formGrid" onSubmit={importRows}><label>CSV<textarea name="csv" placeholder={"Aisha,+91 98765 10006,Yes\nDev,+91 98765 10007,No"}></textarea></label><button className="secondaryAction" type="submit"><Upload size={18} /> Import</button></form></Panel></div><Panel title="Contacts" subtitle={`${state.contacts.length} total`}><DataTable headers={["Name", "Phone", "Permission", "Last message", "Actions"]}>{state.contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions"><button onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, { marketingPermission: !contact.marketingPermission, unsubscribed: contact.marketingPermission }, "PATCH"), "Updated")}>{contact.marketingPermission ? "Suppress" : "Allow"}</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE"), "Removed")}>Remove</button></td></tr>)}</DataTable></Panel></div>;
+  const exportContacts = () => downloadCsv("contacts.csv", [["Name", "Phone", "Permission", "Last message"], ...contacts.map((contact) => [contact.name, contact.phone, contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked", contact.lastMessageAt || ""])]);
+  return <div className="screenGrid">
+    <div className="contentGrid twoColumns">
+      <Panel title="Add contact"><form className="formGrid" onSubmit={add}><Input name="name" label="Name" placeholder="Priya Shah" /><Input name="phone" label="Phone" placeholder="+91 98765 10006" /><label className="checkRow"><input name="marketingPermission" type="checkbox" defaultChecked /> Marketing permission</label><button className="primaryAction" type="submit"><Plus size={18} /> Add</button></form></Panel>
+      <Panel title="Import"><form className="formGrid" onSubmit={importRows}><label>CSV<textarea name="csv" placeholder={"Aisha,+91 98765 10006,Yes\nDev,+91 98765 10007,No"}></textarea></label><button className="secondaryAction" type="submit"><Upload size={18} /> Import</button></form></Panel>
+    </div>
+    <Panel title="Contacts" subtitle={`${contacts.length} shown`}>
+      <Toolbar query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} filters={["all", "allowed", "suppressed"]} onExport={exportContacts} />
+      <DataTable headers={["Name", "Phone", "Permission", "Last message", "Actions"]}>{contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions"><button onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, { marketingPermission: !contact.marketingPermission, unsubscribed: contact.marketingPermission }, "PATCH"), "Updated")}>{contact.marketingPermission ? "Suppress" : "Allow"}</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE"), "Removed")}>Remove</button></td></tr>)}</DataTable>
+      {!contacts.length && <EmptyState text="No contacts found" />}
+    </Panel>
+  </div>;
 }
 
 function Templates({ state, mutate }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const templates = state.templates.filter((template) => {
+    const matchesQuery = normalize(`${template.name} ${template.body}`).includes(normalize(query));
+    const matchesFilter = filter === "all" || normalize(template.status) === filter;
+    return matchesQuery && matchesFilter;
+  });
   const create = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/templates", { name: form.get("name"), body: form.get("body"), submitToMeta: form.get("submitToMeta") === "on" }), "Template created"); event.currentTarget.reset(); };
-  return <div className="screenGrid"><Panel title="Create template"><form className="templateComposer" onSubmit={create}><Input name="name" label="Name" placeholder="Festival Sale" /><label>Body<textarea name="body" placeholder="Hi {{name}}, get {{discount}} off today."></textarea></label><label className="checkRow"><input name="submitToMeta" type="checkbox" defaultChecked /> Submit</label><button className="primaryAction" type="submit"><MessageSquareText size={18} /> Create</button></form></Panel><div className="cardGrid">{state.templates.map((template) => <article className="templateCard" key={template.id}><div className="cardHead"><h3>{template.name}</h3><Badge kind={template.status === "Approved" ? "good" : template.status === "Pending" ? "warn" : "bad"}>{template.status}</Badge></div><p>{template.body}</p><div className="chipRow">{template.variables.map((variable) => <span key={variable}>{`{{${variable}}}`}</span>)}</div><div className="rowActions"><button onClick={() => mutate(postJson(`/api/templates/${template.id}`, { status: "Approved" }, "PATCH"), "Approved")}>Approve</button><button onClick={() => mutate(postJson(`/api/templates/${template.id}`, { status: "Rejected" }, "PATCH"), "Rejected")}>Reject</button></div></article>)}</div></div>;
+  return <div className="screenGrid">
+    <Panel title="Create template"><form className="templateComposer" onSubmit={create}><Input name="name" label="Name" placeholder="Festival Sale" /><label>Body<textarea name="body" placeholder="Hi {{name}}, get {{discount}} off today."></textarea></label><label className="checkRow"><input name="submitToMeta" type="checkbox" defaultChecked /> Submit</label><button className="primaryAction" type="submit"><MessageSquareText size={18} /> Create</button></form></Panel>
+    <Panel title="Library" subtitle={`${templates.length} shown`}><Toolbar query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} filters={["all", "approved", "pending", "draft", "rejected"]} />
+      <div className="cardGrid">{templates.map((template) => <article className="templateCard" key={template.id}><div className="cardHead"><h3>{template.name}</h3><Badge kind={template.status === "Approved" ? "good" : template.status === "Pending" ? "warn" : "bad"}>{template.status}</Badge></div><p>{template.body}</p><div className="chipRow">{template.variables.map((variable) => <span key={variable}>{`{{${variable}}}`}</span>)}</div><div className="rowActions"><button onClick={() => mutate(postJson(`/api/templates/${template.id}`, { status: "Approved" }, "PATCH"), "Approved")}>Approve</button><button onClick={() => mutate(postJson(`/api/templates/${template.id}`, { status: "Rejected" }, "PATCH"), "Rejected")}>Reject</button></div></article>)}</div>
+      {!templates.length && <EmptyState text="No templates found" />}
+    </Panel>
+  </div>;
 }
 
 function Campaigns({ approvedTemplates, marketableContacts, mutate, setActiveView }) {
   const [templateId, setTemplateId] = useState(approvedTemplates[0]?.id || "");
   const [discount, setDiscount] = useState("20%");
+  const [selectedIds, setSelectedIds] = useState(() => marketableContacts.map((contact) => contact.id));
+  const [query, setQuery] = useState("");
   const template = approvedTemplates.find((item) => item.id === templateId) || approvedTemplates[0];
-  const previewContact = marketableContacts[0] || { name: "Customer" };
+  const recipients = marketableContacts.filter((contact) => normalize(`${contact.name} ${contact.phone}`).includes(normalize(query)));
+  const previewContact = marketableContacts.find((contact) => selectedIds.includes(contact.id)) || marketableContacts[0] || { name: "Customer" };
   const preview = template ? template.body.replace(/{{\s*name\s*}}/g, previewContact.name).replace(/{{\s*discount\s*}}/g, discount) : "Approve a template first.";
-  const submit = async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const next = await postJson("/api/campaigns", { name: form.get("name"), templateId: form.get("templateId"), variables: { discount }, contactIds: form.getAll("contactIds") }); await mutate(Promise.resolve(next), "Campaign sent"); setActiveView("results"); } catch (error) { mutate(Promise.reject(error)); } };
-  return <div className="campaignLayout"><Panel title="Campaign"><form className="formGrid" onSubmit={submit}><Input name="name" label="Name" defaultValue="Diwali Sale 2026" /><label>Template<select name="templateId" value={template?.id || ""} onChange={(event) => setTemplateId(event.target.value)}>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Discount<input value={discount} onChange={(event) => setDiscount(event.target.value)} /></label><div className="recipientBox">{marketableContacts.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input name="contactIds" value={contact.id} type="checkbox" defaultChecked /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!approvedTemplates.length || !marketableContacts.length}><Send size={18} /> Send</button></form></Panel><Panel title="Preview"><div className="phonePreview"><div className="waBubble">{preview}</div></div></Panel></div>;
+  const toggle = (id) => setSelectedIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
+  const submit = async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const ok = await mutate(postJson("/api/campaigns", { name: form.get("name"), templateId: template?.id, variables: { discount }, contactIds: selectedIds }), "Campaign sent"); if (ok) setActiveView("results"); };
+  return <div className="campaignLayout"><Panel title="Campaign"><form className="formGrid" onSubmit={submit}><Input name="name" label="Name" defaultValue="Diwali Sale 2026" /><label>Template<select name="templateId" value={template?.id || ""} onChange={(event) => setTemplateId(event.target.value)}>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Discount<input value={discount} onChange={(event) => setDiscount(event.target.value)} /></label><div className="miniToolbar"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find recipient" /><button type="button" onClick={() => setSelectedIds(marketableContacts.map((contact) => contact.id))}>All</button><button type="button" onClick={() => setSelectedIds([])}>None</button></div><div className="recipientBox">{recipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedIds.includes(contact.id)} onChange={() => toggle(contact.id)} type="checkbox" /></label>)}{!recipients.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!template || !selectedIds.length}><Send size={18} /> Send</button></form></Panel><Panel title="Preview" subtitle={`${selectedIds.length} recipients`}><div className="phonePreview"><div className="waBubble">{preview}</div></div></Panel></div>;
 }
 
 function Results({ state }) {
-  return <div className="screenGrid">{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={formatTime(campaign.createdAt)}><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.metaMessageId}><td><strong>{contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : "good"}>{recipient.status}</Badge></td><td>{recipient.message}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
+  const [filter, setFilter] = useState("all");
+  const campaigns = state.campaigns.map((campaign) => ({ ...campaign, recipients: campaign.recipients.filter((recipient) => filter === "all" || recipient.status === filter) }));
+  const exportResults = () => downloadCsv("campaign-results.csv", [["Campaign", "Customer", "Status", "Message"], ...campaigns.flatMap((campaign) => campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return [campaign.name, contact.name || "Unknown", recipient.status, recipient.message]; }))]);
+  return <div className="screenGrid"><Panel title="Results" subtitle={`${state.campaigns.length} campaigns`}><Toolbar filter={filter} onFilter={setFilter} filters={["all", "sent", "delivered", "read", "failed"]} onExport={exportResults} compact />{campaigns.map((campaign) => <section className="resultBlock" key={campaign.id}><div className="resultHead"><h3>{campaign.name}</h3><span>{formatTime(campaign.createdAt)}</span></div><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.metaMessageId}><td><strong>{contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : "good"}>{recipient.status}</Badge></td><td>{recipient.message}</td></tr>; })}</DataTable></section>)}{!state.campaigns.length && <EmptyState text="No campaigns yet" />}</Panel></div>;
 }
 
 function InboxView({ state, activeConversation, activeContact, approvedTemplates, setActiveConversationId, mutate }) {
-  const reply = (event) => { event.preventDefault(); const body = new FormData(event.currentTarget).get("body"); mutate(postJson("/api/messages/reply", { contactId: activeContact.id, body }), "Sent"); };
+  const [query, setQuery] = useState("");
+  const conversations = state.conversations.filter((conversation) => {
+    const contact = state.contacts.find((item) => item.id === conversation.contactId) || {};
+    const last = conversation.messages.at(-1)?.body || "";
+    return normalize(`${contact.name} ${contact.phone} ${last}`).includes(normalize(query));
+  });
+  const reply = (event) => { event.preventDefault(); const body = new FormData(event.currentTarget).get("body"); mutate(postJson("/api/messages/reply", { contactId: activeContact.id, body }), "Sent"); event.currentTarget.reset(); };
   const templateReply = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/messages/template-reply", { contactId: activeContact.id, templateId: form.get("templateId"), variables: { discount: form.get("discount") } }), "Sent"); };
-  return <section className="inboxShell"><aside className="threadList">{state.conversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => setActiveConversationId(conversation.id)}><strong>{contact.name}</strong><span>{latest?.body}</span></button>; })}</aside><div className="threadPane">{activeConversation && activeContact ? <><header><strong>{activeContact.name}</strong><Badge kind={activeConversation.canReply ? "good" : "warn"}>{activeConversation.canReply ? "Open" : "Template"}</Badge></header><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><p>{message.body}</p><small>{formatTime(message.at)}</small></div>)}</div><form className="composer" onSubmit={reply}><textarea name="body" disabled={!activeConversation.canReply} placeholder={activeConversation.canReply ? "Message" : "Template required"}></textarea><button className="primaryAction" disabled={!activeConversation.canReply}><Send size={18} /> Send</button></form>{!activeConversation.canReply && <form className="composer templateLine" onSubmit={templateReply}><select name="templateId">{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select><input name="discount" defaultValue="20%" /><button className="secondaryAction" disabled={!approvedTemplates.length}>Send</button></form>}<div className="quickTools"><button onClick={() => mutate(postJson("/api/webhooks/mock-incoming", { contactId: activeContact.id, body: "Is this offer still available?" }), "Received")}>Test reply</button><button className="dangerText" onClick={() => mutate(postJson("/api/webhooks/mock-incoming", { contactId: activeContact.id, body: "STOP" }), "Suppressed")}>Test STOP</button></div></> : <EmptyState text="No conversations" />}</div></section>;
+  return <section className="inboxShell"><aside className="threadList"><div className="threadSearch"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search inbox" /></div>{conversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => setActiveConversationId(conversation.id)}><strong>{contact.name}</strong><span>{latest?.body}</span></button>; })}{!conversations.length && <EmptyState text="No conversations" />}</aside><div className="threadPane">{activeConversation && activeContact ? <><header><div><strong>{activeContact.name}</strong><small>{activeContact.phone}</small></div><Badge kind={activeConversation.canReply ? "good" : "warn"}>{activeConversation.canReply ? "Open" : "Template"}</Badge></header><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><p>{message.body}</p><small>{formatTime(message.at)}</small></div>)}</div><form className="composer" onSubmit={reply}><textarea name="body" disabled={!activeConversation.canReply} placeholder={activeConversation.canReply ? "Message" : "Template required"}></textarea><button className="primaryAction" disabled={!activeConversation.canReply}><Send size={18} /> Send</button></form>{!activeConversation.canReply && <form className="composer templateLine" onSubmit={templateReply}><select name="templateId">{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select><input name="discount" defaultValue="20%" /><button className="secondaryAction" disabled={!approvedTemplates.length}>Send</button></form>}<div className="quickTools"><button onClick={() => mutate(postJson("/api/webhooks/mock-incoming", { contactId: activeContact.id, body: "Is this offer still available?" }), "Received")}>Test reply</button><button className="dangerText" onClick={() => mutate(postJson("/api/webhooks/mock-incoming", { contactId: activeContact.id, body: "STOP" }), "Suppressed")}>Test STOP</button></div></> : <EmptyState text="No conversation selected" />}</div></section>;
 }
 
 function Unsubscribes({ suppressedContacts, mutate }) {
-  return <Panel title="Suppression"><DataTable headers={["Name", "Phone", "Reason", "Action"]}>{suppressedContacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td>{contact.unsubscribed ? "Unsubscribed" : "No permission"}</td><td><button onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, { marketingPermission: true, unsubscribed: false }, "PATCH"), "Restored")}>Restore</button></td></tr>)}</DataTable>{!suppressedContacts.length && <EmptyState text="No suppressed contacts" />}</Panel>;
+  const [query, setQuery] = useState("");
+  const contacts = suppressedContacts.filter((contact) => normalize(`${contact.name} ${contact.phone}`).includes(normalize(query)));
+  const exportList = () => downloadCsv("suppression-list.csv", [["Name", "Phone", "Reason"], ...contacts.map((contact) => [contact.name, contact.phone, contact.unsubscribed ? "Unsubscribed" : "No permission"])]);
+  return <Panel title="Suppression" subtitle={`${contacts.length} shown`}><Toolbar query={query} onQuery={setQuery} onExport={exportList} compact /><DataTable headers={["Name", "Phone", "Reason", "Action"]}>{contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td>{contact.unsubscribed ? "Unsubscribed" : "No permission"}</td><td><button onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, { marketingPermission: true, unsubscribed: false }, "PATCH"), "Restored")}>Restore</button></td></tr>)}</DataTable>{!contacts.length && <EmptyState text="No suppressed contacts" />}</Panel>;
+}
+
+function Operations({ state, approvedTemplates, marketableContacts, suppressedContacts }) {
+  const readiness = getReadiness(state, approvedTemplates, marketableContacts);
+  const recentEvents = state.events.slice(0, 8);
+  return <div className="screenGrid"><section className="readinessGrid">{readiness.map((item) => <ReadinessCard key={item.label} {...item} />)}</section><div className="contentGrid twoColumns"><Panel title="Data"><div className="statusGrid"><Metric label="Contacts" value={state.contacts.length} /><Metric label="Templates" value={state.templates.length} /><Metric label="Campaigns" value={state.campaigns.length} /><Metric label="Suppressed" value={suppressedContacts.length} /></div></Panel><Panel title="Activity"><div className="activityList">{recentEvents.map((event) => <div key={event.id}><Activity size={16} /><span>{event.type.replaceAll("_", " ")}</span><small>{formatTime(event.at)}</small></div>)}{!recentEvents.length && <EmptyState text="No activity yet" />}</div></Panel></div></div>;
+}
+
+function getReadiness(state, approvedTemplates, marketableContacts) {
+  return [
+    { label: "Credentials", value: state.meta.liveMetaReady ? "Ready" : "Mock", icon: KeyRound, kind: state.meta.liveMetaReady ? "good" : "warn" },
+    { label: "Audience", value: marketableContacts.length, icon: UsersRound, kind: marketableContacts.length ? "good" : "warn" },
+    { label: "Templates", value: approvedTemplates.length, icon: MessageSquareText, kind: approvedTemplates.length ? "good" : "warn" },
+    { label: "Webhook", value: state.setup.webhookUrl ? "Set" : "Missing", icon: Clock3, kind: state.setup.webhookUrl ? "good" : "warn" }
+  ];
+}
+
+function Toolbar({ query, onQuery, filter, onFilter, filters = [], onExport, compact = false }) {
+  return <div className={`toolbar ${compact ? "compact" : ""}`}>{onQuery && <div className="searchBox"><Search size={16} /><input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search" /></div>}{onFilter && <div className="segmentControl">{filters.map((item) => <button key={item} className={filter === item ? "active" : ""} onClick={() => onFilter(item)} type="button">{item}</button>)}</div>}{onExport && <button className="secondaryAction" onClick={onExport} type="button"><Download size={16} /> Export</button>}</div>;
+}
+
+function ReadinessCard({ label, value, icon: Icon, kind }) {
+  return <article className="readyCard"><div><span>{label}</span><strong>{value}</strong></div><Badge kind={kind}><Icon size={14} /></Badge></article>;
 }
 
 function Panel({ title, subtitle, children }) { return <section className="panel"><div className="panelHead"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>{children}</section>; }

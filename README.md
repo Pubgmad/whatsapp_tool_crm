@@ -57,3 +57,11 @@ The prototype stores data in `data/store.json`. This is local file persistence f
 - Configure a real Meta App, WhatsApp Business Account, phone number, access token, and webhook subscription.
 - Store credentials in a secure secret manager and use a real database.
 - Add authentication, tenant isolation, audit logs, rate-limit handling, retries, and webhook signature validation.
+
+## Production-oriented UI helpers
+
+- Search and status filters for contacts, templates, results, and inbox.
+- CSV export for contacts, suppression lists, and campaign results.
+- Operations screen for readiness and recent activity.
+- Mobile-first responsive navigation, forms, tables, campaign preview, and inbox layout.
+- Core WhatsApp prototype logic remains unchanged until real Meta credentials are provided.
