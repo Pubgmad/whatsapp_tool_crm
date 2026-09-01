@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import process from "node:process";
 import pg from "pg";
 
@@ -49,7 +49,7 @@ try {
     businessId = id("b");
     await client.query(
       `INSERT INTO businesses (id, name, slug, whatsapp_number, waba_id, phone_number_id, webhook_url, mode, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'Mock Meta', 'Needs setup')`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'Live Meta', 'Needs setup')`,
       [businessId, businessName, slug, "+91 98765 43210", "", "", process.env.WEBHOOK_URL || "http://localhost:3000/api/webhooks/meta"]
     );
   }
@@ -62,11 +62,11 @@ try {
   );
 
   const contacts = [
-    ["John Mathew", "+91 98765 10001", true, false, isoHoursAgo(2), "Demo seed"],
-    ["Ahmed Khan", "+91 98765 10002", true, false, isoHoursAgo(29), "Demo seed"],
-    ["Rahul Nair", "+91 98765 10003", false, true, null, "Demo seed"],
-    ["Meera Iyer", "+91 98765 10004", true, false, isoHoursAgo(5), "Demo seed"],
-    ["Sara Joseph", "+91 98765 10005", true, false, null, "Demo seed"]
+    ["John Mathew", "+91 98765 10001", true, false, isoHoursAgo(2), "Sample seed"],
+    ["Ahmed Khan", "+91 98765 10002", true, false, isoHoursAgo(29), "Sample seed"],
+    ["Rahul Nair", "+91 98765 10003", false, true, null, "Sample seed"],
+    ["Meera Iyer", "+91 98765 10004", true, false, isoHoursAgo(5), "Sample seed"],
+    ["Sara Joseph", "+91 98765 10005", true, false, null, "Sample seed"]
   ];
   for (const contact of contacts) {
     await client.query(
@@ -78,10 +78,10 @@ try {
   }
 
   await client.query(
-    `INSERT INTO templates (id, business_id, name, category, body, variables, status, meta_template_id, source)
+    `INSERT INTO templates (id, business_id, name, category, body, variables, status, meta_template_id, meta_template_name, source)
      VALUES
-       ($1, $3, 'Weekend Sale', 'Marketing', 'Hi {{name}}, we have a {{discount}} discount this weekend. Visit our store today.', '["name","discount"]', 'Approved', 'meta_tpl_weekend_sale', 'Demo seed'),
-       ($2, $3, 'Diwali Discount', 'Marketing', 'Hi {{name}}, Diwali sale is live. Get {{discount}} off today.', '["name","discount"]', 'Pending', '', 'Demo seed')
+       ($1, $3, 'Weekend Sale', 'Marketing', 'Hi {{name}}, we have a {{discount}} discount this weekend. Visit our store today.', '["name","discount"]', 'Approved', 'meta_tpl_weekend_sale', 'weekend_sale', 'Sample seed'),
+       ($2, $3, 'Diwali Discount', 'Marketing', 'Hi {{name}}, Diwali sale is live. Get {{discount}} off today.', '["name","discount"]', 'Pending', '', 'diwali_discount', 'Sample seed')
      ON CONFLICT (business_id, name) DO NOTHING`,
     [id("t"), id("t"), businessId]
   );
@@ -100,4 +100,6 @@ try {
   client.release();
   await pool.end();
 }
+
+
 

@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS users (
+﻿CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
@@ -16,11 +16,11 @@ CREATE TABLE IF NOT EXISTS businesses (
   phone_number_id TEXT DEFAULT '',
   access_token_encrypted TEXT DEFAULT '',
   webhook_url TEXT DEFAULT '',
-  mode TEXT NOT NULL DEFAULT 'Mock Meta',
+  mode TEXT NOT NULL DEFAULT 'Live Meta',
   status TEXT NOT NULL DEFAULT 'Needs setup',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT businesses_mode_check CHECK (mode IN ('Mock Meta', 'Live Meta')),
+  CONSTRAINT businesses_mode_check CHECK (mode IN ('Live Meta')),
   CONSTRAINT businesses_status_check CHECK (status IN ('Needs setup', 'Connected'))
 );
 
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
   name TEXT NOT NULL,
   template_id TEXT NOT NULL REFERENCES templates(id) ON DELETE RESTRICT,
   variables JSONB NOT NULL DEFAULT '{}'::jsonb,
-  mode TEXT NOT NULL DEFAULT 'Mock Meta',
+  mode TEXT NOT NULL DEFAULT 'Live Meta',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -131,5 +131,7 @@ CREATE INDEX IF NOT EXISTS idx_recipients_campaign ON campaign_recipients(campai
 CREATE INDEX IF NOT EXISTS idx_conversations_business ON conversations(business_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_at ON messages(conversation_id, at ASC);
 CREATE INDEX IF NOT EXISTS idx_events_business_at ON events(business_id, at DESC);
+
+
 
 

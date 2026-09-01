@@ -1,8 +1,8 @@
-# WhatsApp Growth Desk
+﻿# WhatsApp Growth Desk
 
-A Next.js WhatsApp CRM for businesses that need to manage opted-in contacts, approved WhatsApp templates, campaigns, delivery results, inbox replies, and unsubscribe handling.
+A production-oriented Next.js WhatsApp CRM for businesses that need to manage opted-in contacts, approved WhatsApp templates, campaigns, delivery results, inbox replies, and unsubscribe handling.
 
-This branch is no longer using local JSON storage. Data is stored in PostgreSQL and every API action is scoped to the signed-in business workspace.
+Data is stored in PostgreSQL and every API action is scoped to the signed-in business workspace.
 
 ## Database Choice
 
@@ -23,18 +23,13 @@ MongoDB can work, but it is less natural for this workflow because the product h
 - One business workspace per owner account.
 - PostgreSQL-backed contacts, imports, suppression, restore, and delete.
 - PostgreSQL-backed templates with draft, pending, approved, and rejected statuses.
-- Campaign creation from approved templates only.
+- Campaign creation from approved templates and opted-in contacts.
+- Real Meta Cloud API call path for template message sending.
 - Recipient records and campaign metrics.
 - Inbox conversations, messages, and 24-hour reply-window enforcement.
-- STOP / unsubscribe handling.
+- STOP / unsubscribe handling through incoming WhatsApp webhooks.
 - Meta webhook endpoint for incoming messages and delivery status updates.
 - Encrypted storage for Meta access tokens when `ENCRYPTION_KEY` is configured.
-
-## Still Mocked Until Meta Credentials Exist
-
-- Local campaign sends run in `Mock Meta` mode and create sent recipient records without contacting WhatsApp.
-- Template approval can still be manually changed in the UI for local testing.
-- The inbox has local test reply buttons when `ENABLE_MOCK_META=true`.
 
 ## Requires Real Meta Credentials
 
@@ -50,7 +45,7 @@ To send real WhatsApp messages, you need:
 - Webhook verify token matching `META_WEBHOOK_VERIFY_TOKEN`.
 - Message templates approved by Meta.
 
-A personal WhatsApp number should not be used if you want production. Use a dedicated business number, because a number connected to the WhatsApp Business Platform cannot also be actively used in the normal WhatsApp mobile app in the same way.
+A personal WhatsApp number should not be used for production. Use a dedicated business number, because a number connected to the WhatsApp Business Platform cannot also be actively used in the normal WhatsApp mobile app in the same way.
 
 ## Fresh Setup
 
@@ -76,7 +71,6 @@ DATABASE_SSL=false
 AUTH_SECRET=make-this-long-and-random
 ENCRYPTION_KEY=make-this-different-and-random
 APP_URL=http://localhost:3000
-ENABLE_MOCK_META=true
 ```
 
 4. Create tables
@@ -85,13 +79,13 @@ ENABLE_MOCK_META=true
 npm run db:init
 ```
 
-5. Optional seed data
+5. Optional sample data
 
 ```bash
 npm run db:seed
 ```
 
-The seed command creates a demo owner account only when you run it. Default login:
+The seed command creates a sample owner account only when you run it. Default login:
 
 ```text
 owner@example.com
@@ -110,16 +104,24 @@ Open:
 http://localhost:3000
 ```
 
-## How To Test The Main Workflow
+## How To Test Without Meta Credentials
 
 1. Sign up or sign in.
 2. Open **Audience** and add contacts with marketing permission enabled.
-3. Open **Templates**, create a template like `Hi {{name}}, get {{discount}} off today.`, then mark it approved.
-4. Open **Campaigns**, select the approved template, select contacts, enter a discount, and send.
-5. Open **Results** to see campaign recipient records and status counts.
-6. Open **Inbox** and use **Test reply** to simulate an incoming WhatsApp message.
-7. Reply normally if the contact is inside the 24-hour customer-service window.
-8. Use **Test STOP** to confirm the contact moves to suppression and is excluded from future campaigns.
+3. Open **Templates** and create a template.
+4. For local UI checks, run `npm run db:seed` to create sample contacts and a sample approved template.
+5. Open **Campaigns**, select the sample approved template, select contacts, enter a value, and send.
+6. Without real Meta credentials, the send action should fail clearly with a Meta configuration error. That is expected production behavior.
+
+## How To Test With Meta Credentials
+
+1. Add `META_WABA_ID`, `META_PHONE_NUMBER_ID`, `META_ACCESS_TOKEN`, and `META_WEBHOOK_VERIFY_TOKEN` to `.env.local`.
+2. Restart the development server.
+3. Sign in and open **Meta Setup**.
+4. Save the WABA ID, Phone Number ID, WhatsApp number, webhook URL, and access token.
+5. Create or use an approved WhatsApp template.
+6. Send a campaign to an opted-in test contact.
+7. Configure Meta webhooks to call `/api/webhooks/meta` so incoming messages and delivery statuses update the inbox/results.
 
 ## How Data Works
 
@@ -136,7 +138,7 @@ http://localhost:3000
 
 ## Important Production Notes
 
-Before real production launch, add:
+Before launch, connect these operational pieces:
 
 - Hosted PostgreSQL with backups.
 - Managed secret storage for environment variables.
@@ -144,7 +146,7 @@ Before real production launch, add:
 - Webhook signature validation using the Meta app secret.
 - Queue-based campaign sending for large batches.
 - Rate limits and retry handling for Meta API errors.
-- Team roles beyond owner-only access.
+- Team roles beyond owner-only access if multiple staff need access.
 - Monitoring, error reporting, and audit log views.
 - Privacy, consent, and data-retention policies.
 
@@ -160,4 +162,7 @@ Before real production launch, add:
 
 `password authentication failed`: check your PostgreSQL username/password in `DATABASE_URL`.
 
+`Meta WhatsApp credentials are required before sending messages`: save real Meta credentials in **Meta Setup**.
+
 `Normal reply period expired`: the contact has not messaged within 24 hours, so use an approved template reply.
+
