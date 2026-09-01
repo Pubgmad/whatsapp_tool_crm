@@ -1,0 +1,17 @@
+{
+  "name": "whatsapp-marketing-tool-prototype",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Next.js dynamic prototype for a WhatsApp marketing and inbox tool.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "lucide-react": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  }
+}
