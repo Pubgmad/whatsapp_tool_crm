@@ -319,3 +319,20 @@ tbody tr:hover { background: #fbfdfb; }
   .rowActions { display: grid; grid-template-columns: 1fr; }
   .toast { left: 12px; right: 12px; top: 12px; }
 }
+
+.authForm .primaryAction,
+.authSubmit {
+  width: 100%;
+  min-height: 46px;
+  position: relative;
+  z-index: 2;
+}
+.authSubmit span { display: inline-block; min-width: 0; }
+.templateLine { grid-template-columns: minmax(180px, 1fr) repeat(auto-fit, minmax(120px, 160px)) auto; }
+.templateComposer { grid-template-columns: minmax(190px, .62fr) minmax(280px, 1.35fr) auto; }
+
+@media (max-width: 720px) {
+  .authForm .primaryAction,
+  .authSubmit { width: 100%; }
+  .templateLine { grid-template-columns: 1fr; }
+}
