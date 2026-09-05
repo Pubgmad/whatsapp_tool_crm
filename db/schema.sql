@@ -81,10 +81,26 @@ CREATE TABLE IF NOT EXISTS campaign_recipients (
   message TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'queued',
   meta_message_id TEXT DEFAULT '',
+  error_message TEXT DEFAULT '',
   sent_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(campaign_id, contact_id),
   CONSTRAINT campaign_recipients_status_check CHECK (status IN ('queued', 'sent', 'delivered', 'read', 'failed'))
+);
+
+CREATE TABLE IF NOT EXISTS campaign_jobs (
+  id TEXT PRIMARY KEY,
+  campaign_recipient_id TEXT NOT NULL REFERENCES campaign_recipients(id) ON DELETE CASCADE UNIQUE,
+  status TEXT NOT NULL DEFAULT 'queued',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  locked_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  error_message TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT campaign_jobs_status_check CHECK (status IN ('queued', 'processing', 'retry', 'completed', 'failed'))
 );
 
 CREATE TABLE IF NOT EXISTS conversations (
@@ -136,3 +152,5 @@ CREATE INDEX IF NOT EXISTS idx_events_business_at ON events(business_id, at DESC
 
 
 
+
+CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run_at);

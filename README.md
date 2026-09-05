@@ -24,11 +24,13 @@ MongoDB can work, but it is less natural for this workflow because the product h
 - PostgreSQL-backed contacts, imports, suppression, restore, and delete.
 - PostgreSQL-backed templates with draft, pending, approved, and rejected statuses.
 - Campaign creation from approved templates and opted-in contacts.
+- Database-backed campaign queue with batch processing and retry tracking.
 - Real Meta Cloud API call path for template message sending.
 - Recipient records and campaign metrics.
 - Inbox conversations, messages, and 24-hour reply-window enforcement.
 - STOP / unsubscribe handling through incoming WhatsApp webhooks.
 - Meta webhook endpoint for incoming messages and delivery status updates.
+- Meta webhook signature validation with `META_APP_SECRET` when enabled/configured.
 - Encrypted storage for Meta access tokens when `ENCRYPTION_KEY` is configured.
 
 ## Requires Real Meta Credentials
@@ -71,6 +73,10 @@ DATABASE_SSL=false
 AUTH_SECRET=make-this-long-and-random
 ENCRYPTION_KEY=make-this-different-and-random
 APP_URL=http://localhost:3000
+META_APP_SECRET=your-meta-app-secret
+META_WEBHOOK_SIGNATURE_REQUIRED=false
+JOB_RUNNER_SECRET=make-this-long-and-random
+CAMPAIGN_QUEUE_BATCH_SIZE=25
 ```
 
 4. Create tables
@@ -104,7 +110,8 @@ http://localhost:3000
 1. Sign up or sign in.
 2. Open **Audience** and add contacts with marketing permission enabled.
 3. Open **Templates** and create a template.
-4. Add your own contacts and submit your own template.\n5. After Meta approves the template, open **Campaigns**, select that template, select contacts, enter variable values, and send.
+4. Add your own contacts and submit your own template.
+5. After Meta approves the template, open **Campaigns**, select that template, select contacts, enter variable values, and send.
 6. Without real Meta credentials, the send action should fail clearly with a Meta configuration error. That is expected production behavior.
 
 ## How To Test With Meta Credentials
@@ -116,6 +123,7 @@ http://localhost:3000
 5. Create or use an approved WhatsApp template.
 6. Send a campaign to an opted-in test contact.
 7. Configure Meta webhooks to call `/api/webhooks/meta` so incoming messages and delivery statuses update the inbox/results.
+8. Campaign sends are queued first, then processed in batches. For local testing, the app processes the first batch immediately and also shows a **Process queue** button in Results.
 
 ## How Data Works
 

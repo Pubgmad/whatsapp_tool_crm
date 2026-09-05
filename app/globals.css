@@ -819,3 +819,16 @@ td {
     flex-direction: column;
   }
 }
+
+/* Queue result refinements */
+.meterGrid {
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+}
+
+.errorLine {
+  display: block;
+  margin-top: 8px;
+  color: #b23b45;
+  font-weight: 750;
+  line-height: 1.35;
+}

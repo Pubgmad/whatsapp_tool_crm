@@ -18,6 +18,7 @@ const pool = new Pool({
 try {
   await pool.query(schema);
   await pool.query("ALTER TABLE templates ADD COLUMN IF NOT EXISTS meta_template_name TEXT DEFAULT ''");
+  await pool.query("ALTER TABLE campaign_recipients ADD COLUMN IF NOT EXISTS error_message TEXT DEFAULT ''");
   console.log("Database schema is ready.");
 } finally {
   await pool.end();
