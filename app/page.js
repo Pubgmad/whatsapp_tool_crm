@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck, Ban, BarChart3, ChevronRight, CircleAlert, Inbox, LayoutDashboard,
-  LogOut, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
+  Eye, EyeOff, Loader2, LogOut, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
   ShieldCheck, Sparkles, Upload, UsersRound
 } from "lucide-react";
 
@@ -122,20 +122,48 @@ export default function Home() {
 function AuthScreen({ onDone }) {
   const [mode, setMode] = useState("signin");
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const isSignup = mode === "signup";
+
+  const switchMode = () => {
+    if (pending) return;
+    setError("");
+    setShowPassword(false);
+    setShowConfirm(false);
+    setMode(isSignup ? "signin" : "signup");
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     setError("");
     const form = Object.fromEntries(new FormData(event.currentTarget));
+
+    if (isSignup && form.password !== form.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (String(form.password || "").length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    delete form.confirmPassword;
+    setPending(true);
     try {
-      await postJson(mode === "signin" ? "/api/auth/login" : "/api/auth/register", form);
+      await postJson(isSignup ? "/api/auth/register" : "/api/auth/login", form);
       await onDone();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setPending(false);
     }
   };
-  return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>Growth Desk</strong><span>WhatsApp Business CRM</span></div></div><div><p className="kicker">Secure workspace</p><h1>{mode === "signin" ? "Sign in" : "Create workspace"}</h1></div><form className="formGrid authForm" onSubmit={submit}>{mode === "signup" && <><Input name="name" label="Your name" required /><Input name="businessName" label="Business name" required /></>}<Input name="email" label="Email" type="email" required /><Input name="password" label="Password" type="password" minLength="8" required />{error && <div className="formError">{error}</div>}<button className="primaryAction authSubmit" type="submit"><ShieldCheck size={18} /> <span>{mode === "signin" ? "Sign in" : "Create account"}</span></button></form><button className="textButton" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>{mode === "signin" ? "Create a new workspace" : "Use an existing account"}</button></section></main>;
-}
 
+  return <main className="authShell"><section className="authPanel authPanelPro"><div className="brandBlock dark authBrand"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>Growth Desk</strong><span>WhatsApp Business CRM</span></div></div><div className="authHeader"><p className="kicker">Secure workspace</p><h1>{isSignup ? "Create workspace" : "Sign in"}</h1><p>{isSignup ? "Start with your business account and connect Meta after login." : "Continue to your WhatsApp campaign workspace."}</p></div><form className="formGrid authForm" onSubmit={submit}>{isSignup && <><Input name="name" label="Your name" autoComplete="name" required /><Input name="businessName" label="Business name" autoComplete="organization" required /></>}<Input name="email" label="Email" type="email" autoComplete="email" required /><PasswordField name="password" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete={isSignup ? "new-password" : "current-password"} required />{isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction authSubmit" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />} <span>{pending ? "Please wait" : isSignup ? "Create account" : "Sign in"}</span></button></form><div className="authSwitch"><span>{isSignup ? "Already have a workspace?" : "New workspace?"}</span><button className="textButton" type="button" onClick={switchMode}>{isSignup ? "Sign in" : "Create account"}</button></div></section></main>;
+}
 function SystemSetup({ message }) {
   return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><Settings2 size={22} /></div><div><strong>Configuration required</strong><span>Production database setup</span></div></div><h1>Connect PostgreSQL</h1><p className="setupCopy">{message}</p><div className="envBox"><code>DATABASE_URL</code><code>AUTH_SECRET</code><code>ENCRYPTION_KEY</code></div></section></main>;
 }
@@ -209,6 +237,7 @@ function Panel({ title, subtitle, children }) { return <section className="panel
 function Metric({ label, value }) { return <div className="metric"><span>{label}</span><strong>{value}</strong></div>; }
 function Badge({ kind = "neutral", children }) { return <span className={`badge ${kind}`}>{children}</span>; }
 function Input({ label, ...props }) { return <label>{label}<input {...props} /></label>; }
+function PasswordField({ label, visible, onToggle, ...props }) { return <label>{label}<span className="passwordWrap"><input {...props} type={visible ? "text" : "password"} minLength="8" /><button type="button" onClick={onToggle} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>; }
 function EmptyState({ text }) { return <div className="emptyState"><CircleAlert size={20} /><span>{text}</span></div>; }
 function DataTable({ headers, children }) { return <div className="tableWrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div>; }
 function ResultMeters({ stats }) { return <div className="meterGrid"><Metric label="Total" value={stats.total} /><Metric label="Sent" value={stats.sent} /><Metric label="Delivered" value={stats.delivered} /><Metric label="Read" value={stats.read} /><Metric label="Failed" value={stats.failed} /></div>; }

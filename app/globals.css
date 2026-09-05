@@ -725,3 +725,97 @@ td {
     width: 100%;
   }
 }
+
+/* Auth flow refinements */
+.authPanelPro {
+  gap: 20px;
+  padding: 30px;
+}
+
+.authBrand {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.authHeader {
+  display: grid;
+  gap: 8px;
+}
+
+.authHeader p:last-child {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.passwordWrap {
+  display: grid;
+  grid-template-columns: 1fr 44px;
+  align-items: stretch;
+  border: 1px solid #cbd8d1;
+  border-radius: 8px;
+  background: #fbfdfb;
+  overflow: hidden;
+}
+
+.passwordWrap:focus-within {
+  border-color: #0f9d6a;
+  box-shadow: 0 0 0 4px rgba(8,122,85,.12);
+}
+
+.passwordWrap input {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.passwordWrap input:focus {
+  box-shadow: none;
+}
+
+.passwordWrap button {
+  border: 0;
+  background: transparent;
+  color: #52605a;
+  display: grid;
+  place-items: center;
+}
+
+.passwordWrap button:hover {
+  color: #07553e;
+  background: #eef5f1;
+}
+
+.authSwitch {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.authSwitch .textButton {
+  justify-self: auto;
+}
+
+.spin {
+  animation: spin .8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .authPanelPro {
+    padding: 18px;
+  }
+
+  .authSwitch {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
