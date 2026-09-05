@@ -361,3 +361,72 @@ tbody tr:hover { background: #fbfdfb; }
 .authPanel .authSubmit:hover {
   background: linear-gradient(135deg, #0a8e63 0%, #07553e 100%) !important;
 }
+
+/* Button visibility guard for production UI */
+button,
+.primaryAction,
+.secondaryAction,
+.textButton,
+.iconButton,
+.rowActions button,
+.navList button,
+.threadList button {
+  appearance: none;
+  opacity: 1;
+  visibility: visible;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.primaryAction,
+button.primaryAction {
+  color: #ffffff !important;
+  background-color: #087a55 !important;
+  background-image: linear-gradient(135deg, #087a55 0%, #064b38 100%) !important;
+  border: 1px solid #07553e !important;
+}
+
+.primaryAction svg,
+.primaryAction span,
+button.primaryAction svg,
+button.primaryAction span {
+  color: currentColor !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  flex: 0 0 auto;
+}
+
+.secondaryAction,
+.rowActions button,
+button.secondaryAction {
+  color: #14201c !important;
+  background: #edf2ee !important;
+  border: 1px solid #dce3de !important;
+}
+
+.secondaryAction svg,
+.secondaryAction span,
+.rowActions button span,
+.rowActions button svg {
+  color: currentColor !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.textButton,
+button.textButton {
+  color: #07553e !important;
+  background: transparent !important;
+  min-height: 32px;
+}
+
+.iconButton,
+button.iconButton {
+  color: #14201c !important;
+  background: rgba(255,255,255,.92) !important;
+}
+
+.navList button { color: #d5e1dc !important; }
+.navList button.active { color: #0b1f17 !important; background: #f7fbf8 !important; }
+.threadList button { color: #14201c !important; }
+button:disabled { opacity: .62 !important; }

@@ -9,21 +9,21 @@ The business should be able to: connect its WhatsApp number -> add customers -> 
 marketing messages -> send campaigns -> see delivery results -> receive customer replies -> reply 
 from our tool.
 2. Main Screens We Need
- WhatsApp Setup
- Contacts
- Templates
- Campaigns
- Campaign Results
- Inbox
- Unsubscribe Management
+- WhatsApp Setup
+- Contacts
+- Templates
+- Campaigns
+- Campaign Results
+- Inbox
+- Unsubscribe Management
 3. WhatsApp Setup
 This screen connects the buyer's own WhatsApp Business account to our tool.
-
-
-
-
-
-
+-
+-
+-
+-
+-
+-
 Meta Business Portfolio: Represents the buyer's company on Meta.
 WhatsApp Business Account: The buyer's company WhatsApp setup.
 Business phone number: The WhatsApp number customers will see.
@@ -32,7 +32,7 @@ WhatsApp Business Account ID: Meta's internal identifier for the WhatsApp accoun
 Access Token: A secret key that allows our software to communicate with Meta.
 Example setup status
 WhatsApp Number: +91 98765 43210
-Business: ABC Clothing
+Business: Customer Business
 Status: Connected
 4. Contacts
 The buyer adds customers who may receive messages.
@@ -48,10 +48,10 @@ Yes
 Rahul
 +91 96...
 No
- Add customers manually.
- Upload customers from a spreadsheet.
- Remove customers.
- Mark customers as unsubscribed.
+- Add customers manually.
+- Upload customers from a spreadsheet.
+- Remove customers.
+- Mark customers as unsubscribed.
 Important rule
 Only send marketing messages to customers who have agreed to receive them.
 5. Message Templates
@@ -104,10 +104,10 @@ Example conversation
 John: Is this offer available tomorrow?
 Business: Yes, it is available until Sunday.
 John: Great, thanks.
- Show incoming customer messages.
- Open the full conversation.
- Allow the buyer to type and send a reply when normal replies are allowed.
- Keep the conversation history visible.
+- Show incoming customer messages.
+- Open the full conversation.
+- Allow the buyer to type and send a reply when normal replies are allowed.
+- Keep the conversation history visible.
 9. Replying to Customers
 When a customer messages the business, a 24-hour normal reply period begins from the customer's 
 latest message.
@@ -147,14 +147,14 @@ Campaign Screen
 Meta  ->  Sent  ->  Delivered  ->  Read  ->  Campaign Screen
 12. V1 Modules
 Keep V1 focused on exactly these modules:
- WhatsApp Setup
- Contacts
- Templates
- Campaigns
- Campaign Results
- Inbox
- Reply to Customer
- Unsubscribe Management
+- WhatsApp Setup
+- Contacts
+- Templates
+- Campaigns
+- Campaign Results
+- Inbox
+- Reply to Customer
+- Unsubscribe Management
 V1 scope
 This is enough for a real standalone WhatsApp marketing and customer messaging tool. Do not add 
 software-as-a-service features yet.

@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS templates (
   variables JSONB NOT NULL DEFAULT '[]'::jsonb,
   status TEXT NOT NULL DEFAULT 'Draft',
   meta_template_id TEXT DEFAULT '',
+  meta_template_name TEXT DEFAULT '',
   source TEXT NOT NULL DEFAULT 'Manual draft',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
