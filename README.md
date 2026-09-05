@@ -169,3 +169,74 @@ Before launch, connect these operational pieces:
 `Normal reply period expired`: the contact has not messaged within 24 hours, so use an approved template reply.
 
 
+
+## Production SaaS Foundation
+
+This branch adds a separate Mathstrat Super Admin layer for subscription SaaS operations. The company CRM remains at `/`, and the platform owner dashboard is available at:
+
+```text
+http://localhost:3000/super-admin
+```
+
+The Super Admin flow uses its own HTTP-only session cookie and the `/api/super-admin/*` namespace. Every Super Admin route checks the Super Admin session server-side, so normal company admins cannot access platform APIs by discovering URLs.
+
+### Super Admin Environment
+
+Set these only in `.env.local` or your hosted secret manager:
+
+```bash
+SUPER_ADMIN_EMAIL=your-platform-admin-email
+SUPER_ADMIN_PASSWORD=your-platform-admin-password
+SUPER_ADMIN_SESSION_SECRET=make-this-long-and-random
+```
+
+Then run:
+
+```bash
+npm run db:init
+```
+
+The initializer hashes the password and stores only the hash in PostgreSQL. The plain password is not committed, not returned by APIs, and not stored in browser storage.
+
+### Subscription Configuration
+
+Subscription data is stored in PostgreSQL:
+
+- `subscription_plans`: plan catalogue, billing interval, price, limits, active flag.
+- `business_subscriptions`: one subscription record per company.
+- `billing_events`: future payment and invoice history.
+
+Plan setup is environment-driven for now. Configure optional plan seed data with:
+
+```bash
+DEFAULT_SUBSCRIPTION_PLAN_CODE=your-default-plan-code
+SUBSCRIPTION_PLANS_JSON=[{"code":"your-plan-code","name":"Your Plan","billingInterval":"monthly","priceCents":0,"currency":"INR","trialDays":0}]
+```
+
+If no default plan is configured, new companies are created with a pending subscription and can later be assigned a plan when billing management is added.
+
+### Super Admin Capabilities
+
+The Super Admin can currently:
+
+- View total, active, pending, suspended, and WhatsApp-connected companies.
+- View subscription status and plan mix.
+- Search and filter companies.
+- Inspect an individual company without seeing private customer conversations.
+- See company owner email, registration date, usage counts, WhatsApp connection status, subscription dates, and recent platform activity.
+- Activate or suspend a company.
+
+Suspension is enforced server-side through the normal company account loader, so suspended tenants cannot keep using company CRM APIs.
+
+### Production SaaS Work Still Needed
+
+Before a public SaaS launch, add:
+
+- Payment provider integration and webhook handling.
+- Self-service plan upgrade/downgrade.
+- Automated renewal and expiry jobs.
+- Email verification, password reset, and staff invitations.
+- Fine-grained company roles and permissions.
+- Meta Embedded Signup for self-service WhatsApp onboarding.
+- Hosted cron/worker for campaign queue processing.
+- Monitoring, rate-limit dashboards, audit log UI, backups, and legal/compliance policies.

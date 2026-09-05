@@ -2,13 +2,14 @@
   "name": "whatsapp-growth-desk",
   "version": "3.0.0",
   "private": true,
-  "description": "Production-ready Next.js WhatsApp CRM with PostgreSQL-backed contacts, campaigns, inbox, and Meta Cloud API hooks.",
+  "description": "Production SaaS-ready Next.js WhatsApp CRM with PostgreSQL, Meta Cloud API hooks, subscriptions, and Super Admin controls.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "db:init": "node scripts/db-init.mjs",
-    "db:seed": "node scripts/db-seed.mjs"
+    "db:seed": "node scripts/db-seed.mjs",
+    "super-admin:init": "node scripts/db-init.mjs"
   },
   "dependencies": {
     "lucide-react": "latest",

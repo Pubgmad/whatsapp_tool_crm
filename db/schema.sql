@@ -7,6 +7,17 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS super_admins (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT 'Mathstrat Super Admin',
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  last_login_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS businesses (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -18,10 +29,64 @@ CREATE TABLE IF NOT EXISTS businesses (
   webhook_url TEXT DEFAULT '',
   mode TEXT NOT NULL DEFAULT 'Live Meta',
   status TEXT NOT NULL DEFAULT 'Needs setup',
+  account_status TEXT NOT NULL DEFAULT 'pending',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT businesses_mode_check CHECK (mode IN ('Live Meta')),
-  CONSTRAINT businesses_status_check CHECK (status IN ('Needs setup', 'Connected'))
+  CONSTRAINT businesses_status_check CHECK (status IN ('Needs setup', 'Connected')),
+  CONSTRAINT businesses_account_status_check CHECK (account_status IN ('pending', 'active', 'suspended'))
+);
+
+CREATE TABLE IF NOT EXISTS subscription_plans (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  billing_interval TEXT NOT NULL DEFAULT 'monthly',
+  price_cents INTEGER NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  trial_days INTEGER NOT NULL DEFAULT 0,
+  contact_limit INTEGER,
+  campaign_limit INTEGER,
+  user_limit INTEGER,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT subscription_plans_interval_check CHECK (billing_interval IN ('monthly', 'yearly', 'trial', 'custom'))
+);
+
+CREATE TABLE IF NOT EXISTS business_subscriptions (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE UNIQUE,
+  plan_id TEXT REFERENCES subscription_plans(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'trialing',
+  payment_status TEXT NOT NULL DEFAULT 'none',
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  trial_ends_at TIMESTAMPTZ,
+  current_period_start TIMESTAMPTZ,
+  current_period_end TIMESTAMPTZ,
+  renews_at TIMESTAMPTZ,
+  cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+  provider TEXT DEFAULT 'manual',
+  provider_customer_id TEXT DEFAULT '',
+  provider_subscription_id TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT business_subscriptions_status_check CHECK (status IN ('trialing', 'active', 'past_due', 'canceled', 'expired', 'pending')),
+  CONSTRAINT business_subscriptions_payment_check CHECK (payment_status IN ('none', 'pending', 'paid', 'failed', 'refunded'))
+);
+
+CREATE TABLE IF NOT EXISTS billing_events (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  subscription_id TEXT REFERENCES business_subscriptions(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL,
+  amount_cents INTEGER DEFAULT 0,
+  currency TEXT DEFAULT 'INR',
+  provider TEXT DEFAULT 'manual',
+  provider_event_id TEXT DEFAULT '',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS memberships (
@@ -141,6 +206,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_super_admins_email ON super_admins(email);
+CREATE INDEX IF NOT EXISTS idx_businesses_account_status ON businesses(account_status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_business ON business_subscriptions(business_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON business_subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_billing_events_business_at ON billing_events(business_id, at DESC);
 CREATE INDEX IF NOT EXISTS idx_contacts_business ON contacts(business_id);
 CREATE INDEX IF NOT EXISTS idx_templates_business ON templates(business_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_business_created ON campaigns(business_id, created_at DESC);
@@ -148,9 +218,4 @@ CREATE INDEX IF NOT EXISTS idx_recipients_campaign ON campaign_recipients(campai
 CREATE INDEX IF NOT EXISTS idx_conversations_business ON conversations(business_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_at ON messages(conversation_id, at ASC);
 CREATE INDEX IF NOT EXISTS idx_events_business_at ON events(business_id, at DESC);
-
-
-
-
-
 CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run_at);
