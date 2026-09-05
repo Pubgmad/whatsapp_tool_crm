@@ -1,4 +1,4 @@
-﻿# WhatsApp Growth Desk
+# WhatsApp Growth Desk
 
 A production-oriented Next.js WhatsApp CRM for businesses that need to manage opted-in contacts, approved WhatsApp templates, campaigns, delivery results, inbox replies, and unsubscribe handling.
 
@@ -79,18 +79,13 @@ APP_URL=http://localhost:3000
 npm run db:init
 ```
 
-5. Optional sample data
+5. Optional owner workspace seed
 
 ```bash
 npm run db:seed
 ```
 
-The seed command creates a sample owner account only when you run it. Default login:
-
-```text
-owner@example.com
-Password123!
-```
+The seed command creates only the owner workspace from `SEED_EMAIL`, `SEED_PASSWORD`, and `SEED_BUSINESS_NAME`. It does not create sample contacts, templates, campaigns, or messages.
 
 6. Start the app
 
@@ -109,8 +104,7 @@ http://localhost:3000
 1. Sign up or sign in.
 2. Open **Audience** and add contacts with marketing permission enabled.
 3. Open **Templates** and create a template.
-4. For local UI checks, run `npm run db:seed` to create sample contacts and a sample approved template.
-5. Open **Campaigns**, select the sample approved template, select contacts, enter a value, and send.
+4. Add your own contacts and submit your own template.\n5. After Meta approves the template, open **Campaigns**, select that template, select contacts, enter variable values, and send.
 6. Without real Meta credentials, the send action should fail clearly with a Meta configuration error. That is expected production behavior.
 
 ## How To Test With Meta Credentials
@@ -165,4 +159,5 @@ Before launch, connect these operational pieces:
 `Meta WhatsApp credentials are required before sending messages`: save real Meta credentials in **Meta Setup**.
 
 `Normal reply period expired`: the contact has not messaged within 24 hours, so use an approved template reply.
+
 
