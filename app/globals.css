@@ -336,3 +336,28 @@ tbody tr:hover { background: #fbfdfb; }
   .authSubmit { width: 100%; }
   .templateLine { grid-template-columns: 1fr; }
 }
+
+.authPanel .authSubmit,
+.authPanel button.primaryAction.authSubmit {
+  display: inline-flex !important;
+  width: 100% !important;
+  min-height: 48px !important;
+  padding: 0 18px !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #087a55 0%, #064b38 100%) !important;
+  border: 1px solid #07553e !important;
+  box-shadow: 0 18px 34px rgba(8, 122, 85, .28) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.authPanel .authSubmit svg,
+.authPanel .authSubmit span {
+  color: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.authPanel .authSubmit:hover {
+  background: linear-gradient(135deg, #0a8e63 0%, #07553e 100%) !important;
+}
