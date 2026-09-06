@@ -205,125 +205,164 @@ function Templates({ state, mutate }) {
   return <div className="screenGrid"><section className="actionBand"><button className="secondaryAction" type="button" onClick={sync}><RefreshCcw size={18} /> Sync from Meta</button></section><Panel title="Create template"><form className="templateComposer" onSubmit={create}><Input name="name" label="Name" placeholder="Template name" /><label>Body<textarea name="body" placeholder="Use variables like {{name}} where needed"></textarea></label><button className="primaryAction" type="submit"><MessageSquareText size={18} /> Submit</button></form></Panel><div className="cardGrid">{state.templates.map((template) => <article className="templateCard" key={template.id}><div className="cardHead"><h3>{template.name}</h3><Badge kind={template.status === "Approved" ? "good" : template.status === "Pending" ? "warn" : "bad"}>{template.status}</Badge></div><p>{template.body}</p><div className="chipRow">{template.variables.map((variable) => <span key={variable}>{`{{${variable}}}`}</span>)}</div></article>)}</div></div>;
 }
 
-function AutomationFlows({ state, mutate }) {
+function AutomationFlows({ state, mutate, approvedTemplates }) {
   const flows = state.automationFlows || [];
-  const blankDefinition = JSON.stringify({ startNodeId: "", nodes: [] }, null, 2);
+  const teamMembers = state.teamMembers || [];
   const [editingId, setEditingId] = useState("");
-  const [definition, setDefinition] = useState(blankDefinition);
-  const [keywords, setKeywords] = useState("");
+  const [flowMeta, setFlowMeta] = useState({ name: "", description: "", status: "draft", triggerMode: "keywords", triggerKeywords: "" });
+  const [nodes, setNodes] = useState([]);
+  const [draggedNode, setDraggedNode] = useState("");
   const [formError, setFormError] = useState("");
-  const editingFlow = flows.find((flow) => flow.id === editingId);
+  const analytics = flows.reduce((totals, flow) => ({
+    active: totals.active + flow.activeSessions,
+    completed: totals.completed + flow.completedSessions,
+    handoff: totals.handoff + flow.handoffSessions,
+    pending: totals.pending + flow.pendingJobs
+  }), { active: 0, completed: 0, handoff: 0, pending: 0 });
+
+  const createNode = () => ({ id: `node_${Date.now().toString(36)}`, type: "question", body: "", inputKind: "buttons", options: [], next: "", fallback: "", captureAs: "", templateId: "", delayMinutes: 0, assignedUserId: "" });
+  const reset = () => { setEditingId(""); setFlowMeta({ name: "", description: "", status: "draft", triggerMode: "keywords", triggerKeywords: "" }); setNodes([]); setFormError(""); };
+  const updateMeta = (key, value) => setFlowMeta((current) => ({ ...current, [key]: value }));
+  const updateNode = (nodeId, key, value) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, [key]: value } : node));
+  const addNode = () => setNodes((current) => [...current, createNode()]);
+  const removeNode = (nodeId) => setNodes((current) => current.filter((node) => node.id !== nodeId).map((node) => ({ ...node, next: node.next === nodeId ? "" : node.next, options: node.options.map((option) => ({ ...option, next: option.next === nodeId ? "" : option.next })) })));
+  const addOption = (nodeId) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, options: [...node.options, { id: `option_${node.options.length + 1}`, label: "", description: "", match: "", next: "" }] } : node));
+  const updateOption = (nodeId, index, key, value) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, options: node.options.map((option, optionIndex) => optionIndex === index ? { ...option, [key]: value } : option) } : node));
+  const removeOption = (nodeId, index) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, options: node.options.filter((_, optionIndex) => optionIndex !== index) } : node));
+  const reorderNode = (targetId) => {
+    if (!draggedNode || draggedNode === targetId) return;
+    setNodes((current) => {
+      const from = current.findIndex((node) => node.id === draggedNode);
+      const to = current.findIndex((node) => node.id === targetId);
+      if (from < 0 || to < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDraggedNode("");
+  };
 
   const loadFlow = (flow) => {
     setEditingId(flow.id);
-    setKeywords((flow.triggerKeywords || []).join(", "));
-    setDefinition(JSON.stringify(flow.definition || { startNodeId: "", nodes: [] }, null, 2));
+    setFlowMeta({ name: flow.name, description: flow.description || "", status: flow.status || "draft", triggerMode: flow.triggerMode || "keywords", triggerKeywords: (flow.triggerKeywords || []).join(", ") });
+    setNodes((flow.definition?.nodes || []).map((node) => ({
+      id: node.id,
+      type: node.type || "question",
+      body: node.body || "",
+      inputKind: node.inputKind || "text",
+      options: (node.options || []).map((option) => ({ ...option, match: (option.match || []).join(", ") })),
+      next: node.next || "",
+      fallback: node.fallback || "",
+      captureAs: node.captureAs || "",
+      buttonText: node.buttonText || "",
+      sectionTitle: node.sectionTitle || "",
+      templateId: node.templateId || "",
+      delayMinutes: node.delayMinutes || 0,
+      assignedUserId: node.assignedUserId || ""
+    })));
     setFormError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const reset = () => {
-    setEditingId("");
-    setKeywords("");
-    setDefinition(blankDefinition);
-    setFormError("");
+  const buildDefinition = () => {
+    const cleanNodes = nodes.map((node) => ({
+      id: node.id.trim(),
+      type: node.type,
+      body: node.body.trim(),
+      inputKind: node.inputKind,
+      options: node.options.map((option) => ({
+        id: option.id.trim(),
+        label: option.label.trim(),
+        description: option.description.trim(),
+        match: String(option.match || "").split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
+        next: option.next
+      })).filter((option) => option.id && option.label),
+      next: node.next,
+      fallback: node.fallback.trim(),
+      captureAs: node.captureAs.trim(),
+      buttonText: String(node.buttonText || "").trim(),
+      sectionTitle: String(node.sectionTitle || "").trim(),
+      templateId: node.templateId,
+      delayMinutes: Math.max(0, Number(node.delayMinutes) || 0),
+      assignedUserId: node.assignedUserId
+    })).filter((node) => node.id);
+    return { startNodeId: cleanNodes[0]?.id || "", nodes: cleanNodes };
   };
 
   const submit = (event) => {
     event.preventDefault();
     setFormError("");
-    let parsed;
-    try {
-      parsed = JSON.parse(definition);
-    } catch {
-      setFormError("Flow definition must be valid JSON.");
-      return;
-    }
-    const form = new FormData(event.currentTarget);
+    const definition = buildDefinition();
+    if (!definition.nodes.length) { setFormError("Add at least one node before saving."); return; }
+    if (flowMeta.triggerMode === "keywords" && !flowMeta.triggerKeywords.trim()) { setFormError("Add trigger keywords or choose another trigger mode."); return; }
     mutate(postJson("/api/automation/flows", {
       id: editingId,
-      name: form.get("name"),
-      description: form.get("description"),
-      status: form.get("status"),
-      triggerMode: form.get("triggerMode"),
-      triggerKeywords: keywords.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
-      definition: parsed
-    }).then(() => api("/api/state")).then((next) => {
-      reset();
-      return next;
-    }), editingId ? "Automation flow updated" : "Automation flow saved");
+      name: flowMeta.name,
+      description: flowMeta.description,
+      status: flowMeta.status,
+      triggerMode: flowMeta.triggerMode,
+      triggerKeywords: flowMeta.triggerKeywords.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
+      definition
+    }).then(() => api("/api/state")).then((next) => { reset(); return next; }), editingId ? "Automation flow updated" : "Automation flow saved");
   };
 
-  const updateStatus = (flow, status) => mutate(
-    postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH").then(() => api("/api/state")),
-    status === "active" ? "Flow activated" : "Flow paused"
-  );
+  const updateStatus = (flow, status) => mutate(postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH").then(() => api("/api/state")), status === "active" ? "Flow activated" : "Flow paused");
   const archive = (flow) => mutate(postJson(`/api/automation/flows/${flow.id}`, {}, "DELETE").then(() => api("/api/state")), "Flow archived");
   const process = () => mutate(postJson("/api/automation/process", { limit: 25 }).then(() => api("/api/state")), "Automation queue processed");
 
   return <div className="screenGrid automationScreen">
-    <section className="actionBand automationTopbar">
-      <div>
-        <strong>Conversation automation</strong>
-        <span>Build tenant-specific reply flows that run from WhatsApp webhooks.</span>
-      </div>
-      <div className="actionCluster">
-        <button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>
-        {editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}
-      </div>
+    <section className="automationHero">
+      <div><p className="kicker">Automation studio</p><h2>Build reply flows without code</h2><span>Each company owns its own triggers, nodes, routes, follow-up templates, delays, and handoff rules.</span></div>
+      <div className="automationKpis"><Metric label="Flows" value={flows.length} /><Metric label="Active sessions" value={analytics.active} /><Metric label="Completed" value={analytics.completed} /><Metric label="Pending jobs" value={analytics.pending} /></div>
     </section>
 
-    <div className="automationGrid">
-      <Panel title={editingId ? "Edit automation flow" : "Create automation flow"} subtitle="Every trigger, step, message, and route is stored per company.">
-        <form key={editingId || "new-flow"} className="formGrid automationForm" onSubmit={submit}>
-          <Input name="name" label="Flow name" placeholder="Flow name" defaultValue={editingFlow?.name || ""} required />
-          <label>Description<textarea name="description" rows="3" placeholder="Internal purpose for this flow" defaultValue={editingFlow?.description || ""}></textarea></label>
-          <div className="formSplit">
-            <label>Status<select name="status" defaultValue={editingFlow?.status || "draft"}><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select></label>
-            <label>Trigger mode<select name="triggerMode" defaultValue={editingFlow?.triggerMode || "keywords"}><option value="keywords">Keywords</option><option value="any_inbound">Any inbound message</option><option value="manual">Manual only</option></select></label>
-          </div>
-          <label>Trigger keywords<textarea rows="3" value={keywords} onChange={(event) => setKeywords(event.target.value)} placeholder="Comma or line separated trigger words"></textarea></label>
-          <label>Flow definition JSON<textarea className="codeTextarea" rows="16" value={definition} onChange={(event) => setDefinition(event.target.value)} spellCheck="false" placeholder="Define startNodeId and nodes as JSON"></textarea></label>
+    <section className="actionBand automationTopbar">
+      <div><strong>{editingId ? "Editing flow" : "New flow"}</strong><span>Use drag handles to reorder nodes. The first node becomes the start node.</span></div>
+      <div className="actionCluster"><button className="secondaryAction" type="button" onClick={addNode}><Plus size={18} /> Add node</button><button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>{editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}</div>
+    </section>
+
+    <form className="visualFlowShell" onSubmit={submit}>
+      <Panel title="Flow settings" subtitle="Stored per company and checked on the server.">
+        <div className="formGrid automationForm">
+          <Input label="Flow name" value={flowMeta.name} onChange={(event) => updateMeta("name", event.target.value)} placeholder="Flow name" required />
+          <label>Description<textarea rows="3" value={flowMeta.description} onChange={(event) => updateMeta("description", event.target.value)} placeholder="Internal purpose for this flow"></textarea></label>
+          <div className="formSplit"><label>Status<select value={flowMeta.status} onChange={(event) => updateMeta("status", event.target.value)}><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select></label><label>Trigger mode<select value={flowMeta.triggerMode} onChange={(event) => updateMeta("triggerMode", event.target.value)}><option value="keywords">Keywords</option><option value="any_inbound">Any inbound message</option><option value="manual">Manual only</option></select></label></div>
+          <label>Trigger keywords<textarea rows="3" value={flowMeta.triggerKeywords} onChange={(event) => updateMeta("triggerKeywords", event.target.value)} placeholder="Comma or line separated trigger words"></textarea></label>
           {formError && <div className="formError" role="alert">{formError}</div>}
           <button className="primaryAction" type="submit"><Bot size={18} /> <span>{editingId ? "Update flow" : "Save flow"}</span></button>
-        </form>
-      </Panel>
-
-      <Panel title="Runtime rules" subtitle="The engine chooses the next message from saved flow data.">
-        <div className="flowRules">
-          <div><strong>Triggers</strong><span>Keyword flows start from matching customer messages. Any-inbound flows start when no active session exists.</span></div>
-          <div><strong>Routing</strong><span>Buttons, list rows, typed numbers, labels, and configured match terms can move the customer to the next node.</span></div>
-          <div><strong>Capture</strong><span>Text replies can be saved into the session context and reused as variables later in the flow.</span></div>
-          <div><strong>Takeover</strong><span>A handoff node stops automation so a human can continue in the inbox.</span></div>
         </div>
       </Panel>
-    </div>
+
+      <section className="flowCanvas" aria-label="Automation nodes">
+        {nodes.map((node, nodeIndex) => <article className="flowNode" key={node.id} draggable onDragStart={() => setDraggedNode(node.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => reorderNode(node.id)}>
+          <header><button className="iconButton dragHandle" type="button" title="Drag node"><Bot size={16} /></button><div><strong>{node.id || `Node ${nodeIndex + 1}`}</strong><span>{nodeIndex === 0 ? "Start node" : "Step node"}</span></div><button className="iconButton dangerSoft" type="button" title="Remove node" onClick={() => removeNode(node.id)}><Trash2 size={16} /></button></header>
+          <div className="nodeFields">
+            <label>Node ID<input value={node.id} onChange={(event) => updateNode(node.id, "id", event.target.value)} /></label>
+            <label>Type<select value={node.type} onChange={(event) => updateNode(node.id, "type", event.target.value)}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option><option value="handoff">Human handoff</option><option value="end">End</option></select></label>
+            <label>Input<select value={node.inputKind} onChange={(event) => updateNode(node.id, "inputKind", event.target.value)}><option value="buttons">Buttons</option><option value="list">List</option><option value="text">Free text</option><option value="none">No input</option></select></label>
+            <label>Next node<select value={node.next} onChange={(event) => updateNode(node.id, "next", event.target.value)}><option value="">None</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label>
+          </div>
+          {node.type === "template" && <div className="nodeFields"><label>Approved template<select value={node.templateId} onChange={(event) => updateNode(node.id, "templateId", event.target.value)}><option value="">Select template</option>{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label><label>Delay minutes<input type="number" min="0" value={node.delayMinutes} onChange={(event) => updateNode(node.id, "delayMinutes", event.target.value)} /></label></div>}
+          {node.type === "handoff" && <label>Assign to<select value={node.assignedUserId} onChange={(event) => updateNode(node.id, "assignedUserId", event.target.value)}><option value="">Keep unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select></label>}
+          <label>Message<textarea rows="4" value={node.body} onChange={(event) => updateNode(node.id, "body", event.target.value)} placeholder="Message body. Use variables like {{name}} or captured values."></textarea></label>
+          <div className="nodeFields"><label>Fallback<textarea rows="2" value={node.fallback} onChange={(event) => updateNode(node.id, "fallback", event.target.value)} placeholder="Shown when reply does not match"></textarea></label><label>Capture as<input value={node.captureAs} onChange={(event) => updateNode(node.id, "captureAs", event.target.value)} placeholder="Variable name" /></label></div>
+          {(node.inputKind === "buttons" || node.inputKind === "list") && <div className="optionEditor"><div className="optionHead"><strong>Options</strong><button className="secondaryAction" type="button" onClick={() => addOption(node.id)}><Plus size={16} /> Add option</button></div>{node.options.map((option, optionIndex) => <div className="optionRow" key={`${node.id}-${optionIndex}`}><input value={option.id} onChange={(event) => updateOption(node.id, optionIndex, "id", event.target.value)} placeholder="id" /><input value={option.label} onChange={(event) => updateOption(node.id, optionIndex, "label", event.target.value)} placeholder="label" /><input value={option.match} onChange={(event) => updateOption(node.id, optionIndex, "match", event.target.value)} placeholder="match terms" /><select value={option.next} onChange={(event) => updateOption(node.id, optionIndex, "next", event.target.value)}><option value="">Next</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><button className="iconButton dangerSoft" type="button" onClick={() => removeOption(node.id, optionIndex)}><Trash2 size={15} /></button></div>)}</div>}
+        </article>)}
+        {!nodes.length && <button className="emptyFlowButton" type="button" onClick={addNode}><Plus size={22} /> Add the first automation node</button>}
+      </section>
+    </form>
 
     <div className="flowCardGrid">
-      {flows.map((flow) => <article className="templateCard flowCard" key={flow.id}>
-        <div className="cardHead">
-          <div><h3>{flow.name}</h3><p>{flow.description || "No description"}</p></div>
-          <Badge kind={flow.status === "active" ? "good" : flow.status === "paused" ? "warn" : "neutral"}>{flow.status}</Badge>
-        </div>
-        <div className="statusGrid">
-          <Metric label="Nodes" value={flow.nodeCount} />
-          <Metric label="Active" value={flow.activeSessions} />
-          <Metric label="Completed" value={flow.completedSessions} />
-          <Metric label="Handoff" value={flow.handoffSessions} />
-        </div>
-        <div className="chipRow">{flow.triggerKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}{!flow.triggerKeywords.length && <span>{flow.triggerMode}</span>}</div>
-        <div className="flowActions">
-          <button className="secondaryAction" type="button" onClick={() => loadFlow(flow)}>Edit</button>
-          <button className="secondaryAction" type="button" onClick={() => updateStatus(flow, flow.status === "active" ? "paused" : "active")}>{flow.status === "active" ? "Pause" : "Activate"}</button>
-          <button className="secondaryAction dangerSoft" type="button" onClick={() => archive(flow)}><Trash2 size={16} /> Archive</button>
-        </div>
-      </article>)}
+      {flows.map((flow) => <article className="templateCard flowCard" key={flow.id}><div className="cardHead"><div><h3>{flow.name}</h3><p>{flow.description || "No description"}</p></div><Badge kind={flow.status === "active" ? "good" : flow.status === "paused" ? "warn" : "neutral"}>{flow.status}</Badge></div><div className="statusGrid"><Metric label="Nodes" value={flow.nodeCount} /><Metric label="Active" value={flow.activeSessions} /><Metric label="Completed" value={flow.completedSessions} /><Metric label="Rate" value={`${flow.completionRate || 0}%`} /></div><div className="chipRow">{flow.triggerKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}{!flow.triggerKeywords.length && <span>{flow.triggerMode}</span>}</div><div className="flowActions"><button className="secondaryAction" type="button" onClick={() => loadFlow(flow)}>Edit</button><button className="secondaryAction" type="button" onClick={() => updateStatus(flow, flow.status === "active" ? "paused" : "active")}>{flow.status === "active" ? "Pause" : "Activate"}</button><button className="secondaryAction dangerSoft" type="button" onClick={() => archive(flow)}><Trash2 size={16} /> Archive</button></div></article>)}
       {!flows.length && <Panel title="No automation flows"><EmptyState text="Create and activate a flow to automate replies from incoming WhatsApp messages." /></Panel>}
     </div>
   </div>;
 }
-function Campaigns({ approvedTemplates, marketableContacts, mutate, setActiveView }) {
+function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setActiveView }) {
+  const activeFlows = (state.automationFlows || []).filter((flow) => flow.status === "active");
   const [templateId, setTemplateId] = useState(approvedTemplates[0]?.id || "");
+  const [automationFlowId, setAutomationFlowId] = useState("");
   const [variables, setVariables] = useState({});
   useEffect(() => {
     if (!templateId && approvedTemplates[0]?.id) setTemplateId(approvedTemplates[0].id);
@@ -334,23 +373,35 @@ function Campaigns({ approvedTemplates, marketableContacts, mutate, setActiveVie
   const editableVariables = (template?.variables || []).filter((variable) => variable !== "name");
   const preview = template ? renderPreview(template.body, previewContact, variables) : "Select an approved template first.";
   const setVariable = (key, value) => setVariables((current) => ({ ...current, [key]: value }));
-  const submit = async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await postJson("/api/campaigns", { name: form.get("name"), templateId: form.get("templateId"), variables, contactIds: form.getAll("contactIds") }); const next = await postJson("/api/campaigns/process", { limit: 25 }); await mutate(Promise.resolve(next), "Campaign queued and processed"); setActiveView("results"); } catch (error) { mutate(Promise.reject(error)); } };
-  return <div className="campaignLayout"><Panel title="Campaign"><form className="formGrid" onSubmit={submit}><Input name="name" label="Name" placeholder="Campaign name" /><label>Template<select name="templateId" value={template?.id || ""} onChange={(event) => { setTemplateId(event.target.value); setVariables({}); }} disabled={!approvedTemplates.length}><option value="">{approvedTemplates.length ? "Choose template" : "No approved templates available"}</option>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>{!approvedTemplates.length && <EmptyState text="Create a template and wait for Meta approval before sending campaigns" />}{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariable(variable, event.target.value)} placeholder={`Value for {{${variable}}}`} /></label>)}<div className="recipientBox">{marketableContacts.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input name="contactIds" value={contact.id} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!approvedTemplates.length || !marketableContacts.length}><Send size={18} /> Send</button></form></Panel><Panel title="Preview"><div className="phonePreview"><div className="waBubble">{preview}</div></div></Panel></div>;
+  const submit = async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await postJson("/api/campaigns", { name: form.get("name"), templateId: form.get("templateId"), automationFlowId, variables, contactIds: form.getAll("contactIds") });
+      const next = await postJson("/api/campaigns/process", { limit: 25 });
+      await mutate(Promise.resolve(next), "Campaign queued and processed");
+      setActiveView("results");
+    } catch (error) {
+      mutate(Promise.reject(error));
+    }
+  };
+  return <div className="campaignLayout"><Panel title="Campaign"><form className="formGrid" onSubmit={submit}><Input name="name" label="Name" placeholder="Campaign name" /><label>Template<select name="templateId" value={template?.id || ""} onChange={(event) => { setTemplateId(event.target.value); setVariables({}); }} disabled={!approvedTemplates.length}><option value="">{approvedTemplates.length ? "Choose template" : "No approved templates available"}</option>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label><label>Reply automation<select value={automationFlowId} onChange={(event) => setAutomationFlowId(event.target.value)}><option value="">No follow-up flow</option>{activeFlows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>{!approvedTemplates.length && <EmptyState text="Create a template and wait for Meta approval before sending campaigns" />}{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariable(variable, event.target.value)} placeholder={`Value for {{${variable}}}`} /></label>)}<div className="recipientBox">{marketableContacts.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input name="contactIds" value={contact.id} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!approvedTemplates.length || !marketableContacts.length}><Send size={18} /> Send</button></form></Panel><Panel title="Preview"><div className="phonePreview"><div className="waBubble">{preview}</div></div></Panel></div>;
 }
-
 function Results({ state, mutate }) {
   const processQueue = () => mutate(postJson("/api/campaigns/process", { limit: 25 }), "Queue processed");
   return <div className="screenGrid"><section className="actionBand"><button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process queue</button></section>{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={formatTime(campaign.createdAt)}><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.id || recipient.metaMessageId}><td><strong>{contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : recipient.status === "queued" ? "warn" : "good"}>{recipient.status}</Badge></td><td><span>{recipient.message}</span>{recipient.errorMessage && <small className="errorLine">{recipient.errorMessage}</small>}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
 }
 
 function InboxView({ state, activeConversation, activeContact, approvedTemplates, setActiveConversationId, mutate }) {
+  const teamMembers = state.teamMembers || [];
+  const assignedUser = teamMembers.find((member) => member.id === activeConversation?.assignedUserId);
   const reply = (event) => { event.preventDefault(); const body = new FormData(event.currentTarget).get("body"); if (!activeContact) return; mutate(postJson("/api/messages/reply", { contactId: activeContact.id, body }), "Sent"); event.currentTarget.reset(); };
   const templateReply = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const template = approvedTemplates.find((item) => item.id === form.get("templateId")); const variables = Object.fromEntries((template?.variables || []).filter((variable) => variable !== "name").map((variable) => [variable, form.get(variable)])); if (!activeContact) return; mutate(postJson("/api/messages/template-reply", { contactId: activeContact.id, templateId: form.get("templateId"), variables }), "Sent"); };
+  const workflowAction = (action, assignedUserId = "") => { if (!activeConversation) return; mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, { action, assignedUserId }, "PATCH"), action === "resume" ? "Automation resumed" : action === "takeover" ? "Conversation moved to human takeover" : "Conversation assigned"); };
   const templateForReply = approvedTemplates[0];
   const replyVariables = (templateForReply?.variables || []).filter((variable) => variable !== "name");
-  return <section className="inboxShell"><aside className="threadList">{state.conversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => setActiveConversationId(conversation.id)}><strong>{contact.name}</strong><span>{latest?.body}</span></button>; })}</aside><div className="threadPane">{activeConversation && activeContact ? <><header><strong>{activeContact.name}</strong><Badge kind={activeConversation.canReply ? "good" : "warn"}>{activeConversation.canReply ? "Open" : "Template"}</Badge></header><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><p>{message.body}</p><small>{formatTime(message.at)}</small></div>)}</div><form className="composer" onSubmit={reply}><textarea name="body" disabled={!activeConversation.canReply} placeholder={activeConversation.canReply ? "Message" : "Template required"}></textarea><button className="primaryAction" disabled={!activeConversation.canReply}><Send size={18} /> Send</button></form>{!activeConversation.canReply && <form className="composer templateLine" onSubmit={templateReply}><select name="templateId">{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>{replyVariables.map((variable) => <input key={variable} name={variable} placeholder={`{{${variable}}}`} />)}<button className="secondaryAction" disabled={!approvedTemplates.length}>Send</button></form>}</> : <EmptyState text="No conversations" />}</div></section>;
+  return <section className="inboxShell"><aside className="threadList">{state.conversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => setActiveConversationId(conversation.id)}><strong>{contact.name}</strong><span>{latest?.body}</span>{conversation.automationPaused && <small>Human takeover</small>}</button>; })}</aside><div className="threadPane">{activeConversation && activeContact ? <><header><div><strong>{activeContact.name}</strong><small>{assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "Open" : "Template"}</Badge></header><div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", event.target.value)}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", activeConversation.assignedUserId)}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button></div><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><p>{message.body}</p><small>{formatTime(message.at)} · {message.status}</small></div>)}</div><form className="composer" onSubmit={reply}><textarea name="body" disabled={!activeConversation.canReply} placeholder={activeConversation.canReply ? "Message" : "Template required"}></textarea><button className="primaryAction" disabled={!activeConversation.canReply}><Send size={18} /> Send</button></form>{!activeConversation.canReply && <form className="composer templateLine" onSubmit={templateReply}><select name="templateId">{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>{replyVariables.map((variable) => <input key={variable} name={variable} placeholder={`{{${variable}}}`} />)}<button className="secondaryAction" disabled={!approvedTemplates.length}>Send</button></form>}</> : <EmptyState text="No conversations" />}</div></section>;
 }
-
 function Unsubscribes({ suppressedContacts, mutate }) {
   return <Panel title="Suppression"><DataTable headers={["Name", "Phone", "Reason", "Action"]}>{suppressedContacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td>{contact.unsubscribed ? "Unsubscribed" : "No permission"}</td><td><button onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, { marketingPermission: true, unsubscribed: false }, "PATCH"), "Restored")}>Restore</button></td></tr>)}</DataTable>{!suppressedContacts.length && <EmptyState text="No suppressed contacts" />}</Panel>;
 }

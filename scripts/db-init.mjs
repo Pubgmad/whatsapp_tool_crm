@@ -53,8 +53,8 @@ async function seedSubscriptionPlans(client) {
     const name = clean(plan.name);
     if (!code || !name) continue;
     await client.query(
-      `INSERT INTO subscription_plans (id, code, name, description, billing_interval, price_cents, currency, trial_days, contact_limit, campaign_limit, user_limit, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO subscription_plans (id, code, name, description, billing_interval, price_cents, currency, trial_days, contact_limit, campaign_limit, user_limit, automation_flow_limit, monthly_message_limit, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (code) DO UPDATE
        SET name = EXCLUDED.name,
            description = EXCLUDED.description,
@@ -66,6 +66,8 @@ async function seedSubscriptionPlans(client) {
            campaign_limit = EXCLUDED.campaign_limit,
            user_limit = EXCLUDED.user_limit,
            is_active = EXCLUDED.is_active,
+           automation_flow_limit = EXCLUDED.automation_flow_limit,
+           monthly_message_limit = EXCLUDED.monthly_message_limit,
            updated_at = NOW()`,
       [
         `plan_${crypto.randomBytes(8).toString("hex")}`,
@@ -79,6 +81,8 @@ async function seedSubscriptionPlans(client) {
         Number.isFinite(Number(plan.contactLimit ?? plan.contact_limit)) ? Number(plan.contactLimit ?? plan.contact_limit) : null,
         Number.isFinite(Number(plan.campaignLimit ?? plan.campaign_limit)) ? Number(plan.campaignLimit ?? plan.campaign_limit) : null,
         Number.isFinite(Number(plan.userLimit ?? plan.user_limit)) ? Number(plan.userLimit ?? plan.user_limit) : null,
+        Number.isFinite(Number(plan.automationFlowLimit ?? plan.automation_flow_limit)) ? Number(plan.automationFlowLimit ?? plan.automation_flow_limit) : null,
+        Number.isFinite(Number(plan.monthlyMessageLimit ?? plan.monthly_message_limit)) ? Number(plan.monthlyMessageLimit ?? plan.monthly_message_limit) : null,
         plan.isActive === false ? false : true
       ]
     );
@@ -129,6 +133,19 @@ try {
   await client.query("BEGIN");
   await client.query("DO $$ BEGIN IF to_regclass('public.businesses') IS NOT NULL THEN ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'; END IF; END $$;");
   await client.query(schema);
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS automation_flow_limit INTEGER");
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS monthly_message_limit INTEGER");
+  await client.query("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS automation_flow_id TEXT");
+  await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS assigned_user_id TEXT");
+  await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS automation_paused BOOLEAN NOT NULL DEFAULT FALSE");
+  await client.query("ALTER TABLE automation_sessions ADD COLUMN IF NOT EXISTS assigned_user_id TEXT");
+  await client.query("ALTER TABLE automation_sessions ADD COLUMN IF NOT EXISTS campaign_id TEXT");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_campaigns_automation_flow ON campaigns(automation_flow_id)");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_conversations_assigned_user ON conversations(assigned_user_id)");
+  await addConstraintIfMissing(client, "campaigns", "campaigns_automation_flow_id_fkey", "FOREIGN KEY (automation_flow_id) REFERENCES automation_flows(id) ON DELETE SET NULL");
+  await addConstraintIfMissing(client, "conversations", "conversations_assigned_user_id_fkey", "FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL");
+  await addConstraintIfMissing(client, "automation_sessions", "automation_sessions_assigned_user_id_fkey", "FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL");
+  await addConstraintIfMissing(client, "automation_sessions", "automation_sessions_campaign_id_fkey", "FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL");
   await client.query("ALTER TABLE templates ADD COLUMN IF NOT EXISTS meta_template_name TEXT DEFAULT ''");
   await client.query("ALTER TABLE campaign_recipients ADD COLUMN IF NOT EXISTS error_message TEXT DEFAULT ''");
   await client.query("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'");
