@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS super_admins (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL DEFAULT 'Mathstrat Super Admin',
+  name TEXT NOT NULL DEFAULT 'Super Admin',
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -168,6 +168,56 @@ CREATE TABLE IF NOT EXISTS campaign_jobs (
   CONSTRAINT campaign_jobs_status_check CHECK (status IN ('queued', 'processing', 'retry', 'completed', 'failed'))
 );
 
+CREATE TABLE IF NOT EXISTS automation_flows (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'draft',
+  trigger_mode TEXT NOT NULL DEFAULT 'keywords',
+  trigger_keywords JSONB NOT NULL DEFAULT '[]'::jsonb,
+  definition JSONB NOT NULL DEFAULT '{"startNodeId":"","nodes":[]}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT automation_flows_status_check CHECK (status IN ('draft', 'active', 'paused', 'archived')),
+  CONSTRAINT automation_flows_trigger_check CHECK (trigger_mode IN ('keywords', 'any_inbound', 'manual'))
+);
+
+CREATE TABLE IF NOT EXISTS automation_sessions (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  flow_id TEXT NOT NULL REFERENCES automation_flows(id) ON DELETE CASCADE,
+  current_node_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  context JSONB NOT NULL DEFAULT '{}'::jsonb,
+  human_takeover BOOLEAN NOT NULL DEFAULT FALSE,
+  last_input TEXT DEFAULT '',
+  last_error TEXT DEFAULT '',
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  CONSTRAINT automation_sessions_status_check CHECK (status IN ('active', 'completed', 'handoff', 'failed', 'cancelled'))
+);
+
+CREATE TABLE IF NOT EXISTS automation_jobs (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES automation_sessions(id) ON DELETE CASCADE,
+  incoming_message_id TEXT DEFAULT '',
+  input JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status TEXT NOT NULL DEFAULT 'queued',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  locked_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  error_message TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT automation_jobs_status_check CHECK (status IN ('queued', 'processing', 'retry', 'completed', 'failed'))
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -215,7 +265,12 @@ CREATE INDEX IF NOT EXISTS idx_contacts_business ON contacts(business_id);
 CREATE INDEX IF NOT EXISTS idx_templates_business ON templates(business_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_business_created ON campaigns(business_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_recipients_campaign ON campaign_recipients(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_automation_flows_business ON automation_flows(business_id, status);
+CREATE INDEX IF NOT EXISTS idx_automation_sessions_contact ON automation_sessions(business_id, contact_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_one_active_session ON automation_sessions(business_id, contact_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_automation_jobs_status ON automation_jobs(status, run_at);
 CREATE INDEX IF NOT EXISTS idx_conversations_business ON conversations(business_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_at ON messages(conversation_id, at ASC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_meta_message_id ON messages(meta_message_id) WHERE meta_message_id <> '';
 CREATE INDEX IF NOT EXISTS idx_events_business_at ON events(business_id, at DESC);
 CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run_at);

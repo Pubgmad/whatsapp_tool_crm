@@ -2,9 +2,9 @@
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useState } from "react";
 import {
-  BadgeCheck, Ban, BarChart3, ChevronRight, CircleAlert, Inbox, LayoutDashboard,
+  BadgeCheck, Ban, BarChart3, Bot, ChevronRight, CircleAlert, Inbox, LayoutDashboard,
   Eye, EyeOff, Loader2, LogOut, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
-  ShieldCheck, Sparkles, Upload, UsersRound
+  ShieldCheck, Sparkles, Trash2, Upload, UsersRound
 } from "lucide-react";
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { id: "setup", label: "Meta Setup", icon: Settings2 },
   { id: "contacts", label: "Audience", icon: UsersRound },
   { id: "templates", label: "Templates", icon: MessageSquareText },
+  { id: "automation", label: "Automation", icon: Bot },
   { id: "campaigns", label: "Campaigns", icon: Send },
   { id: "results", label: "Results", icon: BarChart3 },
   { id: "inbox", label: "Inbox", icon: Inbox },
@@ -172,12 +173,12 @@ function SystemSetup({ message }) {
 }
 
 function Screens({ activeView, ...props }) {
-  const screens = { overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, templates: <Templates {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
+  const screens = { overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
   return screens[activeView];
 }
 
 function pageTitle(view) {
-  return { overview: "Command center", setup: "Business connection", contacts: "Audience", templates: "Template library", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
+  return { overview: "Command center", setup: "Business connection", contacts: "Audience", templates: "Template library", automation: "Automation flows", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
 }
 
 function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView }) {
@@ -204,6 +205,123 @@ function Templates({ state, mutate }) {
   return <div className="screenGrid"><section className="actionBand"><button className="secondaryAction" type="button" onClick={sync}><RefreshCcw size={18} /> Sync from Meta</button></section><Panel title="Create template"><form className="templateComposer" onSubmit={create}><Input name="name" label="Name" placeholder="Template name" /><label>Body<textarea name="body" placeholder="Use variables like {{name}} where needed"></textarea></label><button className="primaryAction" type="submit"><MessageSquareText size={18} /> Submit</button></form></Panel><div className="cardGrid">{state.templates.map((template) => <article className="templateCard" key={template.id}><div className="cardHead"><h3>{template.name}</h3><Badge kind={template.status === "Approved" ? "good" : template.status === "Pending" ? "warn" : "bad"}>{template.status}</Badge></div><p>{template.body}</p><div className="chipRow">{template.variables.map((variable) => <span key={variable}>{`{{${variable}}}`}</span>)}</div></article>)}</div></div>;
 }
 
+function AutomationFlows({ state, mutate }) {
+  const flows = state.automationFlows || [];
+  const blankDefinition = JSON.stringify({ startNodeId: "", nodes: [] }, null, 2);
+  const [editingId, setEditingId] = useState("");
+  const [definition, setDefinition] = useState(blankDefinition);
+  const [keywords, setKeywords] = useState("");
+  const [formError, setFormError] = useState("");
+  const editingFlow = flows.find((flow) => flow.id === editingId);
+
+  const loadFlow = (flow) => {
+    setEditingId(flow.id);
+    setKeywords((flow.triggerKeywords || []).join(", "));
+    setDefinition(JSON.stringify(flow.definition || { startNodeId: "", nodes: [] }, null, 2));
+    setFormError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const reset = () => {
+    setEditingId("");
+    setKeywords("");
+    setDefinition(blankDefinition);
+    setFormError("");
+  };
+
+  const submit = (event) => {
+    event.preventDefault();
+    setFormError("");
+    let parsed;
+    try {
+      parsed = JSON.parse(definition);
+    } catch {
+      setFormError("Flow definition must be valid JSON.");
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    mutate(postJson("/api/automation/flows", {
+      id: editingId,
+      name: form.get("name"),
+      description: form.get("description"),
+      status: form.get("status"),
+      triggerMode: form.get("triggerMode"),
+      triggerKeywords: keywords.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
+      definition: parsed
+    }).then(() => api("/api/state")).then((next) => {
+      reset();
+      return next;
+    }), editingId ? "Automation flow updated" : "Automation flow saved");
+  };
+
+  const updateStatus = (flow, status) => mutate(
+    postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH").then(() => api("/api/state")),
+    status === "active" ? "Flow activated" : "Flow paused"
+  );
+  const archive = (flow) => mutate(postJson(`/api/automation/flows/${flow.id}`, {}, "DELETE").then(() => api("/api/state")), "Flow archived");
+  const process = () => mutate(postJson("/api/automation/process", { limit: 25 }).then(() => api("/api/state")), "Automation queue processed");
+
+  return <div className="screenGrid automationScreen">
+    <section className="actionBand automationTopbar">
+      <div>
+        <strong>Conversation automation</strong>
+        <span>Build tenant-specific reply flows that run from WhatsApp webhooks.</span>
+      </div>
+      <div className="actionCluster">
+        <button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>
+        {editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}
+      </div>
+    </section>
+
+    <div className="automationGrid">
+      <Panel title={editingId ? "Edit automation flow" : "Create automation flow"} subtitle="Every trigger, step, message, and route is stored per company.">
+        <form key={editingId || "new-flow"} className="formGrid automationForm" onSubmit={submit}>
+          <Input name="name" label="Flow name" placeholder="Flow name" defaultValue={editingFlow?.name || ""} required />
+          <label>Description<textarea name="description" rows="3" placeholder="Internal purpose for this flow" defaultValue={editingFlow?.description || ""}></textarea></label>
+          <div className="formSplit">
+            <label>Status<select name="status" defaultValue={editingFlow?.status || "draft"}><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select></label>
+            <label>Trigger mode<select name="triggerMode" defaultValue={editingFlow?.triggerMode || "keywords"}><option value="keywords">Keywords</option><option value="any_inbound">Any inbound message</option><option value="manual">Manual only</option></select></label>
+          </div>
+          <label>Trigger keywords<textarea rows="3" value={keywords} onChange={(event) => setKeywords(event.target.value)} placeholder="Comma or line separated trigger words"></textarea></label>
+          <label>Flow definition JSON<textarea className="codeTextarea" rows="16" value={definition} onChange={(event) => setDefinition(event.target.value)} spellCheck="false" placeholder="Define startNodeId and nodes as JSON"></textarea></label>
+          {formError && <div className="formError" role="alert">{formError}</div>}
+          <button className="primaryAction" type="submit"><Bot size={18} /> <span>{editingId ? "Update flow" : "Save flow"}</span></button>
+        </form>
+      </Panel>
+
+      <Panel title="Runtime rules" subtitle="The engine chooses the next message from saved flow data.">
+        <div className="flowRules">
+          <div><strong>Triggers</strong><span>Keyword flows start from matching customer messages. Any-inbound flows start when no active session exists.</span></div>
+          <div><strong>Routing</strong><span>Buttons, list rows, typed numbers, labels, and configured match terms can move the customer to the next node.</span></div>
+          <div><strong>Capture</strong><span>Text replies can be saved into the session context and reused as variables later in the flow.</span></div>
+          <div><strong>Takeover</strong><span>A handoff node stops automation so a human can continue in the inbox.</span></div>
+        </div>
+      </Panel>
+    </div>
+
+    <div className="flowCardGrid">
+      {flows.map((flow) => <article className="templateCard flowCard" key={flow.id}>
+        <div className="cardHead">
+          <div><h3>{flow.name}</h3><p>{flow.description || "No description"}</p></div>
+          <Badge kind={flow.status === "active" ? "good" : flow.status === "paused" ? "warn" : "neutral"}>{flow.status}</Badge>
+        </div>
+        <div className="statusGrid">
+          <Metric label="Nodes" value={flow.nodeCount} />
+          <Metric label="Active" value={flow.activeSessions} />
+          <Metric label="Completed" value={flow.completedSessions} />
+          <Metric label="Handoff" value={flow.handoffSessions} />
+        </div>
+        <div className="chipRow">{flow.triggerKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}{!flow.triggerKeywords.length && <span>{flow.triggerMode}</span>}</div>
+        <div className="flowActions">
+          <button className="secondaryAction" type="button" onClick={() => loadFlow(flow)}>Edit</button>
+          <button className="secondaryAction" type="button" onClick={() => updateStatus(flow, flow.status === "active" ? "paused" : "active")}>{flow.status === "active" ? "Pause" : "Activate"}</button>
+          <button className="secondaryAction dangerSoft" type="button" onClick={() => archive(flow)}><Trash2 size={16} /> Archive</button>
+        </div>
+      </article>)}
+      {!flows.length && <Panel title="No automation flows"><EmptyState text="Create and activate a flow to automate replies from incoming WhatsApp messages." /></Panel>}
+    </div>
+  </div>;
+}
 function Campaigns({ approvedTemplates, marketableContacts, mutate, setActiveView }) {
   const [templateId, setTemplateId] = useState(approvedTemplates[0]?.id || "");
   const [variables, setVariables] = useState({});
