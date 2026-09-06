@@ -1564,3 +1564,17 @@ body {
     display: grid;
   }
 }
+
+.legalDoc .legalHero p,
+.legalDoc .legalHero .kicker,
+.legalDoc .legalHero h1 {
+  color: #ffffff;
+}
+
+.legalDoc .legalHero p:not(.kicker) {
+  color: #e4f3ed;
+}
+
+.legalDoc .legalHero span {
+  color: #ffffff;
+}

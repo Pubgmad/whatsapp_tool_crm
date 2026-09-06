@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 
 export const metadata = {
   title: "Privacy Policy | Mathstrat WhatsApp CRM",
@@ -26,7 +26,7 @@ export default function PrivacyPolicyPage() {
             Mathstrat provides a WhatsApp CRM platform that helps businesses connect their own WhatsApp Business account, manage opted-in contacts, send approved WhatsApp templates, monitor campaign delivery, and respond to customer messages.
           </p>
           <p>
-            For privacy questions or data deletion requests, contact us at <a href="mailto:mathstrat@gmail.com">mathstrat@gmail.com</a>.
+            For privacy questions or data deletion requests, contact us at <a href="mailto:mathstratofficial@gmail.com">mathstratofficial@gmail.com</a>.
           </p>
         </section>
 
@@ -103,7 +103,7 @@ export default function PrivacyPolicyPage() {
             Companies can remove contacts, suppress contacts from future campaigns, and manage WhatsApp setup information inside the platform. Customers can unsubscribe from marketing messages by replying with opt-out language such as STOP where supported by the business workflow.
           </p>
           <p>
-            To request access, correction, export, or deletion of data, email <a href="mailto:mathstrat@gmail.com">mathstrat@gmail.com</a>. We may need to verify the requester before processing the request.
+            To request access, correction, export, or deletion of data, email <a href="mailto:mathstratofficial@gmail.com">mathstratofficial@gmail.com</a>. We may need to verify the requester before processing the request.
           </p>
         </section>
 
@@ -123,7 +123,6 @@ export default function PrivacyPolicyPage() {
 
         <footer className="legalFooter">
           <Link href="/">Back to CRM</Link>
-          <a href="mailto:mathstrat@gmail.com">Contact Mathstrat</a>
         </footer>
       </article>
     </main>
