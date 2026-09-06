@@ -2,6 +2,7 @@
   "name": "whatsapp-growth-desk",
   "version": "3.0.0",
   "private": true,
+  "type": "module",
   "description": "Production SaaS-ready Next.js WhatsApp CRM with PostgreSQL, Meta Cloud API hooks, subscriptions, and Super Admin controls.",
   "scripts": {
     "dev": "next dev",

@@ -1,32 +1,38 @@
 import Link from "next/link";
+import { getPublicPlatformConfig } from "../../lib/platform";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Privacy Policy | Mathstrat WhatsApp CRM",
-  description: "Privacy policy for Mathstrat WhatsApp CRM, including WhatsApp Business Platform data handling, customer data, retention, and deletion requests."
+  title: "Privacy Policy",
+  description: "Privacy policy for the WhatsApp CRM platform, including WhatsApp Business Platform data handling, customer data, retention, and deletion requests."
 };
 
-const lastUpdated = "6 September 2026";
+export default async function PrivacyPolicyPage() {
+  const platform = await getPublicPlatformConfig();
+  const productName = platform.product_tagline || "WhatsApp Business CRM";
+  const companyName = platform.company_name || "Mathstrat";
+  const supportEmail = platform.support_email || "mathstratofficial@gmail.com";
+  const lastUpdated = platform.privacy_last_updated || "6 September 2026";
 
-export default function PrivacyPolicyPage() {
   return (
     <main className="legalShell">
       <article className="legalDoc">
         <header className="legalHero">
-          <p className="kicker">Mathstrat WhatsApp CRM</p>
+          <p className="kicker">{companyName} {productName}</p>
           <h1>Privacy Policy</h1>
-          <p>
-            This policy explains how Mathstrat WhatsApp CRM collects, uses, stores, shares, and protects data when companies use the platform to manage WhatsApp Business contacts, templates, campaigns, inbox replies, and subscription services.
-          </p>
+          <p>{platform.privacy_intro}</p>
           <span>Last updated: {lastUpdated}</span>
         </header>
 
         <section>
           <h2>1. Who We Are</h2>
           <p>
-            Mathstrat provides a WhatsApp CRM platform that helps businesses connect their own WhatsApp Business account, manage opted-in contacts, send approved WhatsApp templates, monitor campaign delivery, and respond to customer messages.
+            {companyName} provides a WhatsApp CRM platform that helps businesses connect their own WhatsApp Business account, manage opted-in contacts, send approved WhatsApp templates, monitor campaign delivery, automate replies, and respond to customer messages.
           </p>
           <p>
-            For privacy questions or data deletion requests, contact us at <a href="mailto:mathstratofficial@gmail.com">mathstratofficial@gmail.com</a>.
+            For privacy questions or data deletion requests, contact us at <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.
           </p>
         </section>
 
@@ -53,7 +59,7 @@ export default function PrivacyPolicyPage() {
             <li>Connect company-owned WhatsApp Business accounts to the platform.</li>
             <li>Send WhatsApp template messages and replies through the WhatsApp Business Platform.</li>
             <li>Receive customer replies and delivery/read status updates from Meta webhooks.</li>
-            <li>Display campaign results, inbox conversations, unsubscribe status, and operational activity.</li>
+            <li>Display campaign results, inbox conversations, unsubscribe status, automation status, and operational activity.</li>
             <li>Manage subscriptions, billing status, plan limits, and account suspension where applicable.</li>
             <li>Improve security, reliability, support, and compliance.</li>
           </ul>
@@ -93,7 +99,7 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2>7. Data Retention</h2>
           <p>
-            We retain company, customer, campaign, inbox, and billing data for as long as required to provide the service, comply with legal obligations, resolve disputes, enforce agreements, prevent abuse, and maintain business records. Companies may request deletion of their workspace data, subject to legal and operational retention requirements.
+            We retain company, customer, campaign, inbox, automation, and billing data for as long as required to provide the service, comply with legal obligations, resolve disputes, enforce agreements, prevent abuse, and maintain business records. Companies may request deletion of their workspace data, subject to legal and operational retention requirements.
           </p>
         </section>
 
@@ -103,7 +109,7 @@ export default function PrivacyPolicyPage() {
             Companies can remove contacts, suppress contacts from future campaigns, and manage WhatsApp setup information inside the platform. Customers can unsubscribe from marketing messages by replying with opt-out language such as STOP where supported by the business workflow.
           </p>
           <p>
-            To request access, correction, export, or deletion of data, email <a href="mailto:mathstratofficial@gmail.com">mathstratofficial@gmail.com</a>. We may need to verify the requester before processing the request.
+            To request access, correction, export, or deletion of data, email <a href={`mailto:${supportEmail}`}>{supportEmail}</a>. We may need to verify the requester before processing the request.
           </p>
         </section>
 

@@ -18,6 +18,14 @@ CREATE TABLE IF NOT EXISTS super_admins (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+
+CREATE TABLE IF NOT EXISTS platform_audit_logs (
+  id TEXT PRIMARY KEY,
+  super_admin_id TEXT REFERENCES super_admins(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE TABLE IF NOT EXISTS businesses (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -44,6 +52,8 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
   description TEXT DEFAULT '',
   billing_interval TEXT NOT NULL DEFAULT 'monthly',
   price_cents INTEGER NOT NULL DEFAULT 0,
+  monthly_price_cents INTEGER NOT NULL DEFAULT 0,
+  yearly_price_cents INTEGER NOT NULL DEFAULT 0,
   currency TEXT NOT NULL DEFAULT 'INR',
   trial_days INTEGER NOT NULL DEFAULT 0,
   contact_limit INTEGER,
@@ -51,12 +61,30 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
   user_limit INTEGER,
   automation_flow_limit INTEGER,
   monthly_message_limit INTEGER,
+  whatsapp_conversation_limit INTEGER,
+  features JSONB NOT NULL DEFAULT '[]'::jsonb,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  visible BOOLEAN NOT NULL DEFAULT TRUE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT subscription_plans_interval_check CHECK (billing_interval IN ('monthly', 'yearly', 'trial', 'custom'))
 );
 
+
+CREATE TABLE IF NOT EXISTS platform_settings (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'general',
+  value JSONB NOT NULL DEFAULT '{}'::jsonb,
+  value_type TEXT NOT NULL DEFAULT 'text',
+  is_public BOOLEAN NOT NULL DEFAULT FALSE,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT platform_settings_type_check CHECK (value_type IN ('text', 'rich_text', 'image_url', 'json', 'boolean', 'number'))
+);
 CREATE TABLE IF NOT EXISTS business_subscriptions (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE UNIQUE,
@@ -262,7 +290,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_super_admins_email ON super_admins(email);
+CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_at ON platform_audit_logs(at DESC);
 CREATE INDEX IF NOT EXISTS idx_businesses_account_status ON businesses(account_status);
+CREATE INDEX IF NOT EXISTS idx_platform_settings_public ON platform_settings(is_public, category, display_order);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_business ON business_subscriptions(business_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON business_subscriptions(status);
 CREATE INDEX IF NOT EXISTS idx_billing_events_business_at ON billing_events(business_id, at DESC);

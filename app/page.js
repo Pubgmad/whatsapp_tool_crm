@@ -33,6 +33,17 @@ const api = async (path, options = {}) => {
 const postJson = (path, body, method = "POST") => api(path, { method, body: JSON.stringify(body) });
 const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Never";
 
+const fallbackPlatform = {
+  brand_name: "Growth Desk",
+  product_tagline: "WhatsApp Business CRM",
+  company_name: "Mathstrat",
+  workspace_intro: "Manage opted-in WhatsApp contacts, approved templates, campaign delivery, customer replies, automation, and unsubscribe safety from one business workspace.",
+  signin_heading: "Sign in",
+  signin_copy: "Continue to your WhatsApp campaign workspace.",
+  signup_heading: "Create workspace",
+  signup_copy: "Start with your business account and connect Meta after login.",
+  primary_cta_label: "New campaign"
+};
 function renderPreview(body, contact, values) {
   return String(body || "").replace(/{{\s*([\w.-]+)\s*}}/g, (_, key) => {
     if (key === "name") return contact?.name || "{{name}}";
@@ -48,6 +59,7 @@ export default function Home() {
   const [activeView, setActiveView] = useState("overview");
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [platform, setPlatform] = useState(fallbackPlatform);
 
   const approvedTemplates = useMemo(() => state?.templates.filter((template) => template.status === "Approved") || [], [state]);
   const marketableContacts = useMemo(() => state?.contacts.filter((contact) => contact.marketingPermission && !contact.unsubscribed) || [], [state]);
@@ -60,9 +72,13 @@ export default function Home() {
   const bootstrap = async () => {
     try {
       setLoading(true);
+      const publicConfig = await api("/api/platform").catch(() => ({ platform: fallbackPlatform }));
+      setPlatform({ ...fallbackPlatform, ...(publicConfig.platform || {}) });
       const me = await api("/api/me");
       setAccount(me);
-      setState(await api("/api/state"));
+      const nextState = await api("/api/state");
+      setState(nextState);
+      setPlatform({ ...fallbackPlatform, ...(nextState.platform || publicConfig.platform || {}) });
       setConfigError("");
     } catch (error) {
       setState(null);
@@ -74,7 +90,7 @@ export default function Home() {
   };
 
   const refresh = async () => {
-    try { setState(await api("/api/state")); }
+    try { const nextState = await api("/api/state"); setState(nextState); setPlatform({ ...fallbackPlatform, ...(nextState.platform || {}) }); }
     catch (error) { notify(error.message); if (error.code === "AUTH_REQUIRED") setAccount(null); }
   };
 
@@ -90,19 +106,20 @@ export default function Home() {
   };
 
   if (loading) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
-  if (configError) return <SystemSetup message={configError} />;
-  if (!account) return <AuthScreen onDone={bootstrap} />;
+  if (configError) return <SystemSetup message={configError} platform={platform} />;
+  if (!account) return <AuthScreen onDone={bootstrap} platform={platform} />;
   if (!state) return <main className="loading"><Sparkles size={32} /><p>Preparing workspace</p></main>;
 
   const activeConversation = state.conversations.find((conversation) => conversation.id === activeConversationId) || state.conversations[0];
   const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
   const latestCampaign = state.campaigns[0];
-  const screenProps = { state, mutate, setActiveView, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, setActiveConversationId };
+  const platformConfig = { ...platform, ...(state.platform || {}) };
+  const screenProps = { state, mutate, setActiveView, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, setActiveConversationId, platform: platformConfig };
 
   return (
     <main className="shell">
       <aside className="sideRail">
-        <div className="brandBlock"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>Growth Desk</strong><span>{account.business.name}</span></div></div>
+        <div className="brandBlock"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>{platformConfig.brand_name}</strong><span>{account.business.name}</span></div></div>
         <nav className="navList" aria-label="Product sections">
           {navItems.map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => setActiveView(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
         </nav>
@@ -120,7 +137,7 @@ export default function Home() {
   );
 }
 
-function AuthScreen({ onDone }) {
+function AuthScreen({ onDone, platform }) {
   const [mode, setMode] = useState("signin");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -166,10 +183,10 @@ function AuthScreen({ onDone }) {
     }
   };
 
-  return <main className="authShell"><section className="authPanel authPanelPro"><div className="brandBlock dark authBrand"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>Growth Desk</strong><span>WhatsApp Business CRM</span></div></div><div className="authHeader"><p className="kicker">Secure workspace</p><h1>{isSignup ? "Create workspace" : "Sign in"}</h1><p>{isSignup ? "Start with your business account and connect Meta after login." : "Continue to your WhatsApp campaign workspace."}</p></div><form className="formGrid authForm" onSubmit={submit}>{isSignup && <><Input name="name" label="Your name" autoComplete="name" required /><Input name="businessName" label="Business name" autoComplete="organization" required /></>}<Input name="workspaceEmail" label="Email" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /><PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete="new-password" data-lpignore="true" data-form-type="other" required />{isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction authSubmit" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />} <span>{pending ? "Please wait" : isSignup ? "Create account" : "Sign in"}</span></button></form><div className="authSwitch"><span>{isSignup ? "Already have a workspace?" : "New workspace?"}</span><button className="textButton" type="button" onClick={switchMode}>{isSignup ? "Sign in" : "Create account"}</button></div></section></main>;
+  return <main className="authShell"><section className="authPanel authPanelPro"><div className="brandBlock dark authBrand"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>{platform.brand_name}</strong><span>{platform.product_tagline}</span></div></div><div className="authHeader"><p className="kicker">Secure workspace</p><h1>{isSignup ? platform.signup_heading : platform.signin_heading}</h1><p>{isSignup ? platform.signup_copy : platform.signin_copy}</p></div><form className="formGrid authForm" onSubmit={submit}>{isSignup && <><Input name="name" label="Your name" autoComplete="name" required /><Input name="businessName" label="Business name" autoComplete="organization" required /></>}<Input name="workspaceEmail" label="Email" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /><PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete="new-password" data-lpignore="true" data-form-type="other" required />{isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction authSubmit" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />} <span>{pending ? "Please wait" : isSignup ? "Create account" : "Sign in"}</span></button></form><div className="authSwitch"><span>{isSignup ? "Already have a workspace?" : "New workspace?"}</span><button className="textButton" type="button" onClick={switchMode}>{isSignup ? "Sign in" : "Create account"}</button></div></section></main>;
 }
-function SystemSetup({ message }) {
-  return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><Settings2 size={22} /></div><div><strong>Configuration required</strong><span>Production database setup</span></div></div><h1>Connect PostgreSQL</h1><p className="setupCopy">{message}</p><div className="envBox"><code>DATABASE_URL</code><code>AUTH_SECRET</code><code>ENCRYPTION_KEY</code></div></section></main>;
+function SystemSetup({ message, platform }) {
+  return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><Settings2 size={22} /></div><div><strong>{platform.brand_name}</strong><span>Production database setup</span></div></div><h1>Connect PostgreSQL</h1><p className="setupCopy">{message}</p><div className="envBox"><code>DATABASE_URL</code><code>AUTH_SECRET</code><code>ENCRYPTION_KEY</code></div></section></main>;
 }
 
 function Screens({ activeView, ...props }) {
@@ -181,8 +198,8 @@ function pageTitle(view) {
   return { overview: "Command center", setup: "Business connection", contacts: "Audience", templates: "Template library", automation: "Automation flows", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
 }
 
-function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView }) {
-  return <div className="screenGrid"><section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>Manage opted-in WhatsApp contacts, approved templates, campaign delivery, customer replies, and unsubscribe safety from one business workspace.</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableContacts.length} /><Metric label="Approved" value={approvedTemplates.length} /><Metric label="Campaigns" value={state.campaigns.length} /></div></section><section className="actionBand"><button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> New campaign <ChevronRight size={18} /></button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> Add audience</button><button className="secondaryAction" onClick={() => setActiveView("inbox")}><Inbox size={18} /> Inbox</button></section><Panel title="Latest campaign" subtitle={latestCampaign ? formatTime(latestCampaign.createdAt) : "No campaigns"}>{latestCampaign ? <ResultMeters stats={latestCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel></div>;
+function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView, platform }) {
+  return <div className="screenGrid"><section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>{platform.workspace_intro}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableContacts.length} /><Metric label="Approved" value={approvedTemplates.length} /><Metric label="Campaigns" value={state.campaigns.length} /></div></section><section className="actionBand"><button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform.primary_cta_label} <ChevronRight size={18} /></button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> Add audience</button><button className="secondaryAction" onClick={() => setActiveView("inbox")}><Inbox size={18} /> Inbox</button></section><Panel title="Latest campaign" subtitle={latestCampaign ? formatTime(latestCampaign.createdAt) : "No campaigns"}>{latestCampaign ? <ResultMeters stats={latestCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel></div>;
 }
 
 function Setup({ state, mutate }) {
@@ -400,7 +417,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const workflowAction = (action, assignedUserId = "") => { if (!activeConversation) return; mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, { action, assignedUserId }, "PATCH"), action === "resume" ? "Automation resumed" : action === "takeover" ? "Conversation moved to human takeover" : "Conversation assigned"); };
   const templateForReply = approvedTemplates[0];
   const replyVariables = (templateForReply?.variables || []).filter((variable) => variable !== "name");
-  return <section className="inboxShell"><aside className="threadList">{state.conversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => setActiveConversationId(conversation.id)}><strong>{contact.name}</strong><span>{latest?.body}</span>{conversation.automationPaused && <small>Human takeover</small>}</button>; })}</aside><div className="threadPane">{activeConversation && activeContact ? <><header><div><strong>{activeContact.name}</strong><small>{assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "Open" : "Template"}</Badge></header><div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", event.target.value)}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", activeConversation.assignedUserId)}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button></div><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><p>{message.body}</p><small>{formatTime(message.at)} · {message.status}</small></div>)}</div><form className="composer" onSubmit={reply}><textarea name="body" disabled={!activeConversation.canReply} placeholder={activeConversation.canReply ? "Message" : "Template required"}></textarea><button className="primaryAction" disabled={!activeConversation.canReply}><Send size={18} /> Send</button></form>{!activeConversation.canReply && <form className="composer templateLine" onSubmit={templateReply}><select name="templateId">{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>{replyVariables.map((variable) => <input key={variable} name={variable} placeholder={`{{${variable}}}`} />)}<button className="secondaryAction" disabled={!approvedTemplates.length}>Send</button></form>}</> : <EmptyState text="No conversations" />}</div></section>;
+  return <section className="inboxShell"><aside className="threadList">{state.conversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => setActiveConversationId(conversation.id)}><strong>{contact.name}</strong><span>{latest?.body}</span>{conversation.automationPaused && <small>Human takeover</small>}</button>; })}</aside><div className="threadPane">{activeConversation && activeContact ? <><header><div><strong>{activeContact.name}</strong><small>{assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "Open" : "Template"}</Badge></header><div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", event.target.value)}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", activeConversation.assignedUserId)}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button></div><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><p>{message.body}</p><small>{formatTime(message.at)} Â· {message.status}</small></div>)}</div><form className="composer" onSubmit={reply}><textarea name="body" disabled={!activeConversation.canReply} placeholder={activeConversation.canReply ? "Message" : "Template required"}></textarea><button className="primaryAction" disabled={!activeConversation.canReply}><Send size={18} /> Send</button></form>{!activeConversation.canReply && <form className="composer templateLine" onSubmit={templateReply}><select name="templateId">{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select>{replyVariables.map((variable) => <input key={variable} name={variable} placeholder={`{{${variable}}}`} />)}<button className="secondaryAction" disabled={!approvedTemplates.length}>Send</button></form>}</> : <EmptyState text="No conversations" />}</div></section>;
 }
 function Unsubscribes({ suppressedContacts, mutate }) {
   return <Panel title="Suppression"><DataTable headers={["Name", "Phone", "Reason", "Action"]}>{suppressedContacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td>{contact.unsubscribed ? "Unsubscribed" : "No permission"}</td><td><button onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, { marketingPermission: true, unsubscribed: false }, "PATCH"), "Restored")}>Restore</button></td></tr>)}</DataTable>{!suppressedContacts.length && <EmptyState text="No suppressed contacts" />}</Panel>;

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import process from "node:process";
 import nextEnv from "@next/env";
 import pg from "pg";
+import { seedPlatformSettings } from "../lib/platform.js";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -30,6 +31,14 @@ function clean(value) {
   return String(value || "").trim();
 }
 
+function optionalNumber(...values) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
 function parsePlans() {
   const raw = clean(process.env.SUBSCRIPTION_PLANS_JSON);
   if (!raw) return [];
@@ -52,22 +61,31 @@ async function seedSubscriptionPlans(client) {
     const code = clean(plan.code).toLowerCase();
     const name = clean(plan.name);
     if (!code || !name) continue;
+    const monthlyPrice = optionalNumber(plan.monthlyPriceCents, plan.monthly_price_cents, plan.priceCents, plan.price_cents) || 0;
+    const yearlyPrice = optionalNumber(plan.yearlyPriceCents, plan.yearly_price_cents) || 0;
+
     await client.query(
-      `INSERT INTO subscription_plans (id, code, name, description, billing_interval, price_cents, currency, trial_days, contact_limit, campaign_limit, user_limit, automation_flow_limit, monthly_message_limit, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO subscription_plans (id, code, name, description, billing_interval, price_cents, monthly_price_cents, yearly_price_cents, currency, trial_days, contact_limit, campaign_limit, user_limit, automation_flow_limit, monthly_message_limit, whatsapp_conversation_limit, features, display_order, visible, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        ON CONFLICT (code) DO UPDATE
        SET name = EXCLUDED.name,
            description = EXCLUDED.description,
            billing_interval = EXCLUDED.billing_interval,
            price_cents = EXCLUDED.price_cents,
+           monthly_price_cents = EXCLUDED.monthly_price_cents,
+           yearly_price_cents = EXCLUDED.yearly_price_cents,
            currency = EXCLUDED.currency,
            trial_days = EXCLUDED.trial_days,
            contact_limit = EXCLUDED.contact_limit,
            campaign_limit = EXCLUDED.campaign_limit,
            user_limit = EXCLUDED.user_limit,
-           is_active = EXCLUDED.is_active,
            automation_flow_limit = EXCLUDED.automation_flow_limit,
            monthly_message_limit = EXCLUDED.monthly_message_limit,
+           whatsapp_conversation_limit = EXCLUDED.whatsapp_conversation_limit,
+           features = EXCLUDED.features,
+           display_order = EXCLUDED.display_order,
+           visible = EXCLUDED.visible,
+           is_active = EXCLUDED.is_active,
            updated_at = NOW()`,
       [
         `plan_${crypto.randomBytes(8).toString("hex")}`,
@@ -75,15 +93,21 @@ async function seedSubscriptionPlans(client) {
         name,
         clean(plan.description),
         clean(plan.billingInterval || plan.billing_interval || "monthly"),
-        Number(plan.priceCents || plan.price_cents || 0),
+        monthlyPrice,
+        monthlyPrice,
+        yearlyPrice,
         clean(plan.currency || "INR"),
-        Number(plan.trialDays || plan.trial_days || 0),
-        Number.isFinite(Number(plan.contactLimit ?? plan.contact_limit)) ? Number(plan.contactLimit ?? plan.contact_limit) : null,
-        Number.isFinite(Number(plan.campaignLimit ?? plan.campaign_limit)) ? Number(plan.campaignLimit ?? plan.campaign_limit) : null,
-        Number.isFinite(Number(plan.userLimit ?? plan.user_limit)) ? Number(plan.userLimit ?? plan.user_limit) : null,
-        Number.isFinite(Number(plan.automationFlowLimit ?? plan.automation_flow_limit)) ? Number(plan.automationFlowLimit ?? plan.automation_flow_limit) : null,
-        Number.isFinite(Number(plan.monthlyMessageLimit ?? plan.monthly_message_limit)) ? Number(plan.monthlyMessageLimit ?? plan.monthly_message_limit) : null,
-        plan.isActive === false ? false : true
+        optionalNumber(plan.trialDays, plan.trial_days) || 0,
+        optionalNumber(plan.contactLimit, plan.contact_limit),
+        optionalNumber(plan.campaignLimit, plan.campaign_limit),
+        optionalNumber(plan.userLimit, plan.user_limit),
+        optionalNumber(plan.automationFlowLimit, plan.automation_flow_limit),
+        optionalNumber(plan.monthlyMessageLimit, plan.monthly_message_limit),
+        optionalNumber(plan.whatsappConversationLimit, plan.whatsapp_conversation_limit),
+        JSON.stringify(Array.isArray(plan.features) ? plan.features : []),
+        optionalNumber(plan.displayOrder, plan.display_order) || 0,
+        plan.visible === false ? false : true,
+        plan.isActive === false || plan.is_active === false ? false : true
       ]
     );
   }
@@ -92,7 +116,7 @@ async function seedSubscriptionPlans(client) {
 async function backfillSubscriptions(client) {
   const defaultCode = clean(process.env.DEFAULT_SUBSCRIPTION_PLAN_CODE).toLowerCase();
   const plan = defaultCode
-    ? (await client.query("SELECT id, trial_days FROM subscription_plans WHERE code = $1 AND is_active = TRUE LIMIT 1", [defaultCode])).rows[0]
+    ? (await client.query("SELECT id, trial_days FROM subscription_plans WHERE code = $1 AND is_active = TRUE AND visible = TRUE LIMIT 1", [defaultCode])).rows[0]
     : null;
 
   await client.query(
@@ -133,8 +157,20 @@ try {
   await client.query("BEGIN");
   await client.query("DO $$ BEGIN IF to_regclass('public.businesses') IS NOT NULL THEN ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'; END IF; END $$;");
   await client.query(schema);
+  await client.query("CREATE TABLE IF NOT EXISTS platform_audit_logs (id TEXT PRIMARY KEY, super_admin_id TEXT REFERENCES super_admins(id) ON DELETE SET NULL, action TEXT NOT NULL, metadata JSONB NOT NULL DEFAULT '{}'::jsonb, at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_at ON platform_audit_logs(at DESC)");
   await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS automation_flow_limit INTEGER");
   await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS monthly_message_limit INTEGER");
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS monthly_price_cents INTEGER NOT NULL DEFAULT 0");
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS yearly_price_cents INTEGER NOT NULL DEFAULT 0");
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS whatsapp_conversation_limit INTEGER");
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS features JSONB NOT NULL DEFAULT '[]'::jsonb");
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0");
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS visible BOOLEAN NOT NULL DEFAULT TRUE");
+  await client.query("UPDATE subscription_plans SET monthly_price_cents = price_cents WHERE monthly_price_cents = 0 AND price_cents <> 0");
+  await client.query("CREATE TABLE IF NOT EXISTS platform_settings (id TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, label TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'general', value JSONB NOT NULL DEFAULT '{}'::jsonb, value_type TEXT NOT NULL DEFAULT 'text', is_public BOOLEAN NOT NULL DEFAULT FALSE, display_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), CONSTRAINT platform_settings_type_check CHECK (value_type IN ('text', 'rich_text', 'image_url', 'json', 'boolean', 'number')))");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_platform_settings_public ON platform_settings(is_public, category, display_order)");
+  await client.query("CREATE INDEX IF NOT EXISTS idx_subscription_plans_display ON subscription_plans(visible, is_active, display_order)");
   await client.query("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS automation_flow_id TEXT");
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS assigned_user_id TEXT");
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS automation_paused BOOLEAN NOT NULL DEFAULT FALSE");
@@ -151,6 +187,7 @@ try {
   await client.query("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'");
   await client.query("ALTER TABLE businesses ALTER COLUMN account_status SET DEFAULT 'pending'");
   await addConstraintIfMissing(client, "businesses", "businesses_account_status_check", "CHECK (account_status IN ('pending', 'active', 'suspended'))");
+  await seedPlatformSettings(client);
   await seedSubscriptionPlans(client);
   await backfillSubscriptions(client);
   await seedSuperAdmin(client);
