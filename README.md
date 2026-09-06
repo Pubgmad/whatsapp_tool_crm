@@ -240,3 +240,25 @@ Before a public SaaS launch, add:
 - Meta Embedded Signup for self-service WhatsApp onboarding.
 - Hosted cron/worker for campaign queue processing.
 - Monitoring, rate-limit dashboards, audit log UI, backups, and legal/compliance policies.
+
+## Privacy Policy URL for Meta
+
+The public privacy policy route is available at:
+
+```text
+/privacy-policy
+```
+
+For local preview:
+
+```text
+http://localhost:3000/privacy-policy
+```
+
+After hosting the app on a real HTTPS domain, use the hosted URL in Meta App Settings. Example:
+
+```text
+https://yourdomain.com/privacy-policy
+```
+
+Do not use localhost or ngrok for Meta's production Privacy Policy URL. Ngrok is only suitable for temporary webhook testing.

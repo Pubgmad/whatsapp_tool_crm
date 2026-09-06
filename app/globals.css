@@ -1445,3 +1445,122 @@ body {
     text-align: center;
   }
 }
+
+/* Legal pages */
+.legalShell {
+  min-height: 100vh;
+  padding: 32px clamp(16px, 4vw, 56px);
+  background: linear-gradient(135deg, #f8faf7 0%, #eef4f1 56%, #f7f2e9 100%);
+}
+
+.legalDoc {
+  width: min(980px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.legalHero,
+.legalDoc section,
+.legalFooter {
+  border: 1px solid rgba(205,216,210,.96);
+  border-radius: 8px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 1px 2px rgba(8,17,13,.05), 0 18px 46px rgba(8,17,13,.07);
+}
+
+.legalHero {
+  padding: clamp(22px, 4vw, 38px);
+  color: #fff;
+  background: linear-gradient(135deg, #073527 0%, #0b6552 48%, #2e5f86 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.legalHero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0fbf82, #e2aa49, #3c75a8);
+}
+
+.legalHero .kicker,
+.legalHero h1,
+.legalHero p {
+  color: #fff;
+}
+
+.legalHero p {
+  max-width: 790px;
+  margin: 14px 0 16px;
+  color: #dcece6;
+  line-height: 1.7;
+}
+
+.legalHero span {
+  display: inline-flex;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 999px;
+  padding: 8px 11px;
+  color: #e8f6ef;
+  background: rgba(255,255,255,.1);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.legalDoc section {
+  padding: clamp(18px, 3vw, 26px);
+}
+
+.legalDoc h2 {
+  margin: 0 0 12px;
+  font-size: clamp(18px, 2.2vw, 23px);
+}
+
+.legalDoc p,
+.legalDoc li {
+  color: #3b4943;
+  line-height: 1.72;
+}
+
+.legalDoc p:last-child,
+.legalDoc ul:last-child {
+  margin-bottom: 0;
+}
+
+.legalDoc ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.legalDoc li + li {
+  margin-top: 8px;
+}
+
+.legalDoc a {
+  color: #07553e;
+  font-weight: 900;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.legalFooter {
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .legalShell {
+    padding: 14px;
+  }
+
+  .legalFooter {
+    display: grid;
+  }
+}
