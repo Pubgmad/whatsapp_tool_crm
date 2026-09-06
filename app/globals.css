@@ -2044,3 +2044,481 @@ body {
     width: 100%;
   }
 }
+
+/* Final readability and alignment pass */
+:root {
+  --font-semibold: 650;
+  --font-bold: 720;
+  --font-heavy: 780;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-weight: 500;
+}
+
+h1,
+h2,
+h3,
+strong,
+.brandBlock strong,
+.superBrand strong,
+.companyRow strong,
+.companyMain strong,
+.infoTile strong,
+.miniList strong {
+  font-weight: var(--font-bold) !important;
+  overflow-wrap: anywhere;
+}
+
+.kicker,
+.softLabel,
+.metric span,
+th,
+.infoTile span,
+.superMetric span,
+label,
+.badge,
+.statusPill {
+  font-weight: var(--font-semibold) !important;
+  letter-spacing: .02em !important;
+}
+
+.kicker,
+.softLabel,
+th,
+.metric span,
+.infoTile span,
+.superMetric span {
+  text-transform: none !important;
+}
+
+p,
+li,
+small,
+span,
+td,
+.panelHead p,
+.heroPanel p,
+.superHero p,
+.legalDoc p,
+.legalDoc li,
+.threadList span,
+.threadPane header small,
+.templateCard p,
+.flowRules span,
+.automationTopbar span {
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.55;
+}
+
+.shell,
+.superShell,
+.workspace,
+.superWorkspace,
+.panel,
+.superPanel,
+.heroPanel,
+.superHero,
+.actionBand,
+.contentGrid,
+.screenGrid,
+.campaignLayout,
+.inboxShell,
+.visualFlowShell,
+.flowCanvas,
+.flowNode,
+.optionEditor,
+.templateCard,
+.planTile,
+.settingGroup,
+.legalDoc,
+.legalHero,
+.drawerPanel,
+.tableWrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.primaryAction,
+.secondaryAction,
+.rowActions button,
+.superAdminCard button,
+.textButton,
+.navList button,
+.superNav a,
+.iconButton {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  font-weight: var(--font-semibold) !important;
+  line-height: 1.2;
+}
+
+.primaryAction,
+.secondaryAction,
+.rowActions button,
+.superAdminCard button {
+  min-height: 42px;
+  height: auto;
+  padding: 10px 14px;
+}
+
+.iconButton {
+  flex: 0 0 auto;
+}
+
+input,
+textarea,
+select {
+  min-width: 0;
+  max-width: 100%;
+  font-weight: 520;
+  line-height: 1.35;
+}
+
+textarea {
+  overflow-wrap: anywhere;
+}
+
+.panelHead,
+.cardHead,
+.planTile header,
+.drawerPanel header,
+.threadPane header,
+.heroBar,
+.superHero,
+.automationTopbar,
+.optionHead,
+.planMeta,
+.planPrices,
+.importMeta,
+.topActions,
+.actionBand,
+.rowActions,
+.chipRow,
+.flowActions,
+.actionCluster,
+.formActions {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.panelHead,
+.cardHead,
+.drawerPanel header,
+.threadPane header,
+.heroBar,
+.superHero,
+.automationTopbar,
+.optionHead {
+  align-items: flex-start;
+}
+
+.brandBlock,
+.superBrand,
+.companyMain,
+.railNote {
+  min-width: 0;
+}
+
+.brandBlock span,
+.railNote span,
+.superBrand small,
+.companyRow small,
+.companyMain small,
+.miniList span,
+.miniList small {
+  white-space: normal;
+  text-overflow: clip;
+  overflow: visible;
+}
+
+.navList button,
+.superNav a {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.navList button span {
+  min-width: 0;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.metric,
+.superMetric,
+.infoTile {
+  height: auto;
+  align-content: start;
+}
+
+.metric strong,
+.superMetric strong {
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.05;
+}
+
+.heroPanel,
+.superHero {
+  height: auto;
+  align-items: end;
+}
+
+.heroPanel h2,
+.superHero h1,
+.legalHero h1 {
+  line-height: 1.08;
+}
+
+.heroMetrics,
+.meterGrid,
+.statusGrid,
+.superMetrics,
+.planGrid,
+.cardGrid,
+.flowCardGrid,
+.settingsGrid,
+.detailGrid {
+  min-width: 0;
+}
+
+.planGrid,
+.cardGrid,
+.flowCardGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+
+.superMetrics,
+.heroMetrics,
+.meterGrid,
+.statusGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+
+.formSplit,
+.formQuad,
+.nodeFields,
+.companyToolbar,
+.settingsGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+}
+
+.templateComposer,
+.templateLine,
+.composer,
+.inboxControls,
+.optionRow {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.contentGrid.audienceGrid,
+.twoColumns,
+.campaignLayout,
+.automationGrid,
+.visualFlowShell,
+.superGrid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+
+.companyRow {
+  height: auto;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(86px, .5fr) minmax(130px, .75fr) minmax(80px, .45fr) minmax(90px, .45fr) minmax(120px, .55fr) minmax(140px, .7fr);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+table {
+  table-layout: auto;
+}
+
+th,
+td {
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.bubble {
+  overflow-wrap: anywhere;
+}
+
+.phonePreview {
+  min-height: clamp(360px, 48vh, 520px);
+}
+
+.waBubble {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1120px) {
+  .shell,
+  .superShell {
+    grid-template-columns: 1fr;
+  }
+
+  .sideRail,
+  .superRail {
+    min-height: auto;
+    position: static;
+  }
+
+  .navList,
+  .superNav {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .companyRow {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  }
+
+  .companyRow > div:nth-last-child(1),
+  .companyRow > div:nth-last-child(2),
+  .companyRow > div:nth-last-child(3) {
+    display: grid;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace,
+  .superWorkspace,
+  .sideRail,
+  .superRail {
+    padding: 14px;
+  }
+
+  .heroBar,
+  .topActions,
+  .actionBand,
+  .automationTopbar,
+  .superHero,
+  .panelHead,
+  .cardHead,
+  .optionHead,
+  .importMeta,
+  .drawerPanel header,
+  .threadPane header,
+  .planTile header,
+  .planMeta,
+  .planPrices {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .topActions,
+  .actionCluster,
+  .flowActions,
+  .formActions,
+  .rowActions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .primaryAction,
+  .secondaryAction,
+  .rowActions button,
+  .textButton,
+  .superAdminCard button {
+    width: 100%;
+  }
+
+  .navList,
+  .superNav,
+  .heroMetrics,
+  .meterGrid,
+  .statusGrid,
+  .superMetrics,
+  .planGrid,
+  .cardGrid,
+  .flowCardGrid,
+  .formSplit,
+  .formQuad,
+  .nodeFields,
+  .optionRow,
+  .settingsGrid,
+  .settingRow,
+  .companyToolbar,
+  .contentGrid.audienceGrid,
+  .twoColumns,
+  .campaignLayout,
+  .automationGrid,
+  .visualFlowShell,
+  .superGrid,
+  .detailGrid,
+  .drawerActions,
+  .inboxControls,
+  .templateComposer,
+  .templateLine,
+  .composer {
+    grid-template-columns: 1fr !important;
+  }
+
+  .heroPanel,
+  .superHero,
+  .legalHero,
+  .panel,
+  .superPanel,
+  .flowNode,
+  .planTile,
+  .settingGroup {
+    padding: 16px;
+  }
+
+  .threadPane {
+    min-height: 480px;
+  }
+
+  .threadList button {
+    min-height: 64px;
+  }
+
+  .phonePreview {
+    min-height: 340px;
+    border-width: 8px;
+    padding: 18px 12px;
+  }
+}
+
+@media (max-width: 430px) {
+  h1 { font-size: 27px; }
+  h2 { font-size: 17px; }
+
+  .authShell,
+  .superAuthShell,
+  .legalShell {
+    padding: 12px;
+  }
+
+  .authPanel,
+  .superAuthPanel,
+  .drawerPanel {
+    padding: 16px;
+  }
+
+  .brandIcon,
+  .superBrand > span,
+  .companyAvatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .tableWrap td {
+    grid-template-columns: 1fr !important;
+  }
+}
