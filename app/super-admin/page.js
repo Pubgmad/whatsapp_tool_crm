@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity, BadgeCheck, Ban, Building2, Eye, EyeOff, FileText, Loader2, LockKeyhole,
-  LogOut, Pencil, Plus, RefreshCcw, Save, Search, ShieldCheck, SlidersHorizontal,
+  LogOut, Menu, Pencil, Plus, RefreshCcw, Save, Search, ShieldCheck, SlidersHorizontal,
   Trash2, WalletCards, Wifi, WifiOff, X
 } from "lucide-react";
 
@@ -57,6 +57,7 @@ export default function SuperAdminPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => { bootstrap(); }, []);
 
@@ -170,19 +171,22 @@ export default function SuperAdminPage() {
   if (!dashboard) return <main className="superLoading"><Loader2 className="spin" size={30} /><span>Loading platform data</span></main>;
 
   return <main className="superShell">
-    <aside className="superRail">
-      <div className="superBrand"><span><ShieldCheck size={22} /></span><div><strong>Mathstrat</strong><small>Super Admin</small></div></div>
+    <aside className={`superRail ${mobileNavOpen ? "open" : ""}`}>
+      <div className="superBrand"><span><ShieldCheck size={22} /></span><div><strong>Mathstrat</strong><small>Super Admin</small></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
       <nav className="superNav" aria-label="Super Admin sections">
-        <a href="#overview"><Activity size={17} />Overview</a>
-        <a href="#plans"><WalletCards size={17} />Plans</a>
-        <a href="#content"><FileText size={17} />Content</a>
-        <a href="#companies"><Building2 size={17} />Companies</a>
+        <a href="#overview" onClick={() => setMobileNavOpen(false)}><Activity size={17} />Overview</a>
+        <a href="#plans" onClick={() => setMobileNavOpen(false)}><WalletCards size={17} />Plans</a>
+        <a href="#content" onClick={() => setMobileNavOpen(false)}><FileText size={17} />Content</a>
+        <a href="#companies" onClick={() => setMobileNavOpen(false)}><Building2 size={17} />Companies</a>
       </nav>
       <div className="superAdminCard"><small>Signed in as</small><strong>{admin.email}</strong><button type="button" onClick={logout}><LogOut size={16} />Sign out</button></div>
     </aside>
 
+    {mobileNavOpen && <button className="mobileNavScrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" />}
+
     <section className="superWorkspace">
       <header className="superHero" id="overview">
+        <button className="mobileMenuButton" type="button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
         <div>
           <p className="kicker">Super Admin</p>
           <h1>Platform command center</h1>
