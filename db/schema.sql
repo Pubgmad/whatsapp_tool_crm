@@ -142,6 +142,11 @@ CREATE TABLE IF NOT EXISTS contacts (
   UNIQUE(business_id, phone)
 );
 
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS custom_attributes JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opt_in_at TIMESTAMPTZ;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opt_in_source TEXT NOT NULL DEFAULT 'Manual';
+
 CREATE TABLE IF NOT EXISTS templates (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -159,6 +164,9 @@ CREATE TABLE IF NOT EXISTS templates (
   UNIQUE(business_id, name)
 );
 
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en_US';
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS rejection_reason TEXT NOT NULL DEFAULT '';
+
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -169,6 +177,10 @@ CREATE TABLE IF NOT EXISTS campaigns (
   mode TEXT NOT NULL DEFAULT 'Live Meta',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'queued';
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'UTC';
 
 CREATE TABLE IF NOT EXISTS campaign_recipients (
   id TEXT PRIMARY KEY,
@@ -297,8 +309,10 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_business ON business_subscriptions(
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON business_subscriptions(status);
 CREATE INDEX IF NOT EXISTS idx_billing_events_business_at ON billing_events(business_id, at DESC);
 CREATE INDEX IF NOT EXISTS idx_contacts_business ON contacts(business_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_tags ON contacts USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_templates_business ON templates(business_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_business_created ON campaigns(business_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_campaigns_schedule ON campaigns(status, scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_recipients_campaign ON campaign_recipients(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_automation_flows_business ON automation_flows(business_id, status);
 CREATE INDEX IF NOT EXISTS idx_automation_sessions_contact ON automation_sessions(business_id, contact_id, status);
