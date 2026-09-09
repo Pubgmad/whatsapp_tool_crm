@@ -1,10 +1,10 @@
 "use client";
 
-import { Children, cloneElement, isValidElement, useEffect, useMemo, useState } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck, Ban, BarChart3, Bot, ChevronRight, CircleAlert, Download, FileText, Image, Inbox, LayoutDashboard,
   Eye, EyeOff, Loader2, LogOut, Menu, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
-  ShieldCheck, Sparkles, Trash2, Upload, UsersRound, X, Search, Clock3, CheckCheck, Copy, Pause, Play, Pencil, Save, StickyNote, UserPlus
+  ShieldCheck, Sparkles, Trash2, Upload, UsersRound, X, Search, Clock3, Activity, CheckCheck, Copy, Link2, Pause, Play, Pencil, Save, StickyNote, Unplug, UserPlus
 } from "lucide-react";
 
 const navItems = [
@@ -33,6 +33,26 @@ const api = async (path, options = {}) => {
 
 const postJson = (path, body, method = "POST") => api(path, { method, body: JSON.stringify(body) });
 const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Never";
+
+function loadFacebookSdk(appId, version) {
+  return new Promise((resolve, reject) => {
+    const initialize = () => { window.FB.init({ appId, cookie: true, xfbml: false, version }); resolve(window.FB); };
+    if (window.FB) { initialize(); return; }
+    const existing = document.getElementById("facebook-jssdk");
+    window.fbAsyncInit = initialize;
+    if (!existing) {
+      const script = document.createElement("script");
+      script.id = "facebook-jssdk";
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = "anonymous";
+      script.src = "https://connect.facebook.net/en_US/sdk.js";
+      script.onerror = () => reject(new Error("Meta sign-up could not be loaded."));
+      document.body.appendChild(script);
+    }
+    window.setTimeout(() => { if (!window.FB) reject(new Error("Meta sign-up timed out. Check browser tracking protection and try again.")); }, 20000);
+  });
+}
 
 const fallbackPlatform = {
   brand_name: "Growth Desk",
@@ -243,10 +263,41 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
 }
 
 function Setup({ state, mutate }) {
-  const submit = (event) => { event.preventDefault(); mutate(postJson("/api/setup", Object.fromEntries(new FormData(event.currentTarget)), "PUT"), "Setup saved"); };
-  return <div className="contentGrid twoColumns"><Panel title="Meta credentials" subtitle="Save the business number details used by WhatsApp Cloud API"><form className="formGrid" onSubmit={submit}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save</button></form></Panel><Panel title="Connection status"><div className="statusGrid"><Metric label="Mode" value={state.setup.mode} /><Metric label="WABA" value={state.setup.wabaId ? "Set" : "Missing"} /><Metric label="Phone ID" value={state.setup.phoneNumberId ? "Set" : "Missing"} /><Metric label="Token" value={state.setup.accessToken ? "Saved" : "Missing"} /></div></Panel></div>;
+  const signupData = useRef({});
+  const [connecting, setConnecting] = useState(false);
+  useEffect(() => {
+    const listener = (event) => {
+      if (!/^https:\/\/([a-z0-9-]+\.)*facebook\.com$/i.test(event.origin)) return;
+      let payload = event.data;
+      if (typeof payload === "string") { try { payload = JSON.parse(payload); } catch { return; } }
+      if (payload?.type === "WA_EMBEDDED_SIGNUP" && payload?.event === "FINISH") signupData.current = payload.data || {};
+    };
+    window.addEventListener("message", listener);
+    return () => window.removeEventListener("message", listener);
+  }, []);
+  const connectMeta = async () => {
+    setConnecting(true);
+    try {
+      const config = await api("/api/meta/embedded-signup/config");
+      const FB = await loadFacebookSdk(config.appId, config.graphVersion);
+      FB.login((response) => {
+        const code = response?.authResponse?.code;
+        if (!code) { setConnecting(false); mutate(Promise.reject(new Error("Meta sign-up was cancelled or did not return authorization."))); return; }
+        mutate(postJson("/api/meta/embedded-signup/complete", { code, wabaId: signupData.current.waba_id, phoneNumberId: signupData.current.phone_number_id }).then(() => api("/api/state")).finally(() => setConnecting(false)), "WhatsApp Business connected");
+      }, { config_id: config.configId, response_type: "code", override_default_response_type: true, extras: { setup: {}, featureType: "", sessionInfoVersion: "3" } });
+    } catch (error) { setConnecting(false); mutate(Promise.reject(error)); }
+  };
+  const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}).then(() => api("/api/state")), "Meta connection verified");
+  const disconnect = () => mutate(postJson("/api/meta/connection/disconnect", {}).then(() => api("/api/state")), "WhatsApp Business disconnected");
+  const submitManual = (event) => { event.preventDefault(); mutate(postJson("/api/setup", Object.fromEntries(new FormData(event.currentTarget)), "PUT"), "Manual setup saved"); };
+  const metadata = state.setup.connectionMetadata || {};
+  return <div className="screenGrid metaSetupScreen">
+    <section className="metaConnectHero"><div><p className="kicker">Official Meta onboarding</p><h2>{state.setup.status === "Connected" ? "WhatsApp Business is connected" : "Connect your WhatsApp Business account"}</h2><span>Authorize your company-owned WABA and phone number through Meta Embedded Signup.</span></div><button className="primaryAction metaConnectButton" type="button" onClick={connectMeta} disabled={connecting || !state.meta.embeddedSignupAvailable}>{connecting ? <Loader2 className="spin" size={18} /> : <Link2 size={18} />}{connecting ? "Opening Meta" : state.setup.status === "Connected" ? "Reconnect with Meta" : "Connect with Meta"}</button></section>
+    {!state.meta.embeddedSignupAvailable && <div className="formError">The platform owner must configure META_APP_ID, META_APP_SECRET and META_EMBEDDED_SIGNUP_CONFIG_ID on the server.</div>}
+    <div className="contentGrid twoColumns"><Panel title="Connection health" subtitle="Live values verified against this company workspace"><div className="connectionSummary"><div><span>Connection</span><Badge kind={state.setup.status === "Connected" ? "good" : "warn"}>{state.setup.status}</Badge></div><div><span>Onboarding</span><strong>{state.setup.onboardingMethod === "embedded_signup" ? "Embedded Signup" : "Manual"}</strong></div><div><span>Webhook subscription</span><Badge kind={state.setup.webhookSubscribed ? "good" : "warn"}>{state.setup.webhookSubscribed ? "Subscribed" : "Not verified"}</Badge></div><div><span>Business number</span><strong>{state.setup.whatsappNumber || "Not connected"}</strong></div><div><span>WABA ID</span><strong>{state.setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{state.setup.phoneNumberId || "Not connected"}</strong></div><div><span>Verified name</span><strong>{metadata.verifiedName || "Unavailable"}</strong></div><div><span>Quality rating</span><strong>{metadata.qualityRating || "Unavailable"}</strong></div></div><div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={state.setup.status !== "Connected"}><Activity size={17} /> Verify connection</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={state.setup.status !== "Connected"}><Unplug size={17} /> Disconnect</button></div></Panel><Panel title="Webhook endpoint" subtitle="Add this callback URL in Meta and subscribe to messages"><div className="webhookCard"><code>{state.setup.webhookUrl || state.meta.webhookUrl || "Configure APP_URL on the server"}</code><div><span>Signature verification</span><Badge kind="good">Server-side</Badge></div><div><span>Incoming messages</span><Badge kind="good">Enabled</Badge></div><div><span>Delivery status</span><Badge kind="good">Enabled</Badge></div><div><span>Template updates</span><Badge kind="good">Enabled</Badge></div></div></Panel></div>
+    <details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Use only for a WABA you manage directly"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>
+  </div>;
 }
-
 function Contacts({ state, mutate }) {
   const [csvText, setCsvText] = useState("");
   const [fileName, setFileName] = useState("");

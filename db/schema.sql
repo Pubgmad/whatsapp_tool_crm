@@ -45,6 +45,22 @@ CREATE TABLE IF NOT EXISTS businesses (
   CONSTRAINT businesses_account_status_check CHECK (account_status IN ('pending', 'active', 'suspended'))
 );
 
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS onboarding_method TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_token_expires_at TIMESTAMPTZ;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_connected_at TIMESTAMPTZ;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS webhook_subscribed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_connection_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS meta_connection_events (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL,
+  success BOOLEAN NOT NULL DEFAULT TRUE,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_meta_connection_events_business ON meta_connection_events(business_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS subscription_plans (
   id TEXT PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
