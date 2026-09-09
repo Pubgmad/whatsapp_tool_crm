@@ -128,6 +128,25 @@ CREATE TABLE IF NOT EXISTS memberships (
   UNIQUE(user_id, business_id)
 );
 
+ALTER TABLE memberships ADD COLUMN IF NOT EXISTS availability TEXT NOT NULL DEFAULT 'offline';
+DO $$ BEGIN
+  ALTER TABLE memberships ADD CONSTRAINT memberships_availability_check CHECK (availability IN ('available', 'away', 'offline'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS team_invitations (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'Agent',
+  token_hash TEXT NOT NULL UNIQUE,
+  invited_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  accepted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT team_invitations_role_check CHECK (role IN ('Manager', 'Agent'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_invitations_pending ON team_invitations(business_id, email) WHERE accepted_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS contacts (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -147,6 +166,17 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS custom_attributes JSONB NOT NULL D
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opt_in_at TIMESTAMPTZ;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opt_in_source TEXT NOT NULL DEFAULT 'Manual';
 
+CREATE TABLE IF NOT EXISTS audience_segments (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  rules JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(business_id, name)
+);
 CREATE TABLE IF NOT EXISTS templates (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -166,6 +196,9 @@ CREATE TABLE IF NOT EXISTS templates (
 
 ALTER TABLE templates ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en_US';
 ALTER TABLE templates ADD COLUMN IF NOT EXISTS rejection_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS header_text TEXT NOT NULL DEFAULT '';
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS footer_text TEXT NOT NULL DEFAULT '';
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS buttons JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY,
@@ -272,6 +305,10 @@ CREATE TABLE IF NOT EXISTS conversations (
   UNIQUE(business_id, contact_id)
 );
 
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'open';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS unread_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
   conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -283,6 +320,21 @@ CREATE TABLE IF NOT EXISTS messages (
   CONSTRAINT messages_direction_check CHECK (direction IN ('incoming', 'outgoing'))
 );
 
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_type TEXT NOT NULL DEFAULT 'text';
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS mime_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS caption TEXT NOT NULL DEFAULT '';
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS campaign_recipient_id TEXT REFERENCES campaign_recipients(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS conversation_notes (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -310,6 +362,7 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON business_subscriptions(st
 CREATE INDEX IF NOT EXISTS idx_billing_events_business_at ON billing_events(business_id, at DESC);
 CREATE INDEX IF NOT EXISTS idx_contacts_business ON contacts(business_id);
 CREATE INDEX IF NOT EXISTS idx_contacts_tags ON contacts USING GIN(tags);
+CREATE INDEX IF NOT EXISTS idx_audience_segments_business ON audience_segments(business_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_templates_business ON templates(business_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_business_created ON campaigns(business_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_campaigns_schedule ON campaigns(status, scheduled_at);
@@ -320,6 +373,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_one_active_session ON automatio
 CREATE INDEX IF NOT EXISTS idx_automation_jobs_status ON automation_jobs(status, run_at);
 CREATE INDEX IF NOT EXISTS idx_conversations_business ON conversations(business_id);
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_at ON messages(conversation_id, at ASC);
+CREATE INDEX IF NOT EXISTS idx_messages_campaign_recipient ON messages(campaign_recipient_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_notes_conversation ON conversation_notes(conversation_id, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_meta_message_id ON messages(meta_message_id) WHERE meta_message_id <> '';
 CREATE INDEX IF NOT EXISTS idx_events_business_at ON events(business_id, at DESC);
 CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run_at);
