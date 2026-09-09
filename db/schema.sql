@@ -62,6 +62,29 @@ CREATE TABLE IF NOT EXISTS meta_connection_events (
 );
 CREATE INDEX IF NOT EXISTS idx_meta_connection_events_business ON meta_connection_events(business_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS meta_authorizations (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  meta_user_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (business_id, meta_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_meta_authorizations_user ON meta_authorizations(meta_user_id);
+
+CREATE TABLE IF NOT EXISTS meta_data_deletion_requests (
+  id TEXT PRIMARY KEY,
+  confirmation_code TEXT NOT NULL UNIQUE,
+  meta_user_id_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  businesses_affected INTEGER NOT NULL DEFAULT 0,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT meta_data_deletion_status_check CHECK (status IN ('pending', 'completed', 'failed'))
+);
+CREATE INDEX IF NOT EXISTS idx_meta_data_deletion_requests_code ON meta_data_deletion_requests(confirmation_code);
+
 CREATE TABLE IF NOT EXISTS subscription_plans (
   id TEXT PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,

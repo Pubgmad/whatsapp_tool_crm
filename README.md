@@ -30,6 +30,7 @@ MongoDB can work, but it is less natural for this workflow because the product h
 - Inbox conversations, messages, and 24-hour reply-window enforcement.
 - STOP / unsubscribe handling through incoming WhatsApp webhooks.
 - Meta webhook endpoint for incoming messages and delivery status updates.
+- Meta deauthorization and data deletion callbacks with signed-request validation.
 - Meta webhook signature validation with `META_APP_SECRET` when enabled/configured.
 - Encrypted storage for Meta access tokens when `ENCRYPTION_KEY` is configured.
 
@@ -48,6 +49,17 @@ To send real WhatsApp messages, you need:
 - Message templates approved by Meta.
 
 A personal WhatsApp number should not be used for production. Use a dedicated business number, because a number connected to the WhatsApp Business Platform cannot also be actively used in the normal WhatsApp mobile app in the same way.
+
+### Meta account lifecycle callbacks
+
+After deployment and `npm run db:init`, configure these HTTPS URLs in Meta:
+
+```text
+Deauthorize callback URL: https://your-domain.example/api/meta/deauthorize
+Data Deletion Request URL: https://your-domain.example/api/meta/data-deletion
+```
+
+Both callbacks validate Meta's `signed_request` with `META_APP_SECRET`. Deauthorization removes the affected authorization mapping, encrypted access token, and WhatsApp connection. Data deletion additionally creates a non-sensitive confirmation record and returns the status URL required by Meta. Companies connected before this schema was deployed should reconnect once through Embedded Signup so the authorizing Meta user can be mapped securely.
 
 ## Fresh Setup
 
