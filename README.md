@@ -93,6 +93,17 @@ npm run db:seed
 
 The seed command creates only the owner workspace from `SEED_EMAIL`, `SEED_PASSWORD`, and `SEED_BUSINESS_NAME`. It does not create sample contacts, templates, campaigns, or messages.
 
+### Permanent Meta reviewer workspace
+
+App Review access is provisioned separately from paid subscriptions. Configure `REVIEWER_EMAIL`, `REVIEWER_PASSWORD`, `REVIEWER_NAME`, and `REVIEWER_BUSINESS_NAME` only in the server's ignored `.env.local`, then run:
+
+```bash
+npm run db:init
+npm run reviewer:init
+```
+
+The command creates an active, tenant-isolated company workspace with permanent review access, removes any billing subscription from that workspace, and stores only a salted scrypt password hash. Running it again rotates the password without creating another workspace. Never commit reviewer credentials or provide the Super Admin account to an external reviewer.
+
 6. Start the app
 
 ```bash

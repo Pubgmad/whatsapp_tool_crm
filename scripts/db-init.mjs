@@ -132,7 +132,8 @@ async function backfillSubscriptions(client) {
             NOW() + INTERVAL '1 month',
             NOW() + INTERVAL '1 month'
      FROM businesses b
-     WHERE NOT EXISTS (SELECT 1 FROM business_subscriptions bs WHERE bs.business_id = b.id)`,
+     WHERE b.review_access = FALSE
+       AND NOT EXISTS (SELECT 1 FROM business_subscriptions bs WHERE bs.business_id = b.id)`,
     [plan?.id || null, String(plan?.trial_days || 0)]
   );
 }
@@ -185,6 +186,7 @@ try {
   await client.query("ALTER TABLE templates ADD COLUMN IF NOT EXISTS meta_template_name TEXT DEFAULT ''");
   await client.query("ALTER TABLE campaign_recipients ADD COLUMN IF NOT EXISTS error_message TEXT DEFAULT ''");
   await client.query("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'");
+  await client.query("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS review_access BOOLEAN NOT NULL DEFAULT FALSE");
   await client.query("ALTER TABLE businesses ALTER COLUMN account_status SET DEFAULT 'pending'");
   await addConstraintIfMissing(client, "businesses", "businesses_account_status_check", "CHECK (account_status IN ('pending', 'active', 'suspended'))");
   await seedPlatformSettings(client);

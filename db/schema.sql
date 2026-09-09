@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS businesses (
   mode TEXT NOT NULL DEFAULT 'Live Meta',
   status TEXT NOT NULL DEFAULT 'Needs setup',
   account_status TEXT NOT NULL DEFAULT 'pending',
+  review_access BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT businesses_mode_check CHECK (mode IN ('Live Meta')),

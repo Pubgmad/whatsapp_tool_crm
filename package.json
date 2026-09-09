@@ -10,6 +10,7 @@
     "start": "next start",
     "db:init": "node scripts/db-init.mjs",
     "db:seed": "node scripts/db-seed.mjs",
+    "reviewer:init": "node scripts/reviewer-init.mjs",
     "super-admin:init": "node scripts/db-init.mjs"
   },
   "dependencies": {
