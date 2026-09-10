@@ -192,6 +192,10 @@ Company and Super Admin page routes are guarded server-side. API routes continue
 - `campaign_recipients`: one send record per selected contact.
 - `conversations`: one thread per contact.
 - `messages`: incoming and outgoing chat history.
+- `whatsapp_accounts`: tenant-scoped WABAs and encrypted Meta authorization state.
+- `whatsapp_phone_numbers`: phone assets, registration, quality, profile, and default routing.
+- `whatsapp_native_flows`: WhatsApp Flow definitions and Meta publication state.
+- `whatsapp_analytics_snapshots`: dated account-level metrics synchronized from Meta.
 - `events` and `audit_logs`: operational history.
 
 ## Important Production Notes
@@ -200,7 +204,6 @@ Before launch, connect these operational pieces:
 
 - Hosted PostgreSQL with backups.
 - Managed secret storage for environment variables.
-- Real Meta template submission and status sync.
 - Webhook signature validation using the Meta app secret.
 - Queue-based campaign sending for large batches.
 - Rate limits and retry handling for Meta API errors.
@@ -293,9 +296,38 @@ Before a public SaaS launch, add:
 - Automated renewal and expiry jobs.
 - Email verification, password reset, and staff invitations.
 - Fine-grained company roles and permissions.
-- Meta Embedded Signup for self-service WhatsApp onboarding.
 - Hosted cron/worker for campaign queue processing.
 - Monitoring, rate-limit dashboards, audit log UI, backups, and legal/compliance policies.
+
+## WhatsApp Operations
+
+The **Meta Setup** workspace is backed by tenant-scoped PostgreSQL data and the live Meta Graph API. It supports:
+
+- Embedded Signup and manual connection recovery without exposing access tokens to the browser.
+- Multiple WABAs and phone numbers, default-number selection, registration, and SMS/voice verification.
+- Business profile synchronization and editing.
+- Message template submission and synchronization, including media headers, action buttons, and authentication template configuration.
+- Interactive reply buttons and list messages inside the 24-hour service window.
+- Native WhatsApp Flow creation, JSON upload/validation, publication, and synchronization.
+- WhatsApp account analytics snapshots and phone quality/messaging-tier monitoring.
+- A capability view that distinguishes configured features from products that still require Meta eligibility or App Review.
+
+Optional Meta products such as coexistence, Calling, catalog commerce, Click-to-WhatsApp ads, Marketing Messages API, and billing visibility are not simulated. Their readiness is shown only when the connected Meta account exposes the required capability.
+
+After pulling a release on an existing server, apply the additive schema migration before restarting the app:
+
+```bash
+npm install
+npm run db:init
+npm run build
+pm2 restart whatsapp-crm --update-env
+```
+
+Use the public webhook callback below and set the same private verify-token value in Meta and `META_WEBHOOK_VERIFY_TOKEN`:
+
+```text
+https://crm.mathstrat-sites.com/api/webhooks/meta
+```
 
 ## Privacy Policy URL for Meta
 

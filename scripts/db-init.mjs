@@ -175,6 +175,7 @@ try {
   await client.query("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS automation_flow_id TEXT");
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS assigned_user_id TEXT");
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS automation_paused BOOLEAN NOT NULL DEFAULT FALSE");
+  await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS whatsapp_phone_number_id TEXT NOT NULL DEFAULT ''");
   await client.query("ALTER TABLE automation_sessions ADD COLUMN IF NOT EXISTS assigned_user_id TEXT");
   await client.query("ALTER TABLE automation_sessions ADD COLUMN IF NOT EXISTS campaign_id TEXT");
   await client.query("CREATE INDEX IF NOT EXISTS idx_campaigns_automation_flow ON campaigns(automation_flow_id)");
@@ -184,11 +185,40 @@ try {
   await addConstraintIfMissing(client, "automation_sessions", "automation_sessions_assigned_user_id_fkey", "FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL");
   await addConstraintIfMissing(client, "automation_sessions", "automation_sessions_campaign_id_fkey", "FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL");
   await client.query("ALTER TABLE templates ADD COLUMN IF NOT EXISTS meta_template_name TEXT DEFAULT ''");
+  await client.query("ALTER TABLE templates ADD COLUMN IF NOT EXISTS component_schema JSONB NOT NULL DEFAULT '{}'::jsonb");
   await client.query("ALTER TABLE campaign_recipients ADD COLUMN IF NOT EXISTS error_message TEXT DEFAULT ''");
   await client.query("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'");
   await client.query("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS review_access BOOLEAN NOT NULL DEFAULT FALSE");
   await client.query("ALTER TABLE businesses ALTER COLUMN account_status SET DEFAULT 'pending'");
   await addConstraintIfMissing(client, "businesses", "businesses_account_status_check", "CHECK (account_status IN ('pending', 'active', 'suspended'))");
+  await client.query(
+    `INSERT INTO whatsapp_accounts (id, business_id, waba_id, onboarding_method, access_token_encrypted, token_expires_at, webhook_subscribed, is_default, status, metadata, last_synced_at)
+     SELECT 'waa_' || substr(md5(b.id || b.waba_id), 1, 16), b.id, b.waba_id, b.onboarding_method,
+            b.access_token_encrypted, b.meta_token_expires_at, b.webhook_subscribed, TRUE,
+            CASE WHEN b.status = 'Connected' THEN 'connected' ELSE 'attention' END,
+            b.meta_connection_metadata, b.updated_at
+     FROM businesses b
+     WHERE NULLIF(b.waba_id, '') IS NOT NULL
+     ON CONFLICT (business_id, waba_id) DO UPDATE SET
+       access_token_encrypted = EXCLUDED.access_token_encrypted,
+       token_expires_at = EXCLUDED.token_expires_at,
+       webhook_subscribed = EXCLUDED.webhook_subscribed,
+       updated_at = NOW()`
+  );
+  await client.query(
+    `INSERT INTO whatsapp_phone_numbers (id, business_id, whatsapp_account_id, phone_number_id, display_phone_number, verified_name, quality_rating, status, is_default, metadata, last_synced_at)
+     SELECT 'wap_' || substr(md5(b.id || b.phone_number_id), 1, 16), b.id, wa.id, b.phone_number_id, b.whatsapp_number,
+            COALESCE(b.meta_connection_metadata->>'verifiedName', ''), COALESCE(b.meta_connection_metadata->>'qualityRating', ''),
+            COALESCE(b.meta_connection_metadata->>'phoneStatus', ''), TRUE, b.meta_connection_metadata, b.updated_at
+     FROM businesses b JOIN whatsapp_accounts wa ON wa.business_id = b.id AND wa.waba_id = b.waba_id
+     WHERE NULLIF(b.phone_number_id, '') IS NOT NULL
+     ON CONFLICT (business_id, phone_number_id) DO UPDATE SET
+       display_phone_number = EXCLUDED.display_phone_number,
+       verified_name = EXCLUDED.verified_name,
+       quality_rating = EXCLUDED.quality_rating,
+       status = EXCLUDED.status,
+       updated_at = NOW()`
+  );
   await seedPlatformSettings(client);
   await seedSubscriptionPlans(client);
   await backfillSubscriptions(client);

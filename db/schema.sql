@@ -72,6 +72,82 @@ CREATE TABLE IF NOT EXISTS meta_authorizations (
 );
 CREATE INDEX IF NOT EXISTS idx_meta_authorizations_user ON meta_authorizations(meta_user_id);
 
+CREATE TABLE IF NOT EXISTS whatsapp_accounts (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  waba_id TEXT NOT NULL,
+  name TEXT DEFAULT '',
+  currency TEXT DEFAULT '',
+  timezone_id TEXT DEFAULT '',
+  onboarding_method TEXT NOT NULL DEFAULT 'embedded_signup',
+  access_token_encrypted TEXT NOT NULL DEFAULT '',
+  token_expires_at TIMESTAMPTZ,
+  webhook_subscribed BOOLEAN NOT NULL DEFAULT FALSE,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  status TEXT NOT NULL DEFAULT 'connected',
+  capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_synced_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (business_id, waba_id)
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_business ON whatsapp_accounts(business_id, is_default DESC, created_at);
+
+CREATE TABLE IF NOT EXISTS whatsapp_phone_numbers (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  whatsapp_account_id TEXT NOT NULL REFERENCES whatsapp_accounts(id) ON DELETE CASCADE,
+  phone_number_id TEXT NOT NULL,
+  display_phone_number TEXT DEFAULT '',
+  verified_name TEXT DEFAULT '',
+  quality_rating TEXT DEFAULT '',
+  status TEXT DEFAULT '',
+  code_verification_status TEXT DEFAULT '',
+  name_status TEXT DEFAULT '',
+  platform_type TEXT DEFAULT '',
+  messaging_limit_tier TEXT DEFAULT '',
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  registration_state TEXT NOT NULL DEFAULT 'unknown',
+  profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_synced_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (business_id, phone_number_id)
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_phone_numbers_business ON whatsapp_phone_numbers(business_id, is_default DESC, created_at);
+
+CREATE TABLE IF NOT EXISTS whatsapp_native_flows (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  whatsapp_account_id TEXT REFERENCES whatsapp_accounts(id) ON DELETE SET NULL,
+  meta_flow_id TEXT DEFAULT '',
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'OTHER',
+  status TEXT NOT NULL DEFAULT 'draft',
+  endpoint_uri TEXT DEFAULT '',
+  flow_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  validation_errors JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (business_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_native_flows_business ON whatsapp_native_flows(business_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS whatsapp_analytics_snapshots (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  whatsapp_account_id TEXT REFERENCES whatsapp_accounts(id) ON DELETE CASCADE,
+  phone_number_id TEXT DEFAULT '',
+  metric_type TEXT NOT NULL,
+  period_start TIMESTAMPTZ,
+  period_end TIMESTAMPTZ,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_analytics_business ON whatsapp_analytics_snapshots(business_id, collected_at DESC);
+
 CREATE TABLE IF NOT EXISTS meta_data_deletion_requests (
   id TEXT PRIMARY KEY,
   confirmation_code TEXT NOT NULL UNIQUE,
@@ -239,6 +315,7 @@ ALTER TABLE templates ADD COLUMN IF NOT EXISTS rejection_reason TEXT NOT NULL DE
 ALTER TABLE templates ADD COLUMN IF NOT EXISTS header_text TEXT NOT NULL DEFAULT '';
 ALTER TABLE templates ADD COLUMN IF NOT EXISTS footer_text TEXT NOT NULL DEFAULT '';
 ALTER TABLE templates ADD COLUMN IF NOT EXISTS buttons JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS component_schema JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS campaigns (
   id TEXT PRIMARY KEY,
@@ -349,6 +426,7 @@ ALTER TABLE conversations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS unread_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS whatsapp_phone_number_id TEXT NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
   conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
