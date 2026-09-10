@@ -128,6 +128,33 @@ Open:
 http://localhost:3000
 ```
 
+### Application routes
+
+The production UI uses stable Next.js routes. The root URL sends signed-out users to `/login` and authenticated company users to `/app/dashboard`.
+
+```text
+/login                              Company sign in
+/signup                             Company registration
+/app/dashboard                      Workspace overview
+/app/contacts                       Audience and segments
+/app/templates                      WhatsApp templates
+/app/automations                    Conversation automations
+/app/campaigns                      Campaign builder
+/app/analytics                      Campaign results
+/app/inbox                          Shared inbox
+/app/inbox/[conversationId]         Conversation deep link
+/app/team                           Team workspace
+/app/suppression                    Suppression list
+/app/settings/whatsapp              Meta and WhatsApp connection
+/app/settings/billing               Subscription, limits, and usage
+/super-admin                        Platform overview
+/super-admin/companies              Tenant management
+/super-admin/plans                  Subscription plan management
+/super-admin/content                Platform content management
+```
+
+Company and Super Admin page routes are guarded server-side. API routes continue to enforce their own role and tenant authorization independently. Meta-facing webhook, deauthorization, data-deletion, and privacy-policy URLs remain unchanged.
+
 ## How To Test Without Meta Credentials
 
 1. Sign up or sign in.

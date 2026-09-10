@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./route-navigation.css";
 import { getPublicPlatformConfig } from "../lib/platform";
 
 export const dynamic = "force-dynamic";

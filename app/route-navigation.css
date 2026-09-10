@@ -1,0 +1,6 @@
+.superNav a.active {
+  color: #fff;
+  background: var(--brand);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
