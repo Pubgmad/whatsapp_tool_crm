@@ -13,8 +13,8 @@ export default async function PrivacyPolicyPage() {
   const platform = await getPublicPlatformConfig();
   const productName = platform.product_tagline || "WhatsApp Business CRM";
   const companyName = platform.company_name || "Mathstrat";
-  const supportEmail = platform.support_email || "mathstratofficial@gmail.com";
-  const lastUpdated = platform.privacy_last_updated || "6 September 2026";
+  const supportEmail = platform.support_email || "";
+  const lastUpdated = platform.privacy_last_updated || "";
 
   return (
     <main className="legalShell">
@@ -23,7 +23,7 @@ export default async function PrivacyPolicyPage() {
           <p className="kicker">{companyName} {productName}</p>
           <h1>Privacy Policy</h1>
           <p>{platform.privacy_intro}</p>
-          <span>Last updated: {lastUpdated}</span>
+          {lastUpdated && <span>Last updated: {lastUpdated}</span>}
         </header>
 
         <section>
@@ -32,7 +32,7 @@ export default async function PrivacyPolicyPage() {
             {companyName} provides a WhatsApp CRM platform that helps businesses connect their own WhatsApp Business account, manage opted-in contacts, send approved WhatsApp templates, monitor campaign delivery, automate replies, and respond to customer messages.
           </p>
           <p>
-            For privacy questions or data deletion requests, contact us at <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.
+            For privacy questions or data deletion requests{supportEmail ? <> contact us at <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.</> : "."}
           </p>
         </section>
 
@@ -109,7 +109,7 @@ export default async function PrivacyPolicyPage() {
             Companies can remove contacts, suppress contacts from future campaigns, and manage WhatsApp setup information inside the platform. Customers can unsubscribe from marketing messages by replying with opt-out language such as STOP where supported by the business workflow.
           </p>
           <p>
-            To request access, correction, export, or deletion of data, email <a href={`mailto:${supportEmail}`}>{supportEmail}</a>. We may need to verify the requester before processing the request.
+            To request access, correction, export, or deletion of data{supportEmail ? <> email <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.</> : "."} We may need to verify the requester before processing the request.
           </p>
         </section>
 

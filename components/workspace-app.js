@@ -99,15 +99,15 @@ function loadFacebookSdk(appId, version) {
 }
 
 const fallbackPlatform = {
-  brand_name: "Growth Desk",
-  product_tagline: "WhatsApp Business CRM",
-  company_name: "Mathstrat",
-  workspace_intro: "Manage opted-in WhatsApp contacts, approved templates, campaign delivery, customer replies, automation, and unsubscribe safety from one business workspace.",
-  signin_heading: "Sign in",
-  signin_copy: "Continue to your WhatsApp campaign workspace.",
-  signup_heading: "Create workspace",
-  signup_copy: "Start with your business account and connect Meta after login.",
-  primary_cta_label: "New campaign"
+  brand_name: "",
+  product_tagline: "",
+  company_name: "",
+  workspace_intro: "",
+  signin_heading: "",
+  signin_copy: "",
+  signup_heading: "",
+  signup_copy: "",
+  primary_cta_label: ""
 };
 function attributesFromText(value) {
   return String(value || "").split(/\r?\n/).reduce((result, row) => {
