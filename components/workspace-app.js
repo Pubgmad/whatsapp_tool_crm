@@ -57,6 +57,25 @@ const api = async (path, options = {}) => {
 
 const postJson = (path, body, method = "POST") => api(path, { method, body: JSON.stringify(body) });
 const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Never";
+const emptyWorkspaceState = {
+  contacts: [], audienceSegments: [], templates: [], campaigns: [], conversations: [],
+  events: [], automationFlows: [], teamMembers: [], pagination: {}
+};
+
+function mergeWorkspaceState(current, incoming) {
+  return {
+    ...emptyWorkspaceState,
+    ...(current || {}),
+    ...incoming,
+    pagination: { ...(current?.pagination || {}), ...(incoming?.pagination || {}) }
+  };
+}
+
+function stateUrl(view, { page = 1, messagePage = 1, conversationId = "" } = {}) {
+  const params = new URLSearchParams({ page: String(page), messagePage: String(messagePage) });
+  if (conversationId) params.set("conversationId", conversationId);
+  return `/api/workspace/${encodeURIComponent(view)}?${params}`;
+}
 
 function loadFacebookSdk(appId, version) {
   return new Promise((resolve, reject) => {
@@ -118,6 +137,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [notice, setNotice] = useState("");
   const [platform, setPlatform] = useState(fallbackPlatform);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [pages, setPages] = useState({});
 
   const approvedTemplates = useMemo(() => state?.templates.filter((template) => template.status === "Approved") || [], [state]);
   const marketableContacts = useMemo(() => state?.contacts.filter((contact) => contact.marketingPermission && !contact.unsubscribed) || [], [state]);
@@ -131,6 +151,12 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     setActiveConversationId(location.conversationId);
   }, [authMode, pathname]);
   useEffect(() => {
+    if (!account || authMode) return;
+    const location = workspaceLocation(pathname);
+    if (location.view === "inbox") setPages((current) => ({ ...current, messages: 1 }));
+    loadScope(location, true, location.view === "inbox" ? { messagePage: 1 } : {});
+  }, [account, authMode, pathname]);
+  useEffect(() => {
     if (loading || configError) return;
     if (authMode && account) router.replace("/app/dashboard");
     if (!authMode && !account) router.replace("/login");
@@ -139,11 +165,11 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     if (!account) return undefined;
     const timer = window.setInterval(async () => {
       if (document.visibilityState !== "visible") return;
-      try { const nextState = await api("/api/state"); setState(nextState); }
+      try { await loadScope(workspaceLocation(window.location.pathname), false); }
       catch (error) { if (error.code === "AUTH_REQUIRED") setAccount(null); }
     }, 15000);
     return () => window.clearInterval(timer);
-  }, [account]);
+  }, [account, pages, pathname]);
 
   const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2600); };
 
@@ -154,8 +180,9 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
       setPlatform({ ...fallbackPlatform, ...(publicConfig.platform || {}) });
       const me = await api("/api/me");
       setAccount(me);
-      const nextState = await api("/api/state");
-      setState(nextState);
+      const location = authMode ? { view: "overview", conversationId: "" } : workspaceLocation(pathname);
+      const nextState = await api(stateUrl(location.view, { conversationId: location.conversationId || "" }));
+      setState(mergeWorkspaceState(null, nextState));
       setPlatform({ ...fallbackPlatform, ...(nextState.platform || publicConfig.platform || {}) });
       setConfigError("");
     } catch (error) {
@@ -167,13 +194,31 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     }
   };
 
+  const loadScope = async (location = workspaceLocation(pathname), updatePlatform = true, overrides = {}) => {
+    const page = overrides.page || pages[location.view] || 1;
+    const messagePage = overrides.messagePage || pages.messages || 1;
+    const nextState = await api(stateUrl(location.view, { page, messagePage, conversationId: location.conversationId || "" }));
+    setState((current) => mergeWorkspaceState(current, nextState));
+    if (updatePlatform && nextState.platform) setPlatform((current) => ({ ...current, ...nextState.platform }));
+    return nextState;
+  };
+
   const refresh = async () => {
-    try { const nextState = await api("/api/state"); setState(nextState); setPlatform({ ...fallbackPlatform, ...(nextState.platform || {}) }); }
+    try { await loadScope(); }
     catch (error) { notify(error.message); if (error.code === "AUTH_REQUIRED") setAccount(null); }
   };
 
   const mutate = async (promise, message) => {
-    try { setState(await promise); notify(message); }
+    try { await promise; await loadScope(); notify(message); }
+    catch (error) { notify(error.message); }
+  };
+
+  const changePage = async (key, page) => {
+    const nextPage = Math.max(1, page);
+    const location = workspaceLocation(pathname);
+    const overrides = key === "messages" ? { messagePage: nextPage } : { page: nextPage };
+    setPages((current) => ({ ...current, [key]: nextPage, ...(key === "messages" ? {} : { [location.view]: nextPage }) }));
+    try { await loadScope(location, false, overrides); }
     catch (error) { notify(error.message); }
   };
 
@@ -194,6 +239,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   const openConversation = (conversationId) => {
     setActiveConversationId(conversationId);
+    setPages((current) => ({ ...current, messages: 1 }));
     setMobileNavOpen(false);
     router.push(`/app/inbox/${encodeURIComponent(conversationId)}`);
   };
@@ -211,7 +257,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
   const latestCampaign = state.campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const screenProps = { state, mutate, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig };
+  const screenProps = { state, mutate, changePage, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig };
 
   return (
     <main className="shell">
@@ -293,7 +339,12 @@ function SystemSetup({ message, platform }) {
 
 function Screens({ activeView, ...props }) {
   const screens = { overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
-  return screens[activeView];
+  const pageKey = { contacts: "contacts", templates: "templates", campaigns: "campaigns", results: "results", inbox: "inbox", unsubscribes: "unsubscribes" }[activeView];
+  return <>
+    {screens[activeView]}
+    {activeView === "inbox" && <Pagination label="Message history" meta={props.state.pagination?.messages} onChange={(page) => props.changePage("messages", page)} />}
+    {pageKey && <Pagination label={activeView === "inbox" ? "Conversations" : "Records"} meta={props.state.pagination?.[pageKey]} onChange={(page) => props.changePage(pageKey, page)} />}
+  </>;
 }
 
 function pageTitle(view) {
@@ -315,25 +366,28 @@ function Billing({ state }) {
 }
 
 function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView, platform }) {
-  const allRecipients = state.campaigns.flatMap((campaign) => campaign.recipients || []);
-  const delivered = allRecipients.filter((recipient) => ["delivered", "read"].includes(recipient.status)).length;
-  const read = allRecipients.filter((recipient) => recipient.status === "read").length;
-  const failed = allRecipients.filter((recipient) => recipient.status === "failed").length;
-  const openConversations = state.conversations.filter((conversation) => conversation.canReply).length;
+  const overview = state.overview || {};
+  const delivered = overview.delivered || 0;
+  const read = overview.read || 0;
+  const failed = overview.failed || 0;
+  const openConversations = overview.openConversations || 0;
+  const marketableCount = overview.marketableContacts || 0;
+  const campaignCount = overview.campaignCount || 0;
+  const currentCampaign = overview.latestCampaign || latestCampaign;
   const usage = state.subscription?.usage || {};
   const limits = state.subscription?.limits || {};
   const setupItems = [
     { label: "WhatsApp connection", ready: state.meta.liveMetaReady },
-    { label: "Approved template", ready: approvedTemplates.length > 0 },
-    { label: "Opted-in audience", ready: marketableContacts.length > 0 },
-    { label: "Automation flow", ready: (state.automationFlows || []).some((flow) => flow.status === "active") }
+    { label: "Approved template", ready: (overview.approvedTemplates || 0) > 0 },
+    { label: "Opted-in audience", ready: marketableCount > 0 },
+    { label: "Automation flow", ready: (overview.activeFlows || 0) > 0 }
   ];
   return <div className="screenGrid">
-    <section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>{platform.workspace_intro}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableContacts.length} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={state.campaigns.length} /></div></section>
+    <section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>{platform.workspace_intro}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
     <section className="actionBand"><button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform.primary_cta_label} <ChevronRight size={18} /></button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> Add audience</button><button className="secondaryAction" onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button></section>
     <div className="overviewGrid"><Panel title="Delivery pulse" subtitle="All WhatsApp campaign recipients"><div className="statusGrid"><Metric label="Delivered" value={delivered} /><Metric label="Read" value={read} /><Metric label="Failed" value={failed} /><Metric label="Open chats" value={openConversations} /></div></Panel><Panel title="Workspace readiness" subtitle="Complete these before scaling sends"><div className="readinessList">{setupItems.map((item) => <div key={item.label} className={item.ready ? "ready" : ""}><span>{item.label}</span><Badge kind={item.ready ? "good" : "warn"}>{item.ready ? "Ready" : "Action needed"}</Badge></div>)}</div></Panel></div>
     <Panel title="Subscription usage" subtitle={state.subscription?.plan?.name || "No plan assigned"}><div className="meterGrid usageGrid"><Metric label="Contacts" value={limits.contacts == null ? usage.contacts || 0 : (usage.contacts || 0) + " / " + limits.contacts} /><Metric label="Campaigns" value={limits.campaigns == null ? usage.campaigns || 0 : (usage.campaigns || 0) + " / " + limits.campaigns} /><Metric label="Messages" value={limits.messages == null ? usage.messages || 0 : (usage.messages || 0) + " / " + limits.messages} /><Metric label="Flows" value={limits.automationFlows == null ? usage.automationFlows || 0 : (usage.automationFlows || 0) + " / " + limits.automationFlows} /></div></Panel>
-    <Panel title="Latest campaign" subtitle={latestCampaign ? formatTime(latestCampaign.createdAt) : "No campaigns"}>{latestCampaign ? <ResultMeters stats={latestCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel>
+    <Panel title="Latest campaign" subtitle={currentCampaign ? formatTime(currentCampaign.createdAt) : "No campaigns"}>{currentCampaign ? <ResultMeters stats={currentCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel>
   </div>;
 }
 
@@ -358,12 +412,12 @@ function Setup({ state, mutate }) {
       FB.login((response) => {
         const code = response?.authResponse?.code;
         if (!code) { setConnecting(false); mutate(Promise.reject(new Error("Meta sign-up was cancelled or did not return authorization."))); return; }
-        mutate(postJson("/api/meta/embedded-signup/complete", { code, wabaId: signupData.current.waba_id, phoneNumberId: signupData.current.phone_number_id }).then(() => api("/api/state")).finally(() => setConnecting(false)), "WhatsApp Business connected");
+        mutate(postJson("/api/meta/embedded-signup/complete", { code, wabaId: signupData.current.waba_id, phoneNumberId: signupData.current.phone_number_id }).finally(() => setConnecting(false)), "WhatsApp Business connected");
       }, { config_id: config.configId, response_type: "code", override_default_response_type: true, extras: { setup: {}, featureType: "", sessionInfoVersion: "3" } });
     } catch (error) { setConnecting(false); mutate(Promise.reject(error)); }
   };
-  const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}).then(() => api("/api/state")), "Meta connection verified");
-  const disconnect = () => mutate(postJson("/api/meta/connection/disconnect", {}).then(() => api("/api/state")), "WhatsApp Business disconnected");
+  const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}), "Meta connection verified");
+  const disconnect = () => mutate(postJson("/api/meta/connection/disconnect", {}), "WhatsApp Business disconnected");
   const submitManual = (event) => { event.preventDefault(); mutate(postJson("/api/setup", Object.fromEntries(new FormData(event.currentTarget)), "PUT"), "Manual setup saved"); };
   const metadata = state.setup.connectionMetadata || {};
   return <div className="screenGrid metaSetupScreen">
@@ -385,11 +439,10 @@ function Contacts({ state, mutate }) {
     const permitted = contact.marketingPermission && !contact.unsubscribed;
     return (!search || haystack.includes(search.toLowerCase())) && (permissionFilter === "all" || (permissionFilter === "allowed" ? permitted : !permitted));
   });
-  const reloadAfter = (promise) => promise.then(() => api("/api/state"));
   const add = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/contacts", { name: form.get("name"), phone: form.get("phone"), tags: form.get("tags"), optInSource: form.get("optInSource"), marketingPermission: form.get("marketingPermission") === "on" }), "Contact saved"); event.currentTarget.reset(); };
   const importRows = (event) => { event.preventDefault(); if (!csvText.trim()) return; mutate(postJson("/api/contacts/import", { csv: csvText }).then((next) => { setCsvText(""); setFileName(""); return next; }), "Contacts imported"); };
   const chooseFile = async (event) => { const file = event.target.files?.[0]; if (!file) return; setFileName(file.name); setCsvText(await file.text()); event.target.value = ""; };
-  const saveSegment = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(reloadAfter(postJson("/api/segments", { name: form.get("name"), description: form.get("description"), rules: { permission: form.get("permission"), tagMode: form.get("tagMode"), tags: form.get("tags"), sources: form.get("sources"), lastActiveDays: form.get("lastActiveDays"), createdWithinDays: form.get("createdWithinDays") } })), "Segment saved"); event.currentTarget.reset(); };
+  const saveSegment = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/segments", { name: form.get("name"), description: form.get("description"), rules: { permission: form.get("permission"), tagMode: form.get("tagMode"), tags: form.get("tags"), sources: form.get("sources"), lastActiveDays: form.get("lastActiveDays"), createdWithinDays: form.get("createdWithinDays") } }), "Segment saved"); event.currentTarget.reset(); };
   const saveContact = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const allowed = form.get("marketingPermission") === "allowed"; mutate(postJson(`/api/contacts/${editContact.id}`, { name: form.get("name"), phone: form.get("phone"), tags: form.get("tags"), optInSource: form.get("optInSource"), marketingPermission: allowed, unsubscribed: !allowed, customAttributes: attributesFromText(form.get("customAttributes")) }, "PATCH").then((next) => { setEditContact(null); return next; }), "Contact updated"); };
   return <div className="screenGrid">
     <div className="contentGrid audienceGrid">
@@ -510,12 +563,12 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
       triggerMode: flowMeta.triggerMode,
       triggerKeywords: flowMeta.triggerKeywords.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
       definition
-    }).then(() => api("/api/state")).then((next) => { reset(); return next; }), editingId ? "Automation flow updated" : "Automation flow saved");
+    }).then((next) => { reset(); return next; }), editingId ? "Automation flow updated" : "Automation flow saved");
   };
 
-  const updateStatus = (flow, status) => mutate(postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH").then(() => api("/api/state")), status === "active" ? "Flow activated" : "Flow paused");
-  const archive = (flow) => mutate(postJson(`/api/automation/flows/${flow.id}`, {}, "DELETE").then(() => api("/api/state")), "Flow archived");
-  const process = () => mutate(postJson("/api/automation/process", { limit: 25 }).then(() => api("/api/state")), "Automation queue processed");
+  const updateStatus = (flow, status) => mutate(postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH"), status === "active" ? "Flow activated" : "Flow paused");
+  const archive = (flow) => mutate(postJson(`/api/automation/flows/${flow.id}`, {}, "DELETE"), "Flow archived");
+  const process = () => mutate(postJson("/api/automation/process", { limit: 25 }), "Automation queue processed");
 
   return <div className="screenGrid automationScreen">
     <section className="automationHero">
@@ -652,12 +705,11 @@ function Team({ state, mutate }) {
   const [invitations, setInvitations] = useState([]);
   const [inviteUrl, setInviteUrl] = useState("");
   useEffect(() => { if (canManage) api("/api/team/invitations").then((result) => setInvitations(result.invitations || [])).catch(() => setInvitations([])); }, [canManage]);
-  const reloadState = (promise) => promise.then(() => api("/api/state"));
   const invite = async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await postJson("/api/team/invitations", Object.fromEntries(new FormData(form))); setInvitations(result.invitations || []); setInviteUrl(result.inviteUrl || ""); form.reset(); } catch (error) { mutate(Promise.reject(error)); } };
   const copyInvite = async () => { if (inviteUrl) await navigator.clipboard.writeText(inviteUrl); };
-  const updateMember = (member, role) => mutate(reloadState(postJson(`/api/team/members/${member.id}`, { role }, "PATCH")), "Team role updated");
-  const updateAvailability = (availability) => mutate(reloadState(postJson(`/api/team/members/${state.account.user.id}`, { availability }, "PATCH")), "Availability updated");
-  const removeMember = (member) => mutate(reloadState(api(`/api/team/members/${member.id}`, { method: "DELETE" })), "Team member removed");
+  const updateMember = (member, role) => mutate(postJson(`/api/team/members/${member.id}`, { role }, "PATCH"), "Team role updated");
+  const updateAvailability = (availability) => mutate(postJson(`/api/team/members/${state.account.user.id}`, { availability }, "PATCH"), "Availability updated");
+  const removeMember = (member) => mutate(api(`/api/team/members/${member.id}`, { method: "DELETE" }), "Team member removed");
   return <div className="screenGrid"><section className="teamStatus"><div><p className="kicker">Agent availability</p><h2>{state.account.user.name}</h2><span>Set your current inbox availability.</span></div><select value={members.find((member) => member.id === state.account.user.id)?.availability || "offline"} onChange={(event) => updateAvailability(event.target.value)}><option value="available">Available</option><option value="away">Away</option><option value="offline">Offline</option></select></section>{canManage && <Panel title="Invite team member" subtitle="Invite links expire automatically and can be revoked"><form className="teamInviteForm" onSubmit={invite}><Input name="email" label="Work email" type="email" required /><label>Company role<select name="role"><option value="Agent">Agent</option><option value="Manager">Manager</option></select></label><button className="primaryAction" type="submit"><UserPlus size={18} /> Create invite</button></form>{inviteUrl && <div className="inviteResult"><div><strong>Invitation link created</strong><span>{inviteUrl}</span></div><button className="secondaryAction" type="button" onClick={copyInvite}><Copy size={17} /> Copy</button></div>}<div className="pendingInvites">{invitations.map((item) => <article key={item.id}><div><strong>{item.email}</strong><span>{item.role} | expires {formatTime(item.expiresAt)}</span></div><button className="iconButton dangerSoft" title="Revoke invite" onClick={async () => { const result = await api(`/api/team/invitations/${item.id}`, { method: "DELETE" }); setInvitations(result.invitations || []); }}><Trash2 size={16} /></button></article>)}</div></Panel>}<Panel title="Company team" subtitle={`${members.length} workspace member${members.length === 1 ? "" : "s"}`}><DataTable headers={["Member", "Role", "Availability", "Actions"]}>{members.map((member) => <tr key={member.id}><td><strong>{member.name}</strong><small>{member.email}</small></td><td>{canManage && member.role !== "Owner" ? <select value={member.role} onChange={(event) => updateMember(member, event.target.value)}><option value="Agent">Agent</option><option value="Manager">Manager</option></select> : <Badge kind={member.role === "Owner" ? "good" : "neutral"}>{member.role}</Badge>}</td><td><Badge kind={member.availability === "available" ? "good" : member.availability === "away" ? "warn" : "neutral"}>{member.availability}</Badge></td><td className="rowActions">{canManage && member.role !== "Owner" && member.id !== state.account.user.id && <button className="dangerText" onClick={() => removeMember(member)}><Trash2 size={15} /> Remove</button>}</td></tr>)}</DataTable></Panel></div>;
 }
 
@@ -671,6 +723,12 @@ function Badge({ kind = "neutral", children }) { return <span className={`badge 
 function Input({ label, ...props }) { return <label>{label}<input {...props} /></label>; }
 function PasswordField({ label, visible, onToggle, ...props }) { return <label>{label}<span className="passwordWrap"><input {...props} type={visible ? "text" : "password"} minLength="8" /><button type="button" onClick={onToggle} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>; }
 function EmptyState({ text }) { return <div className="emptyState"><CircleAlert size={20} /><span>{text}</span></div>; }
+function Pagination({ meta, onChange, label = "Records" }) {
+  if (!meta || meta.pages <= 1) return null;
+  const first = (meta.page - 1) * meta.pageSize + 1;
+  const last = Math.min(meta.page * meta.pageSize, meta.total);
+  return <nav className="pagination" aria-label={`${label} pagination`}><span>{label} {first}-{last} of {meta.total}</span><div><button className="secondaryAction" type="button" disabled={meta.page <= 1} onClick={() => onChange(meta.page - 1)}>Previous</button><strong>Page {meta.page} of {meta.pages}</strong><button className="secondaryAction" type="button" disabled={meta.page >= meta.pages} onClick={() => onChange(meta.page + 1)}>Next</button></div></nav>;
+}
 function DataTable({ headers, children }) {
   const rows = Children.map(children, (row) => {
     if (!isValidElement(row)) return row;

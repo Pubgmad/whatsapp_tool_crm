@@ -1,0 +1,8 @@
+import { getWorkspaceSection } from "@/lib/actions";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(request, context) {
+  return getWorkspaceSection(request, context);
+}
