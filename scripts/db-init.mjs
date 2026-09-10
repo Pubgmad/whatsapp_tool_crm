@@ -176,6 +176,7 @@ try {
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS assigned_user_id TEXT");
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS automation_paused BOOLEAN NOT NULL DEFAULT FALSE");
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS whatsapp_phone_number_id TEXT NOT NULL DEFAULT ''");
+  await client.query("ALTER TABLE whatsapp_phone_numbers ADD COLUMN IF NOT EXISTS commerce_settings JSONB NOT NULL DEFAULT '{}'::jsonb");
   await client.query("ALTER TABLE automation_sessions ADD COLUMN IF NOT EXISTS assigned_user_id TEXT");
   await client.query("ALTER TABLE automation_sessions ADD COLUMN IF NOT EXISTS campaign_id TEXT");
   await client.query("CREATE INDEX IF NOT EXISTS idx_campaigns_automation_flow ON campaigns(automation_flow_id)");

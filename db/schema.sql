@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_phone_numbers (
   is_default BOOLEAN NOT NULL DEFAULT FALSE,
   registration_state TEXT NOT NULL DEFAULT 'unknown',
   profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+  commerce_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   last_synced_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -117,6 +118,19 @@ CREATE TABLE IF NOT EXISTS whatsapp_phone_numbers (
   UNIQUE (business_id, phone_number_id)
 );
 CREATE INDEX IF NOT EXISTS idx_whatsapp_phone_numbers_business ON whatsapp_phone_numbers(business_id, is_default DESC, created_at);
+
+CREATE TABLE IF NOT EXISTS whatsapp_media_assets (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  whatsapp_phone_number_id TEXT NOT NULL REFERENCES whatsapp_phone_numbers(id) ON DELETE CASCADE,
+  meta_media_id TEXT NOT NULL,
+  filename TEXT NOT NULL DEFAULT '',
+  mime_type TEXT NOT NULL,
+  byte_size INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (business_id, meta_media_id)
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_media_business ON whatsapp_media_assets(business_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS whatsapp_native_flows (
   id TEXT PRIMARY KEY,
