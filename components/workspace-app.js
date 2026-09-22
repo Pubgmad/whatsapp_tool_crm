@@ -155,6 +155,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(!authMode);
   const [configError, setConfigError] = useState("");
+  const [bootstrapError, setBootstrapError] = useState(null);
   const [activeView, setActiveView] = useState(initialLocation.view);
   const [activeConversationId, setActiveConversationId] = useState(initialLocation.conversationId);
   const [notice, setNotice] = useState("");
@@ -182,14 +183,14 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   useEffect(() => {
     if (loading || configError) return;
     if (authMode && account) router.replace("/app/dashboard");
-    if (!authMode && !account) router.replace("/login");
-  }, [account, authMode, configError, loading, router]);
+    if (!authMode && !account && bootstrapError?.code === 'AUTH_REQUIRED') router.replace("/login");
+  }, [account, authMode, bootstrapError, configError, loading, router]);
   useEffect(() => {
     if (!account) return undefined;
     const timer = window.setInterval(async () => {
       if (document.visibilityState !== "visible") return;
       try { await loadScope(workspaceLocation(window.location.pathname), false); }
-      catch (error) { if (error.code === "AUTH_REQUIRED") setAccount(null); }
+      catch (error) { if (error.code === "AUTH_REQUIRED") { setBootstrapError(error); setAccount(null); } }
     }, 15000);
     return () => window.clearInterval(timer);
   }, [account, pages, pathname]);
@@ -199,6 +200,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const bootstrap = async () => {
     try {
       setLoading(true);
+      setBootstrapError(null);
       const publicConfig = await api("/api/platform").catch(() => ({ platform: fallbackPlatform }));
       setPlatform({ ...fallbackPlatform, ...(publicConfig.platform || {}) });
       const me = await api("/api/me");
@@ -211,6 +213,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     } catch (error) {
       setState(null);
       setAccount(null);
+      setBootstrapError(error);
       if (["DB_NOT_CONFIGURED", "AUTH_NOT_CONFIGURED"].includes(error.code)) setConfigError(error.message);
     } finally {
       setLoading(false);
@@ -228,7 +231,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   const refresh = async () => {
     try { await loadScope(); }
-    catch (error) { notify(error.message); if (error.code === "AUTH_REQUIRED") setAccount(null); }
+    catch (error) { notify(error.message); if (error.code === "AUTH_REQUIRED") { setBootstrapError(error); setAccount(null); } }
   };
 
   const mutate = async (promise, message) => {
@@ -269,6 +272,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   if (loading) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
   if (configError) return <SystemSetup message={configError} platform={platform} />;
+  if (!account && !authMode && bootstrapError && bootstrapError.code !== 'AUTH_REQUIRED') return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && authMode) return <AuthScreen onDone={bootstrap} platform={platform} initialMode={authMode} onModeChange={(mode) => router.push(mode === "signup" ? "/signup" : "/login")} />;
   if (!account) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening sign in</p></main>;
   if (authMode) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening workspace</p></main>;
