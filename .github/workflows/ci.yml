@@ -1,0 +1,41 @@
+name: Production checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: whatsapp_crm_test
+        ports: ['5432:5432']
+        options: --health-cmd 'pg_isready -U postgres' --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/whatsapp_crm_test
+      DATABASE_SSL: 'false'
+      AUTH_SECRET: ci-auth-secret-with-at-least-thirty-two-characters
+      CSRF_SECRET: ci-csrf-secret-with-at-least-thirty-two-characters
+      ENCRYPTION_KEY: ci-encryption-key-with-at-least-thirty-two-characters
+      SUPER_ADMIN_SESSION_SECRET: ci-super-secret-with-at-least-thirty-two-characters
+      APP_URL: http://127.0.0.1:3100
+      EMAIL_VERIFICATION_REQUIRED: 'false'
+      META_WEBHOOK_SIGNATURE_REQUIRED: 'false'
+      JOB_RUNNER_SECRET: ci-job-secret-with-at-least-thirty-two-characters
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:init
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run test:e2e

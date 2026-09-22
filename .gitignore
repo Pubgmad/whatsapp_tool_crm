@@ -8,3 +8,5 @@ data/store.json
 .DS_Store
 npm-debug.log*
 sampleui/
+playwright-report/
+test-results/

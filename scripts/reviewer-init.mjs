@@ -39,6 +39,7 @@ const pool = new Pool({
 const client = await pool.connect();
 try {
   await client.query("BEGIN");
+  await client.query('SELECT set_config(\'app.system_access\',\'true\',true)');
   const existingUser = (await client.query("SELECT id FROM users WHERE email = $1 LIMIT 1", [email])).rows[0];
   let userId = existingUser?.id;
   let businessId;

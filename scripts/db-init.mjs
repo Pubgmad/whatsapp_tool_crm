@@ -156,6 +156,7 @@ async function seedSuperAdmin(client) {
 const client = await pool.connect();
 try {
   await client.query("BEGIN");
+  await client.query('SELECT set_config(\'app.system_access\',\'true\',true)');
   await client.query("DO $$ BEGIN IF to_regclass('public.businesses') IS NOT NULL THEN ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'; END IF; END $$;");
   await client.query(schema);
   await client.query("CREATE TABLE IF NOT EXISTS platform_audit_logs (id TEXT PRIMARY KEY, super_admin_id TEXT REFERENCES super_admins(id) ON DELETE SET NULL, action TEXT NOT NULL, metadata JSONB NOT NULL DEFAULT '{}'::jsonb, at TIMESTAMPTZ NOT NULL DEFAULT NOW())");

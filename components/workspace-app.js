@@ -15,6 +15,7 @@ const navItems = [
   { id: "contacts", label: "Audience", icon: UsersRound },
   { id: "team", label: "Team", icon: UserPlus },
   { id: "billing", label: "Billing", icon: WalletCards },
+  { id: 'security', label: 'Security', icon: ShieldCheck },
   { id: "templates", label: "Templates", icon: MessageSquareText },
   { id: "automation", label: "Automation", icon: Bot },
   { id: "campaigns", label: "Campaigns", icon: Send },
@@ -29,6 +30,7 @@ const workspaceRoutes = {
   contacts: "/app/contacts",
   team: "/app/team",
   billing: "/app/settings/billing",
+  security: '/app/settings/security',
   templates: "/app/templates",
   automation: "/app/automations",
   campaigns: "/app/campaigns",
@@ -45,10 +47,24 @@ function workspaceLocation(pathname) {
   return { view: entry?.[0] || "overview", conversationId: null };
 }
 
+let csrfToken = '';
+const getCsrfToken = async () => {
+  if (csrfToken) return csrfToken;
+  const response = await fetch('/api/security/csrf', { cache: 'no-store' });
+  const payload = await response.json();
+  if (!response.ok || !payload.csrfToken) throw new Error(payload.error || 'Security initialization failed');
+  csrfToken = payload.csrfToken;
+  return csrfToken;
+};
+
 const api = async (path, options = {}) => {
-  const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+  const { csrfRetry = false, ...requestOptions } = options;
+  const method = String(requestOptions.method || 'GET').toUpperCase();
+  const securedOptions = !['GET', 'HEAD', 'OPTIONS'].includes(method) ? { ...requestOptions, headers: { 'Content-Type': 'application/json', ...(requestOptions.headers || {}), 'x-csrf-token': await getCsrfToken() } } : requestOptions;
+  const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...securedOptions });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return api(path, { ...requestOptions, csrfRetry: true }); }
     const error = new Error(payload.error || "Action failed");
     error.code = payload.code;
     throw error;
@@ -57,10 +73,10 @@ const api = async (path, options = {}) => {
 };
 
 const postJson = (path, body, method = "POST") => api(path, { method, body: JSON.stringify(body) });
-const uploadForm = async (path, form) => {
-  const response = await fetch(path, { method: "POST", body: form });
+const uploadForm = async (path, form, csrfRetry = false) => {
+  const response = await fetch(path, { method: 'POST', headers: { 'x-csrf-token': await getCsrfToken() }, body: form });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) { const error = new Error(payload.error || "Upload failed"); error.code = payload.code; throw error; }
+  if (!response.ok) { if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return uploadForm(path, form, true); } const error = new Error(payload.error || "Upload failed"); error.code = payload.code; throw error; }
   return payload;
 };
 const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Never";
@@ -131,18 +147,18 @@ function renderPreview(body, contact, values) {
   });
 }
 
-export default function WorkspaceApp({ initialView = "overview", initialConversationId = null, authMode = "", children = null }) {
+export default function WorkspaceApp({ initialView = "overview", initialConversationId = null, authMode = "", initialPlatform = null, children = null }) {
   const router = useRouter();
   const pathname = usePathname();
   const initialLocation = authMode ? { view: initialView, conversationId: initialConversationId } : workspaceLocation(pathname);
   const [state, setState] = useState(null);
   const [account, setAccount] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!authMode);
   const [configError, setConfigError] = useState("");
   const [activeView, setActiveView] = useState(initialLocation.view);
   const [activeConversationId, setActiveConversationId] = useState(initialLocation.conversationId);
   const [notice, setNotice] = useState("");
-  const [platform, setPlatform] = useState(fallbackPlatform);
+  const [platform, setPlatform] = useState({ ...fallbackPlatform, ...(initialPlatform || {}) });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [pages, setPages] = useState({});
 
@@ -150,7 +166,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const marketableContacts = useMemo(() => state?.contacts.filter((contact) => contact.marketingPermission && !contact.unsubscribed) || [], [state]);
   const suppressedContacts = useMemo(() => state?.contacts.filter((contact) => contact.unsubscribed || !contact.marketingPermission) || [], [state]);
 
-  useEffect(() => { bootstrap(); }, []);
+  useEffect(() => { if (!authMode) bootstrap(); }, []);
   useEffect(() => {
     if (authMode) return;
     const location = workspaceLocation(pathname);
@@ -295,6 +311,7 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
   const isSignup = mode === "signup";
   useEffect(() => { setMode(initialMode); }, [initialMode]);
 
@@ -319,8 +336,8 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
       return;
     }
 
-    if (String(form.password || "").length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (String(form.password || '').length < 12) {
+      setError('Password must be at least 12 characters.');
       return;
     }
 
@@ -329,23 +346,45 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
     delete form.workspacePassword;
     setPending(true);
     try {
-      await postJson(isSignup ? "/api/auth/register" : "/api/auth/login", form);
+      const result = await postJson(isSignup ? '/api/auth/register' : '/api/auth/login', form);
+      if (result.verificationRequired) { setError(result.deliveryFailed ? 'Your account was created, but email delivery is unavailable. Use Resend verification after email is configured.' : 'Check your email and verify the account before signing in.'); return; }
       await onDone();
     } catch (err) {
+      if (err.code === 'MFA_REQUIRED') setMfaRequired(true);
       setError(err.message);
     } finally {
       setPending(false);
     }
   };
 
-  return <main className="authShell"><section className="authPanel authPanelPro"><div className="brandBlock dark authBrand"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>{platform.brand_name}</strong><span>{platform.product_tagline}</span></div></div><div className="authHeader"><p className="kicker">Secure workspace</p><h1>{isSignup ? platform.signup_heading : platform.signin_heading}</h1><p>{isSignup ? platform.signup_copy : platform.signin_copy}</p></div><form className="formGrid authForm" onSubmit={submit}>{isSignup && <><Input name="name" label="Your name" autoComplete="name" required /><Input name="businessName" label="Business name" autoComplete="organization" required /></>}<Input name="workspaceEmail" label="Email" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /><PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete="new-password" data-lpignore="true" data-form-type="other" required />{isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction authSubmit" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />} <span>{pending ? "Please wait" : isSignup ? "Create account" : "Sign in"}</span></button></form><div className="authSwitch"><span>{isSignup ? "Already have a workspace?" : "New workspace?"}</span><button className="textButton" type="button" onClick={switchMode}>{isSignup ? "Sign in" : "Create account"}</button></div></section></main>;
+  return <main className="authShell"><section className="authPanel authPanelPro"><div className="brandBlock dark authBrand"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>{platform.brand_name}</strong><span>{platform.product_tagline}</span></div></div><div className="authHeader"><p className="kicker">Secure workspace</p><h1>{isSignup ? platform.signup_heading : platform.signin_heading}</h1><p>{isSignup ? platform.signup_copy : platform.signin_copy}</p></div><form className="formGrid authForm" onSubmit={submit}>{isSignup && <><Input name="name" label="Your name" autoComplete="name" required /><Input name="businessName" label="Business name" autoComplete="organization" required /></>}<Input name="workspaceEmail" label="Email" type="email" autoComplete="email" required /><PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete={isSignup ? 'new-password' : 'current-password'} required />{mfaRequired && !isSignup && <Input name="mfaCode" label="Authenticator or recovery code" autoComplete="one-time-code" required />}{isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction authSubmit" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />} <span>{pending ? 'Please wait' : isSignup ? 'Create account' : 'Sign in'}</span></button>{!isSignup && <div className='authHelpLinks'><a className="textButton authHelpLink" href="/forgot-password">Forgot password?</a><a className='textButton authHelpLink' href='/resend-verification'>Resend verification</a></div>}</form><div className="authSwitch"><span>{isSignup ? 'Already have a workspace?' : 'New workspace?'}</span><button className="textButton" type="button" onClick={switchMode}>{isSignup ? 'Sign in' : 'Create account'}</button></div></section></main>;
 }
 function SystemSetup({ message, platform }) {
   return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><Settings2 size={22} /></div><div><strong>{platform.brand_name}</strong><span>Production database setup</span></div></div><h1>Connect PostgreSQL</h1><p className="setupCopy">{message}</p><div className="envBox"><code>DATABASE_URL</code><code>AUTH_SECRET</code><code>ENCRYPTION_KEY</code></div></section></main>;
 }
 
+function SecuritySettings() {
+  const [status, setStatus] = useState({ enabled: false });
+  const [setup, setSetup] = useState(null);
+  const [codes, setCodes] = useState([]);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  useEffect(() => { api('/api/auth/mfa').then(setStatus).catch((reason) => setError(reason.message)); }, []);
+  const run = async (body) => {
+    setError(''); setMessage('');
+    try {
+      const result = await postJson('/api/auth/mfa', body);
+      if (body.action === 'begin') setSetup(result);
+      if (body.action === 'enable') { setStatus({ enabled: true }); setCodes(result.recoveryCodes || []); setSetup(null); }
+      if (body.action === 'disable') { setStatus({ enabled: false }); setCodes([]); setSetup(null); }
+      setMessage(body.action === 'begin' ? 'Add this key to your authenticator app, then confirm a code.' : body.action === 'enable' ? 'Multi-factor authentication is enabled.' : 'Multi-factor authentication is disabled.');
+    } catch (reason) { setError(reason.message); }
+  };
+  return <div className='screenGrid'><section className='actionBand'><div><strong>Multi-factor authentication</strong><span>Protect this account with a time-based authenticator and single-use recovery codes.</span></div><Badge kind={status.enabled ? 'good' : 'warn'}>{status.enabled ? 'Enabled' : 'Not enabled'}</Badge></section>{!status.enabled && !setup && <Panel title='Authenticator setup' subtitle='Use Google Authenticator, Microsoft Authenticator, 1Password, or another TOTP app'><button className='primaryAction' type='button' onClick={() => run({ action: 'begin' })}><ShieldCheck size={18} /> Start setup</button></Panel>}{setup && <Panel title='Confirm authenticator' subtitle='The secret is shown once during setup'><div className='envBox'><code>{setup.secret}</code><code>{setup.otpauthUrl}</code></div><form className='formGrid' onSubmit={(event) => { event.preventDefault(); run({ action: 'enable', code: new FormData(event.currentTarget).get('code') }); }}><Input name='code' label='Six-digit code' inputMode='numeric' pattern='[0-9]{6}' required /><button className='primaryAction'><BadgeCheck size={18} /> Enable MFA</button></form></Panel>}{status.enabled && <Panel title='Disable MFA' subtitle='Password and an authenticator or recovery code are required'><form className='formGrid' onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); run({ action: 'disable', password: form.get('password'), code: form.get('code') }); }}><Input name='password' label='Current password' type='password' required /><Input name='code' label='Authenticator or recovery code' required /><button className='secondaryAction dangerSoft'>Disable MFA</button></form></Panel>}{codes.length > 0 && <Panel title='Recovery codes' subtitle='Store these securely. Each code can only be used once'><div className='recoveryCodes'>{codes.map((code) => <code key={code}>{code}</code>)}</div></Panel>}{error && <div className='formError'>{error}</div>}{message && <div className='formSuccess'>{message}</div>}</div>;
+}
+
 function Screens({ activeView, ...props }) {
-  const screens = { overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
+  const screens = { overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, security: <SecuritySettings />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
   const pageKey = { contacts: "contacts", templates: "templates", campaigns: "campaigns", results: "results", inbox: "inbox", unsubscribes: "unsubscribes" }[activeView];
   return <>
     {screens[activeView]}
@@ -355,7 +394,7 @@ function Screens({ activeView, ...props }) {
 }
 
 function pageTitle(view) {
-  return { overview: "Command center", setup: "Business connection", contacts: "Audience", team: "Team workspace", billing: "Subscription and billing", templates: "Template library", automation: "Automation flows", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
+  return { overview: "Command center", setup: "Business connection", contacts: "Audience", team: "Team workspace", billing: "Subscription and billing", security: 'Account security', templates: "Template library", automation: "Automation flows", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
 }
 
 function Billing({ state }) {
@@ -435,9 +474,9 @@ function Setup({ state, mutate }) {
       const FB = await loadFacebookSdk(config.appId, config.graphVersion);
       FB.login((response) => {
         const code = response?.authResponse?.code;
-        if (!code) { setConnecting(false); mutate(Promise.reject(new Error(signupData.current.error || "Meta sign-up was cancelled or did not return authorization."))); return; }
+        if (!code) { const reason = response?.status === 'not_authorized' ? 'Meta did not authorize this app. Confirm the Embedded Signup configuration and app permissions.' : 'Meta sign-up was cancelled or did not return authorization. Confirm the configuration ID, app domain, and allowed OAuth domain in Meta.'; setConnecting(false); mutate(Promise.reject(new Error(signupData.current.error || reason))); return; }
         mutate(postJson("/api/meta/embedded-signup/complete", { code, wabaId: signupData.current.waba_id, phoneNumberId: signupData.current.phone_number_id }).finally(() => setConnecting(false)), "WhatsApp Business connected");
-      }, { config_id: config.configId, auth_type: "rerequest", response_type: "code", override_default_response_type: true, extras: { setup: {} } });
+      }, { config_id: config.configId, response_type: 'code', override_default_response_type: true, extras: { setup: {}, sessionInfoVersion: '3' } });
     } catch (error) { setConnecting(false); mutate(Promise.reject(error)); }
   };
   const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}), "Meta connection verified");
@@ -806,7 +845,7 @@ function Panel({ title, subtitle, children }) { return <section className="panel
 function Metric({ label, value }) { return <div className="metric"><span>{label}</span><strong>{value}</strong></div>; }
 function Badge({ kind = "neutral", children }) { return <span className={`badge ${kind}`}>{children}</span>; }
 function Input({ label, ...props }) { return <label>{label}<input {...props} /></label>; }
-function PasswordField({ label, visible, onToggle, ...props }) { return <label>{label}<span className="passwordWrap"><input {...props} type={visible ? "text" : "password"} minLength="8" /><button type="button" onClick={onToggle} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>; }
+function PasswordField({ label, visible, onToggle, ...props }) { const inputId = props.id || props.name; return <div className='fieldGroup'><label htmlFor={inputId}>{label}</label><span className="passwordWrap"><input {...props} id={inputId} type={visible ? "text" : "password"} minLength="12" /><button type="button" onClick={onToggle} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></div>; }
 function EmptyState({ text }) { return <div className="emptyState"><CircleAlert size={20} /><span>{text}</span></div>; }
 function Pagination({ meta, onChange, label = "Records" }) {
   if (!meta || meta.pages <= 1) return null;

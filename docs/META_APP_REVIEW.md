@@ -6,8 +6,9 @@ Request only the permissions used by the WhatsApp CRM:
 
 - `whatsapp_business_messaging`
 - `whatsapp_business_management`
+- `business_management` when using Embedded Signup to onboard and share client business assets
 
-Do not request `business_management` or `whatsapp_business_manage_events` unless the product later implements a separate feature that genuinely requires it.
+Do not request `whatsapp_business_manage_events` unless the product later implements a feature that genuinely requires it. Meta's current Embedded Signup release guidance requires Advanced Access to `business_management` and `whatsapp_business_management`; Cloud API sending additionally uses `whatsapp_business_messaging`.
 
 ## whatsapp_business_messaging description
 
@@ -76,3 +77,18 @@ The reviewer account must not be a Super Admin account and must contain no real 
 - Separate screencasts are uploaded for the two permissions.
 - All required API test calls have been made from the Meta app under review.
 - The allowed-usage compliance checkbox is accepted only after confirming actual policy compliance.
+
+## Embedded Signup popup troubleshooting
+
+The CRM starts Embedded Signup with `META_APP_ID` and `META_EMBEDDED_SIGNUP_CONFIG_ID`. A generic error rendered inside Facebook occurs before the CRM receives an authorization code, so it normally indicates Meta configuration or asset access rather than the CRM callback API.
+
+1. Confirm the configuration ID belongs to the same Meta app as `META_APP_ID` and has not been deleted or replaced.
+2. In Facebook Login for Business, select WhatsApp Cloud API and the WhatsApp management/messaging tasks actually used by the CRM.
+3. Add `crm.mathstrat-sites.com` to App Domains and Allowed Domains for the JavaScript SDK.
+4. Add the exact production HTTPS redirect URI configured in `META_OAUTH_REDIRECT_URI` to Valid OAuth Redirect URIs. Do not mix `http`, `www`, a trailing path, or another subdomain.
+5. Keep Client OAuth Login, Web OAuth Login, HTTPS enforcement, and strict redirect matching enabled.
+6. Confirm the Meta user opening the popup has full control over the customer business portfolio and may create or select its WABA and phone number.
+7. Confirm the selected WABA is active and not disabled, and that the phone number is not already registered to an incompatible WABA.
+8. Retry in a private browser window with popup and third-party login access allowed. Sign in only to the intended Meta account.
+
+The application deliberately does not expose the App Secret or resulting access token to the browser. After Meta returns a code, the server exchanges it, validates its app/scopes, discovers the shared WABA and numbers, subscribes the app to the WABA, and stores the token encrypted.

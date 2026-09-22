@@ -30,10 +30,24 @@ const emptyPlan = {
   isActive: true
 };
 
+let csrfToken = '';
+const getCsrfToken = async () => {
+  if (csrfToken) return csrfToken;
+  const response = await fetch('/api/security/csrf', { cache: 'no-store' });
+  const payload = await response.json();
+  if (!response.ok || !payload.csrfToken) throw new Error(payload.error || 'Security initialization failed');
+  csrfToken = payload.csrfToken;
+  return csrfToken;
+};
+
 const api = async (path, options = {}) => {
-  const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+  const { csrfRetry = false, ...requestOptions } = options;
+  const method = String(requestOptions.method || 'GET').toUpperCase();
+  const securedOptions = !['GET', 'HEAD', 'OPTIONS'].includes(method) ? { ...requestOptions, headers: { 'Content-Type': 'application/json', ...(requestOptions.headers || {}), 'x-csrf-token': await getCsrfToken() } } : requestOptions;
+  const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...securedOptions });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return api(path, { ...requestOptions, csrfRetry: true }); }
     const error = new Error(payload.error || "Action failed");
     error.code = payload.code;
     throw error;
@@ -53,14 +67,16 @@ const adminSections = [
   { id: "overview", label: "Overview", href: "/super-admin", icon: Activity },
   { id: "plans", label: "Plans", href: "/super-admin/plans", icon: WalletCards },
   { id: "content", label: "Content", href: "/super-admin/content", icon: FileText },
-  { id: "companies", label: "Companies", href: "/super-admin/companies", icon: Building2 }
+  { id: "companies", label: "Companies", href: "/super-admin/companies", icon: Building2 },
+  { id: 'security', label: 'Security', href: '/super-admin/security', icon: LockKeyhole }
 ];
 
 const adminHeadings = {
   overview: ["Platform command center", "Monitor companies, subscriptions, WhatsApp readiness, and platform status."],
   plans: ["Subscription plans", "Control pricing, billing periods, features, limits, visibility, and availability."],
   content: ["Platform content", "Manage customer-facing business content and configurable platform values."],
-  companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."]
+  companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."],
+  security: ['Owner security', 'Protect platform-level access with an authenticator and single-use recovery codes.']
 };
 
 export default function SuperAdminApp({ initialSection = "overview", initialCompanyId = "", authOnly = false }) {
@@ -252,6 +268,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
       <PlanManager plans={plans} onSave={savePlan} /></>}
       {initialSection === "content" && <ContentManager settings={settings} onSave={saveSetting} />}
+      {initialSection === 'security' && <SuperAdminSecurity notify={notify} />}
 
       {initialSection === "companies" && <Panel title="Companies" subtitle="Tenant-level monitoring and controls">
         <div className="companyToolbar">
@@ -270,6 +287,7 @@ function SuperAdminLogin({ onDone }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -277,16 +295,44 @@ function SuperAdminLogin({ onDone }) {
     setPending(true);
     try {
       const rawForm = Object.fromEntries(new FormData(event.currentTarget));
-      await postJson("/api/super-admin/login", { email: rawForm.platformOwnerEmail, password: rawForm.platformOwnerSecret });
+      await postJson("/api/super-admin/login", { email: rawForm.platformOwnerEmail, password: rawForm.platformOwnerSecret, mfaCode: rawForm.mfaCode || '' });
       await onDone();
     } catch (err) {
+      if (err.code === 'MFA_REQUIRED') setMfaRequired(true);
       setError(err.message);
     } finally {
       setPending(false);
     }
   };
 
-  return <main className="superAuthShell"><section className="superAuthPanel"><div className="superBrand dark"><span><LockKeyhole size={22} /></span><div><strong>Mathstrat</strong><small>Super Admin</small></div></div><div><p className="kicker">Platform owner access</p><h1>Sign in</h1><p>Use the secure admin credentials configured on the server.</p></div><form className="formGrid" onSubmit={submit}><label>Email<input name="platformOwnerEmail" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /></label><label>Password<span className="passwordWrap"><input name="platformOwnerSecret" type={showPassword ? "text" : "password"} autoComplete="new-password" data-lpignore="true" data-form-type="other" minLength="8" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}<span>{pending ? "Checking" : "Sign in"}</span></button></form></section></main>;
+  return <main className="superAuthShell"><section className="superAuthPanel"><div className="superBrand dark"><span><LockKeyhole size={22} /></span><div><strong>Mathstrat</strong><small>Super Admin</small></div></div><div><p className="kicker">Platform owner access</p><h1>Sign in</h1><p>Use the secure admin credentials configured on the server.</p></div><form className="formGrid" onSubmit={submit}><label>Email<input name="platformOwnerEmail" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /></label><div className='fieldGroup'><label htmlFor='platformOwnerSecret'>Password</label><span className="passwordWrap"><input id='platformOwnerSecret' name="platformOwnerSecret" type={showPassword ? "text" : "password"} autoComplete="new-password" data-lpignore="true" data-form-type="other" minLength="12" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></div>{mfaRequired && <label>Authenticator or recovery code<input name="mfaCode" autoComplete="one-time-code" required /></label>}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}<span>{pending ? "Checking" : "Sign in"}</span></button></form></section></main>;
+}
+
+function SuperAdminSecurity({ notify }) {
+  const [status, setStatus] = useState(null);
+  const [setup, setSetup] = useState(null);
+  const [recoveryCodes, setRecoveryCodes] = useState([]);
+  const [error, setError] = useState('');
+  const load = () => api('/api/super-admin/mfa').then(setStatus).catch((reason) => setError(reason.message));
+  useEffect(() => { load(); }, []);
+  const perform = async (body) => {
+    setError('');
+    try {
+      const result = await postJson('/api/super-admin/mfa', body);
+      if (result.secret) setSetup(result);
+      if (result.recoveryCodes) setRecoveryCodes(result.recoveryCodes);
+      setStatus({ enabled: Boolean(result.enabled) });
+      notify(result.enabled ? 'Super Admin MFA enabled' : body.action === 'disable' ? 'Super Admin MFA disabled' : 'Authenticator setup started');
+    } catch (reason) { setError(reason.message); }
+  };
+  if (!status) return <Panel title='Multi-factor authentication'><Loader2 className='spin' size={20} /></Panel>;
+  return <div className='superGrid'><Panel title='Multi-factor authentication' subtitle='Require a time-based authenticator code after the platform-owner password'>
+    <div className='statusStack'><div><span>Current status</span><Badge kind={status.enabled ? 'good' : 'warn'}>{status.enabled ? 'Enabled' : 'Not enabled'}</Badge></div></div>
+    {!status.enabled && !setup && <button className='primaryAction' type='button' onClick={() => perform({ action: 'begin' })}><LockKeyhole size={17} /> Set up authenticator</button>}
+    {!status.enabled && setup && <><div className='securitySecret'><small>Authenticator secret</small><code>{setup.secret}</code><small>Add this secret or URI to your authenticator application.</small><code>{setup.otpauthUrl}</code></div><form className='formGrid' onSubmit={(event) => { event.preventDefault(); perform({ action: 'enable', code: new FormData(event.currentTarget).get('code') }); }}><label>Six-digit code<input name='code' inputMode='numeric' pattern='[0-9]{6}' autoComplete='one-time-code' required /></label><button className='primaryAction'><ShieldCheck size={17} /> Confirm and enable</button></form></>}
+    {status.enabled && <form className='formGrid' onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); perform({ action: 'disable', password: form.get('password'), code: form.get('code') }); }}><label>Current password<input name='password' type='password' autoComplete='current-password' minLength='12' required /></label><label>Authenticator or recovery code<input name='code' autoComplete='one-time-code' required /></label><button className='secondaryAction dangerSoft'><LockKeyhole size={17} /> Disable MFA</button></form>}
+    {error && <div className='formError' role='alert'>{error}</div>}
+  </Panel>{recoveryCodes.length > 0 && <Panel title='Recovery codes' subtitle='Store these once in a secure password manager. Each code works only once.'><div className='recoveryCodes'>{recoveryCodes.map((code) => <code key={code}>{code}</code>)}</div></Panel>}</div>;
 }
 
 function PlanManager({ plans, onSave }) {

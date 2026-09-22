@@ -4,6 +4,8 @@ A production-oriented Next.js WhatsApp CRM for businesses that need to manage op
 
 Data is stored in PostgreSQL and every API action is scoped to the signed-in business workspace.
 
+Production security operations, secret rotation, RLS requirements, email setup, and verification commands are documented in `docs/PRODUCTION_SECURITY.md`.
+
 Workspace data is loaded by active section through `/api/workspace/[section]`. Contacts,
 campaign audiences, templates, campaign results, conversations, suppression records, and
 message history are paginated on the server. The dashboard uses aggregate queries instead

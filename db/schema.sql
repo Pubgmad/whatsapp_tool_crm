@@ -45,12 +45,58 @@ CREATE TABLE IF NOT EXISTS businesses (
   CONSTRAINT businesses_status_check CHECK (status IN ('Needs setup', 'Connected')),
   CONSTRAINT businesses_account_status_check CHECK (account_status IN ('pending', 'active', 'suspended'))
 );
+ALTER TABLE super_admins ADD COLUMN IF NOT EXISTS mfa_secret_encrypted TEXT NOT NULL DEFAULT '';
+ALTER TABLE super_admins ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE super_admins ADD COLUMN IF NOT EXISTS mfa_recovery_codes JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret_encrypted TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_recovery_codes JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_type TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT auth_tokens_type_check CHECK (token_type IN ('email_verification', 'password_reset'))
+);
+CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_type ON auth_tokens(user_id, token_type, expires_at);
+CREATE TABLE IF NOT EXISTS rate_limits (
+  id TEXT PRIMARY KEY,
+  bucket_key TEXT NOT NULL UNIQUE,
+  hits INTEGER NOT NULL DEFAULT 0,
+  reset_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_reset ON rate_limits(reset_at);
 
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS onboarding_method TEXT NOT NULL DEFAULT 'manual';
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_token_expires_at TIMESTAMPTZ;
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_connected_at TIMESTAMPTZ;
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS webhook_subscribed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_connection_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS workspace_deletion_requests (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL UNIQUE REFERENCES businesses(id) ON DELETE CASCADE,
+  requested_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  execute_after TIMESTAMPTZ NOT NULL,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  CONSTRAINT workspace_deletion_status_check CHECK (status IN ('scheduled', 'pending_approval', 'cancelled', 'completed', 'failed'))
+);
+
+CREATE TABLE IF NOT EXISTS retention_job_runs (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'completed',
+  summary JSONB NOT NULL DEFAULT '{}'::jsonb,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 CREATE TABLE IF NOT EXISTS meta_connection_events (
   id TEXT PRIMARY KEY,
@@ -510,3 +556,50 @@ CREATE INDEX IF NOT EXISTS idx_conversation_notes_conversation ON conversation_n
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_meta_message_id ON messages(meta_message_id) WHERE meta_message_id <> '';
 CREATE INDEX IF NOT EXISTS idx_events_business_at ON events(business_id, at DESC);
 CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run_at);
+
+DO $$
+DECLARE tenant_table TEXT;
+BEGIN
+  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','events','audit_logs'] LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
+    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', tenant_table);
+    EXECUTE format('CREATE POLICY tenant_isolation ON %I USING (COALESCE(current_setting(''app.system_access'',true),'''')=''true'' OR business_id=COALESCE(current_setting(''app.business_id'',true),'''')) WITH CHECK (COALESCE(current_setting(''app.system_access'',true),'''')=''true'' OR business_id=COALESCE(current_setting(''app.business_id'',true),''''))', tenant_table);
+  END LOOP;
+END $$;
+
+ALTER TABLE businesses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE businesses FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON businesses;
+CREATE POLICY tenant_isolation ON businesses USING (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR id=COALESCE(current_setting('app.business_id',true),'')
+) WITH CHECK (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR id=COALESCE(current_setting('app.business_id',true),'')
+);
+
+ALTER TABLE campaign_recipients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaign_recipients FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON campaign_recipients;
+CREATE POLICY tenant_isolation ON campaign_recipients USING (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR EXISTS (SELECT 1 FROM campaigns c WHERE c.id=campaign_id AND c.business_id=COALESCE(current_setting('app.business_id',true),''))
+) WITH CHECK (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR EXISTS (SELECT 1 FROM campaigns c WHERE c.id=campaign_id AND c.business_id=COALESCE(current_setting('app.business_id',true),''))
+);
+
+ALTER TABLE campaign_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaign_jobs FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON campaign_jobs;
+CREATE POLICY tenant_isolation ON campaign_jobs USING (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR EXISTS (SELECT 1 FROM campaign_recipients cr JOIN campaigns c ON c.id=cr.campaign_id WHERE cr.id=campaign_recipient_id AND c.business_id=COALESCE(current_setting('app.business_id',true),''))
+) WITH CHECK (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR EXISTS (SELECT 1 FROM campaign_recipients cr JOIN campaigns c ON c.id=cr.campaign_id WHERE cr.id=campaign_recipient_id AND c.business_id=COALESCE(current_setting('app.business_id',true),''))
+);
+
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON messages;
+CREATE POLICY tenant_isolation ON messages USING (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR EXISTS (SELECT 1 FROM conversations c WHERE c.id=conversation_id AND c.business_id=COALESCE(current_setting('app.business_id',true),''))
+) WITH CHECK (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR EXISTS (SELECT 1 FROM conversations c WHERE c.id=conversation_id AND c.business_id=COALESCE(current_setting('app.business_id',true),''))
+);

@@ -41,6 +41,7 @@ const pool = new Pool({
 const client = await pool.connect();
 try {
   await client.query("BEGIN");
+  await client.query('SELECT set_config(\'app.system_access\',\'true\',true)');
 
   const existing = await client.query("SELECT id FROM users WHERE email = $1", [email]);
   if (existing.rows[0]) {
