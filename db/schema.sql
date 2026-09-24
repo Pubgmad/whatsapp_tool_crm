@@ -321,6 +321,12 @@ CREATE TABLE IF NOT EXISTS team_invitations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT team_invitations_role_check CHECK (role IN ('Manager', 'Agent'))
 );
+
+CREATE TABLE IF NOT EXISTS billing_webhook_events (
+  event_id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_team_invitations_pending ON team_invitations(business_id, email) WHERE accepted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS contacts (

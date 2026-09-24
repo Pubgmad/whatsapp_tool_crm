@@ -4,7 +4,7 @@ A production-oriented Next.js WhatsApp CRM for businesses that need to manage op
 
 Data is stored in PostgreSQL and every API action is scoped to the signed-in business workspace.
 
-Production security operations, secret rotation, RLS requirements, email setup, and verification commands are documented in `docs/PRODUCTION_SECURITY.md`.
+Production security requires HTTPS, verified database TLS when used, secret rotation, PostgreSQL RLS, transactional email, backups, and regular verification. This repository does not provision those external services automatically.
 
 Workspace data is loaded by active section through `/api/workspace/[section]`. Contacts,
 campaign audiences, templates, campaign results, conversations, suppression records, and
@@ -99,7 +99,7 @@ JOB_RUNNER_SECRET=make-this-long-and-random
 CAMPAIGN_QUEUE_BATCH_SIZE=25
 ```
 
-4. Create tables
+4. Create or migrate tables
 
 ```bash
 npm run db:init
@@ -267,14 +267,28 @@ Subscription data is stored in PostgreSQL:
 - `business_subscriptions`: one subscription record per company.
 - `billing_events`: future payment and invoice history.
 
-Plan setup is environment-driven for now. Configure optional plan seed data with:
+The Super Admin manages plan prices, features, visibility and limits in the database. Optional environment seed data creates only missing plans; it does not overwrite later Super Admin changes:
 
 ```bash
 DEFAULT_SUBSCRIPTION_PLAN_CODE=your-default-plan-code
 SUBSCRIPTION_PLANS_JSON=[{"code":"your-plan-code","name":"Your Plan","billingInterval":"monthly","priceCents":0,"currency":"INR","trialDays":0}]
 ```
 
-If no default plan is configured, new companies are created with a pending subscription and can later be assigned a plan when billing management is added.
+If no default plan is configured, new companies begin with a pending subscription. A visible, active plan with a positive monthly or yearly price can be purchased through Stripe Checkout.
+
+### Stripe billing
+
+Configure `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the server's ignored `.env.local`. Set `APP_URL` to the public HTTPS origin. In Stripe, add a webhook endpoint at `https://your-domain.example/api/webhooks/stripe` and subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`. Copy the endpoint's **signing secret**, not its API key, into `STRIPE_WEBHOOK_SECRET`.
+
+Run `npm run db:init` before enabling the webhook. The checkout price is read from the Super Admin-managed plan at purchase time. Existing Stripe subscriptions retain their agreed Stripe price when a plan's displayed price changes; new checkouts use the new price. The Billing screen opens Stripe-hosted Checkout or Customer Portal. Only signed Stripe webhooks update local subscription state. Configure the Customer Portal in Stripe before exposing its button to customers.
+
+`SUBSCRIPTION_ENFORCEMENT_ENABLED=false` is the safe migration default for existing workspaces. After a test purchase, a verified webhook, plan assignment, and access audit, set it to `true` and restart both processes. When enabled, expired or unpaid subscriptions cannot create contacts, send messages, start campaigns, create automations, or process queued sends. Existing data remains readable. Reviewer access remains exempt.
+
+### Queue worker and retention
+
+The web process alone does not continuously process queued campaigns and automations. Run `npm run worker` as a second managed process (for example, a separate PM2 app) with the same ignored `.env.local`, `JOB_RUNNER_SECRET`, and `JOB_RUNNER_URL=http://127.0.0.1:3000`. The worker polls every `JOB_POLL_INTERVAL_MS` (default 15000) and runs bounded retention once per day. Run only one worker instance until queue concurrency has been capacity-tested. The Super Admin controls retention days; a zero-day setting means keep data. Workspace deletion requests still require explicit approval and are not automatically purged.
+
+For each VPS deployment: pull the intended branch, run `npm ci`, `npm run db:init`, `npm test`, `npm run build`, then restart the web and worker PM2 processes. Back up PostgreSQL before schema changes. Test a Stripe test-mode checkout and its webhook before entering live keys. Do not commit `.env.local` or paste payment keys into commands, tickets, or logs.
 
 ### Super Admin Capabilities
 
@@ -289,17 +303,9 @@ The Super Admin can currently:
 
 Suspension is enforced server-side through the normal company account loader, so suspended tenants cannot keep using company CRM APIs.
 
-### Production SaaS Work Still Needed
+### Remaining launch checks
 
-Before a public SaaS launch, add:
-
-- Payment provider integration and webhook handling.
-- Self-service plan upgrade/downgrade.
-- Automated renewal and expiry jobs.
-- Email verification, password reset, and staff invitations.
-- Fine-grained company roles and permissions.
-- Hosted cron/worker for campaign queue processing.
-- Monitoring, rate-limit dashboards, audit log UI, backups, and legal/compliance policies.
+Stripe Checkout, billing webhooks, Customer Portal, email verification, password reset, invitations, RLS, and a queue worker are implemented. A public launch still needs live Stripe/Meta account configuration and successful end-to-end payment/webhook tests, a database backup/restore drill, uptime and error monitoring, legal review of retention/privacy terms, and a deployment-specific security review. Plan switching within an active subscription is not automated; customers can manage payment/cancellation in Stripe Portal and contact the platform owner for a plan change.
 
 ## WhatsApp Operations
 

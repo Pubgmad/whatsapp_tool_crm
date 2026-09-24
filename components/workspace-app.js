@@ -290,7 +290,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
   const latestCampaign = state.campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const screenProps = { state, mutate, changePage, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig };
+  const screenProps = { state, mutate, changePage, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role };
 
   return (
     <main className="shell">
@@ -407,16 +407,44 @@ function pageTitle(view) {
   return { overview: "Command center", setup: "Business connection", contacts: "Audience", team: "Team workspace", billing: "Subscription and billing", security: 'Account security', templates: "Template library", automation: "Automation flows", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
 }
 
-function Billing({ state }) {
+function Billing({ state, role }) {
+  const [plans, setPlans] = useState([]);
+  const [billingAvailable, setBillingAvailable] = useState(false);
+  const [interval, setInterval] = useState('monthly');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api('/api/billing/plans').then((result) => {
+      setPlans(result.plans || []);
+      setBillingAvailable(Boolean(result.billingAvailable));
+    }).catch((reason) => setError(reason.message));
+  }, []);
+  const openBilling = async (path, body = {}) => {
+    try {
+      setPending(true);
+      setError('');
+      const result = await postJson(path, body);
+      if (!result.url?.startsWith('https://')) throw new Error('Stripe did not return a secure billing page.');
+      window.location.assign(result.url);
+    } catch (reason) { setError(reason.message); setPending(false); }
+  };
   const subscription = state.subscription || {};
   const plan = subscription.plan || {};
   const usage = subscription.usage || {};
   const limits = subscription.limits || {};
-  const money = (cents) => new Intl.NumberFormat(undefined, { style: "currency", currency: plan.currency || "INR", maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100);
+  const money = (cents, currency = plan.currency || 'INR') => new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100);
   const usageValue = (key) => limits[key] == null ? `${usage[key] || 0} / Unlimited` : `${usage[key] || 0} / ${limits[key]}`;
   return <div className="screenGrid">
     <section className="heroPanel"><div><span className="softLabel">{subscription.status || "pending"}</span><h2>{plan.name || "Unassigned"}</h2><p>{plan.description || "Subscription details are managed by the platform owner."}</p></div><div className="heroMetrics"><Metric label="Monthly" value={money(plan.monthlyPriceCents)} /><Metric label="Yearly" value={money(plan.yearlyPriceCents)} /><Metric label="Period ends" value={subscription.periodEnd ? formatTime(subscription.periodEnd) : "Not set"} /></div></section>
     <Panel title="Current usage" subtitle="Live usage against the limits configured for this plan"><div className="meterGrid usageGrid"><Metric label="Contacts" value={usageValue("contacts")} /><Metric label="Campaigns" value={usageValue("campaigns")} /><Metric label="Messages" value={usageValue("messages")} /><Metric label="Users" value={usageValue("users")} /><Metric label="Automations" value={usageValue("automationFlows")} /><Metric label="Conversation limit" value={limits.whatsappConversations == null ? "Unlimited" : limits.whatsappConversations} /></div></Panel>
+    <section className="billingPlans" aria-label="Subscription plans">
+      <div className="billingPlansHead"><div><h2>Plans</h2><p>Prices and limits are managed by the platform owner.</p></div><div className="billingInterval" role="group" aria-label="Billing interval"><button type="button" className={interval === 'monthly' ? 'active' : ''} aria-pressed={interval === 'monthly'} onClick={() => setInterval('monthly')}>Monthly</button><button type="button" className={interval === 'yearly' ? 'active' : ''} aria-pressed={interval === 'yearly'} onClick={() => setInterval('yearly')}>Yearly</button></div></div>
+      {error && <div className="formError" role="alert">{error}</div>}
+      {!billingAvailable && <div className="formError">Online billing is not configured yet.</div>}
+      {subscription.provider === 'stripe' && subscription.status !== 'canceled' && <button className="secondaryAction" type="button" disabled={pending || role !== 'Owner'} onClick={() => openBilling('/api/billing/portal')}>Manage payment and subscription</button>}
+      <div className="planGrid">{plans.map((item) => { const price = interval === 'monthly' ? item.monthlyPriceCents : item.yearlyPriceCents; return <article className="planTile" key={item.id}><header><div><strong>{item.name}</strong><p>{item.description}</p></div>{item.code === plan.code && <Badge kind="good">Current</Badge>}</header><div className="planPrice">{money(price, item.currency)}<small>/{interval === 'monthly' ? 'month' : 'year'}</small></div><ul>{(item.features || []).map((feature) => <li key={feature}>{feature}</li>)}</ul><button className="primaryAction" type="button" disabled={pending || !billingAvailable || role !== 'Owner' || !price || (subscription.provider === 'stripe' && ['active', 'trialing', 'past_due'].includes(subscription.status))} onClick={() => openBilling('/api/billing/checkout', { planId: item.id, interval })}>Choose plan</button></article>; })}</div>
+      {!plans.length && <EmptyState text="No public subscription plans are available" />}
+    </section>
     <Panel title="Included features" subtitle={plan.name || "Current plan"}><div className="readinessList">{(plan.features || []).map((feature) => <div className="ready" key={feature}><span>{feature}</span><Badge kind="good">Included</Badge></div>)}{!(plan.features || []).length && <EmptyState text="No plan features have been configured" />}</div></Panel>
   </div>;
 }

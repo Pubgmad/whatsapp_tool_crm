@@ -67,26 +67,7 @@ async function seedSubscriptionPlans(client) {
     await client.query(
       `INSERT INTO subscription_plans (id, code, name, description, billing_interval, price_cents, monthly_price_cents, yearly_price_cents, currency, trial_days, contact_limit, campaign_limit, user_limit, automation_flow_limit, monthly_message_limit, whatsapp_conversation_limit, features, display_order, visible, is_active)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-       ON CONFLICT (code) DO UPDATE
-       SET name = EXCLUDED.name,
-           description = EXCLUDED.description,
-           billing_interval = EXCLUDED.billing_interval,
-           price_cents = EXCLUDED.price_cents,
-           monthly_price_cents = EXCLUDED.monthly_price_cents,
-           yearly_price_cents = EXCLUDED.yearly_price_cents,
-           currency = EXCLUDED.currency,
-           trial_days = EXCLUDED.trial_days,
-           contact_limit = EXCLUDED.contact_limit,
-           campaign_limit = EXCLUDED.campaign_limit,
-           user_limit = EXCLUDED.user_limit,
-           automation_flow_limit = EXCLUDED.automation_flow_limit,
-           monthly_message_limit = EXCLUDED.monthly_message_limit,
-           whatsapp_conversation_limit = EXCLUDED.whatsapp_conversation_limit,
-           features = EXCLUDED.features,
-           display_order = EXCLUDED.display_order,
-           visible = EXCLUDED.visible,
-           is_active = EXCLUDED.is_active,
-           updated_at = NOW()`,
+       ON CONFLICT (code) DO NOTHING`,
       [
         `plan_${crypto.randomBytes(8).toString("hex")}`,
         code,
