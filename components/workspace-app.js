@@ -178,7 +178,12 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     if (!account || authMode) return;
     const location = workspaceLocation(pathname);
     if (location.view === "inbox") setPages((current) => ({ ...current, messages: 1 }));
-    loadScope(location, true, location.view === "inbox" ? { messagePage: 1 } : {});
+    loadScope(location, true, location.view === "inbox" ? { messagePage: 1 } : {})
+      .then(() => setBootstrapError(null))
+      .catch((error) => {
+        if (error.code === "AUTH_REQUIRED") setAccount(null);
+        setBootstrapError(error);
+      });
   }, [account, authMode, pathname]);
   useEffect(() => {
     if (loading || configError) return;
@@ -212,7 +217,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
       setConfigError("");
     } catch (error) {
       setState(null);
-      setAccount(null);
+      if (error.code === "AUTH_REQUIRED") setAccount(null);
       setBootstrapError(error);
       if (["DB_NOT_CONFIGURED", "AUTH_NOT_CONFIGURED"].includes(error.code)) setConfigError(error.message);
     } finally {
@@ -272,6 +277,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   if (loading) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
   if (configError) return <SystemSetup message={configError} platform={platform} />;
+  if (account && !state && bootstrapError) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && !authMode && bootstrapError && bootstrapError.code !== 'AUTH_REQUIRED') return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && authMode) return <AuthScreen onDone={bootstrap} platform={platform} initialMode={authMode} onModeChange={(mode) => router.push(mode === "signup" ? "/signup" : "/login")} />;
   if (!account) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening sign in</p></main>;
