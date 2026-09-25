@@ -18,14 +18,14 @@
     "security:rotate-secrets": "node scripts/rotate-secrets.mjs"
   },
   "dependencies": {
-    "lucide-react": "latest",
-    "next": "latest",
-    "pg": "^8.23.0",
-    "react": "latest",
-    "react-dom": "latest",
-    "stripe": "^22.6.2"
+    "lucide-react": "1.38.0",
+    "next": "16.3.3",
+    "pg": "8.23.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "stripe": "22.6.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "1.63.0"
   }
 }

@@ -9,7 +9,7 @@ export async function POST(request) {
     const body = await request.json();
     await enforceRequestRateLimit(request, String(body.email || '').toLowerCase(), 'login');
     const session = await registerAccount(body);
-    if (process.env.EMAIL_VERIFICATION_REQUIRED === 'true') {
+    if ((await import('@/lib/auth')).emailVerificationRequired()) {
       const { issueVerification } = await import('@/lib/account-security');
       try {
         const verification = await issueVerification(session.userId);

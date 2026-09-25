@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertCsrf, createCsrfToken, requestIp, secureCookieAttribute } from '../lib/security.js';
-import { createSessionToken, verifySessionToken } from '../lib/auth.js';
+import { assertCsrf, createCsrfToken, readJsonBodyLimited, requestIp, secureCookieAttribute } from '../lib/security.js';
+import { assertRegistrationEmailReady, createSessionToken, emailVerificationRequired, verifySessionToken } from '../lib/auth.js';
 import { decryptSecret, encryptSecret } from '../lib/meta.js';
 import { databaseSslConfig } from '../lib/db.js';
 
@@ -38,6 +38,40 @@ test('production cookies require HTTPS except for explicit local smoke tests', (
     if (previousMode === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previousMode;
   }
+});
+
+test('production registration fails closed until email verification is configured', () => {
+  const keys = ['NODE_ENV', 'EMAIL_VERIFICATION_REQUIRED', 'RESEND_API_KEY', 'EMAIL_FROM', 'APP_URL'];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  try {
+    process.env.NODE_ENV = 'production';
+    process.env.EMAIL_VERIFICATION_REQUIRED = 'false';
+    delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_FROM;
+    process.env.APP_URL = 'https://crm.example';
+    assert.equal(emailVerificationRequired(), true);
+    assert.throws(() => assertRegistrationEmailReady(), { code: 'EMAIL_NOT_CONFIGURED' });
+    process.env.RESEND_API_KEY = 'test-key';
+    process.env.EMAIL_FROM = 'noreply@example.test';
+    process.env.APP_URL = 'http://crm.example';
+    assert.throws(() => assertRegistrationEmailReady(), { code: 'APP_URL_HTTPS_REQUIRED' });
+    process.env.APP_URL = 'https://crm.example';
+    assert.doesNotThrow(() => assertRegistrationEmailReady());
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+});
+
+test('bounded JSON reader rejects oversized and invalid uploads', async () => {
+  const valid = new Request('https://crm.example/api/contacts/import', { method: 'POST', body: JSON.stringify({ csv: 'name,phone' }) });
+  assert.deepEqual(await readJsonBodyLimited(valid, 100), { csv: 'name,phone' });
+  const tooLarge = new Request('https://crm.example/api/contacts/import', { method: 'POST', body: 'x'.repeat(101) });
+  await assert.rejects(() => readJsonBodyLimited(tooLarge, 100), { code: 'UPLOAD_TOO_LARGE' });
+  const invalid = new Request('https://crm.example/api/contacts/import', { method: 'POST', body: '{invalid' });
+  await assert.rejects(() => readJsonBodyLimited(invalid, 100), { code: 'INVALID_JSON' });
 });
 
 test('database TLS verifies certificates unless explicitly overridden', () => {
