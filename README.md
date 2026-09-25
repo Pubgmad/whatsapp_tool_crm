@@ -286,7 +286,9 @@ Workspace owners can switch active Stripe subscriptions between visible paid pla
 
 Monthly message and WhatsApp-conversation limits reset at 00:00 UTC on the first of each calendar month. One confirmed outgoing Meta message consumes one message unit; a conversation unit is one distinct contacted customer in that month. A body-free usage ledger preserves these counts when chat history is deleted. The Super Admin controls usage-record retention separately from message retention; the active monthly window is always retained.
 
-`SUBSCRIPTION_ENFORCEMENT_ENABLED=false` is the safe migration default for existing workspaces. After a test purchase, a verified webhook, plan assignment, and access audit, set it to `true` and restart both processes. When enabled, expired or unpaid subscriptions cannot create contacts, send messages, start campaigns, create automations, or process queued sends. Existing data remains readable. Reviewer access remains exempt.
+`SUBSCRIPTION_ENFORCEMENT_ENABLED` defaults to enabled. Before deploying this version, assign active subscriptions or trials to existing workspaces and verify Stripe webhooks; otherwise write operations will be blocked. Set `SUBSCRIPTION_ENFORCEMENT_ENABLED=false` only as a temporary, explicit migration override and remove it after the access audit. Expired or unpaid subscriptions cannot create contacts, send messages, start campaigns, create automations, or process queued sends. Existing data remains readable. Reviewer access remains exempt.
+
+CSV contact import columns are `name,phone,permission,tags,opt_in_source,consent_evidence`. New rows without explicit permission are suppressed. A `yes` permission requires a source and specific evidence (at least 10 characters); importing an opted-out contact cannot silently restore marketing permission. Owners and managers can edit contacts and record fresh consent in Suppression. Run `npm run db:init` before using this feature to create the consent audit table.
 
 ### Queue worker and retention
 

@@ -21,3 +21,16 @@ test('capacity errors occur at configured plan limits', () => {
   assert.equal(limitReached('Message', null, 1000), null);
   assert.equal(limitReached('Message', 10, 10)?.code, 'SUBSCRIPTION_LIMIT_REACHED');
 });
+
+test('subscription enforcement defaults to on and can be explicitly disabled', () => {
+  const previous = process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED;
+  try {
+    delete process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED;
+    assert.throws(() => assertSubscriptionActive({ status: 'pending' }), { code: 'SUBSCRIPTION_INACTIVE' });
+    process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED = 'false';
+    assert.doesNotThrow(() => assertSubscriptionActive({ status: 'pending' }));
+  } finally {
+    if (previous === undefined) delete process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED;
+    else process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED = previous;
+  }
+});

@@ -357,6 +357,18 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS custom_attributes JSONB NOT NULL D
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opt_in_at TIMESTAMPTZ;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opt_in_source TEXT NOT NULL DEFAULT 'Manual';
 
+CREATE TABLE IF NOT EXISTS contact_consent_events (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  recorded_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  source TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  occurred_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_contact_consent_events_contact ON contact_consent_events(business_id,contact_id,created_at DESC);
+
 CREATE TABLE IF NOT EXISTS audience_segments (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -618,7 +630,7 @@ CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run
 DO $$
 DECLARE tenant_table TEXT;
 BEGIN
-  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','message_usage_events','events','audit_logs'] LOOP
+  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','message_usage_events','events','audit_logs'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', tenant_table);
