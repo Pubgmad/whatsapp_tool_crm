@@ -12,7 +12,7 @@ export const metadata = {
 export default async function PrivacyPolicyPage() {
   const platform = await getPublicPlatformConfig();
   const productName = platform.product_tagline || "WhatsApp Business CRM";
-  const companyName = platform.company_name || "Mathstrat";
+  const companyName = platform.company_name || "Platform operator";
   const supportEmail = platform.support_email || "";
   const lastUpdated = platform.privacy_last_updated || "";
 

@@ -168,12 +168,17 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [platform, setPlatform] = useState({ ...fallbackPlatform, ...(initialPlatform || {}) });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [pages, setPages] = useState({});
+  const [workspaces, setWorkspaces] = useState([]);
 
   const approvedTemplates = useMemo(() => state?.templates.filter((template) => template.status === "Approved") || [], [state]);
   const marketableContacts = useMemo(() => state?.contacts.filter((contact) => contact.marketingPermission && !contact.unsubscribed) || [], [state]);
   const suppressedContacts = useMemo(() => state?.contacts.filter((contact) => contact.unsubscribed || !contact.marketingPermission) || [], [state]);
 
   useEffect(() => { if (!authMode) bootstrap(); }, []);
+  useEffect(() => {
+    if (!account || authMode) return;
+    api("/api/workspaces").then((result) => setWorkspaces(result.workspaces || [])).catch(() => setWorkspaces([]));
+  }, [account?.user?.id, account?.business?.id, authMode]);
   useEffect(() => {
     if (authMode) return;
     const location = workspaceLocation(pathname);
@@ -266,6 +271,18 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     router.replace("/login");
   };
 
+  const selectWorkspace = async (event) => {
+    const businessId = event.target.value;
+    if (businessId === account.business.id) return;
+    try {
+      await postJson("/api/workspaces", { businessId });
+      window.location.assign("/app/dashboard");
+    } catch (error) {
+      event.target.value = account.business.id;
+      notify(error.message);
+    }
+  };
+
   const navigate = (view) => {
     const route = workspaceRoutes[view];
     if (!route) return;
@@ -302,6 +319,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     <main className="shell">
       <aside className={`sideRail ${mobileNavOpen ? "open" : ""}`}>
         <div className="brandBlock"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>{platformConfig.brand_name}</strong><span>{account.business.name}</span></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
+        {workspaces.length > 1 && <label className="workspaceSwitcher"><span>Workspace</span><select value={account.business.id} onChange={selectWorkspace}>{workspaces.map((item) => <option key={item.id} value={item.id} disabled={item.status === "suspended"}>{item.name}{item.status === "suspended" ? " (suspended)" : ""}</option>)}</select></label>}
         <nav className="navList" aria-label="Product sections">
           {navItems.filter((item) => canOpenWorkspaceView(account.role, item.id)).map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
         </nav>
@@ -454,7 +472,7 @@ function Billing({ state, role }) {
   const plan = subscription.plan || {};
   const usage = subscription.usage || {};
   const limits = subscription.limits || {};
-  const money = (cents, currency = plan.currency || 'INR') => new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100);
+  const money = (cents, currency = plan.currency) => currency ? new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100) : "Not set";
   const usageValue = (key) => limits[key] == null ? `${usage[key] || 0} / Unlimited` : `${usage[key] || 0} / ${limits[key]}`;
   return <div className="screenGrid">
     <section className="heroPanel"><div><span className="softLabel">{subscription.status || "pending"}</span><h2>{plan.name || "Unassigned"}</h2><p>{plan.description || "Subscription details are managed by the platform owner."}</p></div><div className="heroMetrics"><Metric label="Monthly" value={money(plan.monthlyPriceCents)} /><Metric label="Yearly" value={money(plan.yearlyPriceCents)} /><Metric label="Period ends" value={subscription.periodEnd ? formatTime(subscription.periodEnd) : "Not set"} /></div></section>

@@ -290,9 +290,15 @@ Monthly message and WhatsApp-conversation limits reset at 00:00 UTC on the first
 
 CSV contact import columns are `name,phone,permission,tags,opt_in_source,consent_evidence`. New rows without explicit permission are suppressed. A `yes` permission requires a source and specific evidence (at least 10 characters); importing an opted-out contact cannot silently restore marketing permission. Owners and managers can edit contacts and record fresh consent in Suppression. Run `npm run db:init` before using this feature to create the consent audit table.
 
+Users who belong to more than one company can switch workspaces from the sidebar. The server checks membership before issuing a new HttpOnly session cookie, and the browser reloads the workspace to clear the previous tenant's data. Contact CSV export streams in database pages rather than loading every contact into application memory.
+
+New or seeded subscription plans require an explicit three-letter currency code; there is no implicit billing currency. Meta data-deletion callbacks disconnect authorization immediately, then show a pending status if a linked company requires review. The Super Admin reviews these requests under **Data requests** and must verify any remaining Meta Platform Data and retention obligations before confirming completion. The callback itself does not delete all company CRM records.
+
 ### Queue worker and retention
 
 The web process alone does not continuously process queued campaigns and automations. Run `npm run worker` as a second managed process (for example, a separate PM2 app) with the same ignored `.env.local`, `JOB_RUNNER_SECRET`, and `JOB_RUNNER_URL=http://127.0.0.1:3000`. The worker polls every `JOB_POLL_INTERVAL_MS` (default 15000) and runs bounded retention once per day. Run only one worker instance until queue concurrency has been capacity-tested. The Super Admin controls retention days; a zero-day setting means keep data. Workspace deletion requests still require explicit approval and are not automatically purged.
+
+`GET /api/health` returns HTTP 200 only when PostgreSQL responds and a successful queue-worker cycle has been recorded recently. It returns HTTP 503 if the database is unavailable or the worker is stale. Run `npm run db:init` before restarting the worker to create the heartbeat and Meta deletion-review tables.
 
 An interrupted send may have reached Meta even if its database result was not saved. Stale processing jobs are marked failed with an explicit *delivery unconfirmed* reason and are **not** automatically resent. Check Meta and the recipient before any manual retry. Provider rate-limit responses remain retryable.
 

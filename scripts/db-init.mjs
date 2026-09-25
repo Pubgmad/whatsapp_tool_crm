@@ -62,6 +62,8 @@ async function seedSubscriptionPlans(client) {
     const code = clean(plan.code).toLowerCase();
     const name = clean(plan.name);
     if (!code || !name) continue;
+    const currency = clean(plan.currency).toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) throw new Error(`Plan ${code} requires a three-letter currency code.`);
     const monthlyPrice = optionalNumber(plan.monthlyPriceCents, plan.monthly_price_cents, plan.priceCents, plan.price_cents) || 0;
     const yearlyPrice = optionalNumber(plan.yearlyPriceCents, plan.yearly_price_cents) || 0;
 
@@ -78,7 +80,7 @@ async function seedSubscriptionPlans(client) {
         monthlyPrice,
         monthlyPrice,
         yearlyPrice,
-        clean(plan.currency || "INR"),
+        currency,
         optionalNumber(plan.trialDays, plan.trial_days) || 0,
         optionalNumber(plan.contactLimit, plan.contact_limit),
         optionalNumber(plan.campaignLimit, plan.campaign_limit),
@@ -180,6 +182,8 @@ try {
   await client.query("CREATE TABLE IF NOT EXISTS platform_audit_logs (id TEXT PRIMARY KEY, super_admin_id TEXT REFERENCES super_admins(id) ON DELETE SET NULL, action TEXT NOT NULL, metadata JSONB NOT NULL DEFAULT '{}'::jsonb, at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await client.query("CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_at ON platform_audit_logs(at DESC)");
   await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS automation_flow_limit INTEGER");
+  await client.query("ALTER TABLE subscription_plans ALTER COLUMN currency DROP DEFAULT");
+  await client.query("ALTER TABLE billing_events ALTER COLUMN currency DROP DEFAULT");
   await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS monthly_message_limit INTEGER");
   await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS monthly_price_cents INTEGER NOT NULL DEFAULT 0");
   await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS yearly_price_cents INTEGER NOT NULL DEFAULT 0");

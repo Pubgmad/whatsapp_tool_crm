@@ -14,7 +14,7 @@ const emptyPlan = {
   code: "",
   name: "",
   description: "",
-  currency: "INR",
+  currency: "",
   monthlyPrice: "",
   yearlyPrice: "",
   trialDays: "0",
@@ -58,7 +58,7 @@ const api = async (path, options = {}) => {
 const postJson = (path, body, method = "POST") => api(path, { method, body: JSON.stringify(body) });
 const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString([], { dateStyle: "medium" }) : "Not set";
 const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Never";
-const money = (cents, currency) => new Intl.NumberFormat("en-IN", { style: "currency", currency: currency || "INR", maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100);
+const money = (cents, currency) => currency ? new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100) : "Not set";
 const rupees = (cents) => cents ? String(Number(cents) / 100) : "";
 const cents = (value) => Math.round((Number(value) || 0) * 100);
 const optionalNumber = (value) => value === "" || value === null || value === undefined ? null : Number(value);
@@ -68,6 +68,7 @@ const adminSections = [
   { id: "plans", label: "Plans", href: "/super-admin/plans", icon: WalletCards },
   { id: "content", label: "Content", href: "/super-admin/content", icon: FileText },
   { id: "companies", label: "Companies", href: "/super-admin/companies", icon: Building2 },
+  { id: "data-requests", label: "Data requests", href: "/super-admin/data-requests", icon: FileText },
   { id: 'security', label: 'Security', href: '/super-admin/security', icon: LockKeyhole }
 ];
 
@@ -76,6 +77,7 @@ const adminHeadings = {
   plans: ["Subscription plans", "Control pricing, billing periods, features, limits, visibility, and availability."],
   content: ["Platform content", "Manage customer-facing business content and configurable platform values."],
   companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."],
+  "data-requests": ["Meta data requests", "Review deletion requests and record completion decisions."],
   security: ['Owner security', 'Protect platform-level access with an authenticator and single-use recovery codes.']
 };
 
@@ -88,11 +90,18 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [companyPage, setCompanyPage] = useState(1);
+  const [companyList, setCompanyList] = useState([]);
+  const [companyTotal, setCompanyTotal] = useState(0);
+  const [companyRefresh, setCompanyRefresh] = useState(0);
+  const [companyLoading, setCompanyLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [platformBrand, setPlatformBrand] = useState("Platform");
 
   useEffect(() => { bootstrap(); }, []);
+  useEffect(() => { api("/api/platform").then((result) => setPlatformBrand(result.platform?.company_name || result.platform?.brand_name || "Platform")).catch(() => {}); }, []);
   useEffect(() => {
     if (loading) return;
     if (authOnly && admin) router.replace("/super-admin");
@@ -102,6 +111,20 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
     if (!admin || !initialCompanyId || selected?.company?.id === initialCompanyId) return;
     api(`/api/super-admin/companies/${initialCompanyId}`).then(setSelected).catch((error) => notify(error.message));
   }, [admin, initialCompanyId, selected?.company?.id]);
+  useEffect(() => {
+    if (!admin || initialSection !== "companies") return;
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setCompanyLoading(true);
+      try {
+        const params = new URLSearchParams({ page: String(companyPage), search: query, status: statusFilter });
+        const result = await api(`/api/super-admin/companies?${params}`);
+        if (active) { setCompanyList(result.companies || []); setCompanyTotal(result.pagination?.total || 0); }
+      } catch (error) { if (active) notify(error.message); }
+      finally { if (active) setCompanyLoading(false); }
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [admin?.id, initialSection, companyPage, query, statusFilter, companyRefresh]);
 
   const notify = (message) => { setNotice(message); window.setTimeout(() => setNotice(""), 2600); };
 
@@ -135,6 +158,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   const refresh = async () => {
     try {
       await loadPlatformData();
+      setCompanyRefresh((current) => current + 1);
       if (selected?.company?.id) setSelected(await api(`/api/super-admin/companies/${selected.company.id}`));
       notify("Dashboard refreshed");
     } catch (error) {
@@ -165,6 +189,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       const detail = await postJson(`/api/super-admin/companies/${companyId}/status`, { action }, "PATCH");
       setSelected(detail);
       await loadPlatformData();
+      setCompanyRefresh((current) => current + 1);
       notify(action === "activate" ? "Company activated" : "Company suspended");
     } catch (error) {
       notify(error.message);
@@ -203,17 +228,8 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
     }
   };
 
-  const companies = useMemo(() => {
-    const rows = dashboard?.companies || [];
-    return rows.filter((company) => {
-      const matchesText = [company.name, company.email, company.planName, company.subscriptionStatus].join(" ").toLowerCase().includes(query.toLowerCase());
-      const matchesStatus = statusFilter === "all" || company.accountStatus === statusFilter;
-      return matchesText && matchesStatus;
-    });
-  }, [dashboard, query, statusFilter]);
-
   if (loading) return <main className="superLoading"><ShieldCheck size={30} /><span>Checking platform access</span></main>;
-  if (!admin && authOnly) return <SuperAdminLogin onDone={bootstrap} />;
+  if (!admin && authOnly) return <SuperAdminLogin onDone={bootstrap} brandName={platformBrand} />;
   if (!admin) return <main className="superLoading"><Loader2 className="spin" size={30} /><span>Opening Super Admin sign in</span></main>;
   if (authOnly) return <main className="superLoading"><Loader2 className="spin" size={30} /><span>Opening Super Admin</span></main>;
   if (!dashboard) return <main className="superLoading"><Loader2 className="spin" size={30} /><span>Loading platform data</span></main>;
@@ -222,7 +238,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
   return <main className="superShell">
     <aside className={`superRail ${mobileNavOpen ? "open" : ""}`}>
-      <div className="superBrand"><span><ShieldCheck size={22} /></span><div><strong>Mathstrat</strong><small>Super Admin</small></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
+      <div className="superBrand"><span><ShieldCheck size={22} /></span><div><strong>{platformBrand}</strong><small>Super Admin</small></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
       <nav className="superNav" aria-label="Super Admin sections">
         {adminSections.map((section) => { const Icon = section.icon; return <Link key={section.id} className={initialSection === section.id ? "active" : ""} href={section.href} onClick={() => setMobileNavOpen(false)}><Icon size={17} />{section.label}</Link>; })}
       </nav>
@@ -268,14 +284,16 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
       <PlanManager plans={plans} onSave={savePlan} /></>}
       {initialSection === "content" && <ContentManager settings={settings} onSave={saveSetting} />}
+      {initialSection === "data-requests" && <MetaDeletionQueue notify={notify} />}
       {initialSection === 'security' && <SuperAdminSecurity notify={notify} />}
 
       {initialSection === "companies" && <Panel title="Companies" subtitle="Tenant-level monitoring and controls">
         <div className="companyToolbar">
-          <label className="searchBox"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search company, email, plan" /></label>
-          <label className="filterBox"><SlidersHorizontal size={17} /><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="pending">Pending</option><option value="suspended">Suspended</option></select></label>
+          <label className="searchBox"><Search size={17} /><input value={query} onChange={(event) => { setQuery(event.target.value); setCompanyPage(1); }} placeholder="Search company, email, plan" /></label>
+          <label className="filterBox"><SlidersHorizontal size={17} /><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setCompanyPage(1); }}><option value="all">All statuses</option><option value="active">Active</option><option value="pending">Pending</option><option value="suspended">Suspended</option></select></label>
         </div>
-        <div className="companyList">{companies.map((company) => <CompanyRow key={company.id} company={company} onOpen={() => openCompany(company)} />)}{!companies.length && <Empty text="No companies match this view" />}</div>
+        <div className="companyList">{companyList.map((company) => <CompanyRow key={company.id} company={company} onOpen={() => openCompany(company)} />)}{!companyList.length && !companyLoading && <Empty text="No companies match this view" />}</div>
+        <div className="companyPagination"><span>{companyLoading ? "Loading" : `${companyTotal} companies`}</span><div><button className="secondaryAction" type="button" disabled={companyPage <= 1 || companyLoading} onClick={() => setCompanyPage((page) => page - 1)}>Previous</button><span>Page {companyPage}</span><button className="secondaryAction" type="button" disabled={companyPage * 25 >= companyTotal || companyLoading} onClick={() => setCompanyPage((page) => page + 1)}>Next</button></div></div>
       </Panel>}
     </section>
 
@@ -283,7 +301,47 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   </main>;
 }
 
-function SuperAdminLogin({ onDone }) {
+function MetaDeletionQueue({ notify }) {
+  const [requests, setRequests] = useState([]);
+  const [notes, setNotes] = useState({});
+  const [pendingId, setPendingId] = useState("");
+  const [error, setError] = useState("");
+  const load = async () => {
+    try {
+      const result = await api("/api/super-admin/meta-deletion");
+      setRequests(result.requests || []);
+      setError("");
+    } catch (reason) { setError(reason.message); }
+  };
+  useEffect(() => { load(); }, []);
+  const review = async (item, status) => {
+    setPendingId(item.id);
+    try {
+      await postJson("/api/super-admin/meta-deletion", {
+        id: item.id,
+        status,
+        note: notes[item.id] || "",
+        confirmation: status === "completed" ? "REVIEWED_DATA_DELETION" : ""
+      }, "PATCH");
+      notify(status === "completed" ? "Deletion review completed" : status === "pending" ? "Request reopened" : "Request marked for investigation");
+      await load();
+    } catch (reason) { setError(reason.message); }
+    finally { setPendingId(""); }
+  };
+  return <Panel title="Deletion review" subtitle="Requests remain pending until the platform owner verifies how remaining Meta Platform Data was handled.">
+    <div className="assetToolbar"><span>{requests.filter((item) => item.status === "pending").length} pending</span><button className="secondaryAction" type="button" onClick={load}><RefreshCcw size={16} /> Refresh</button></div>
+    {error && <div className="formError" role="alert">{error}</div>}
+    <div className="deletionRequestList">{requests.map((item) => <article className="deletionRequestRow" key={item.id}>
+      <div><strong>{item.confirmationCode}</strong><small>{formatTime(item.requestedAt)} | {item.businessesAffected} linked workspace{item.businessesAffected === 1 ? "" : "s"}</small><span className={`badge ${item.status === "completed" ? "good" : "warn"}`}>{item.status}</span></div>
+      {item.businessIds.length > 0 && <small>Workspace IDs: {item.businessIds.join(", ")}</small>}
+      {item.status === "pending" ? <><label>Review note<textarea value={notes[item.id] || ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} minLength="20" maxLength="4000" /></label><div className="actionCluster"><button className="primaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "completed")}><BadgeCheck size={16} /> Confirm handled</button><button className="secondaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "failed")}><Ban size={16} /> Needs investigation</button></div></> : <p>{item.reviewNote || "No note recorded."}</p>}
+      {item.status === "failed" && <><label>Follow-up note<textarea value={notes[item.id] || ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} minLength="20" maxLength="4000" /></label><div className="actionCluster"><button className="primaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "completed")}><BadgeCheck size={16} /> Confirm handled</button><button className="secondaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "pending")}><RefreshCcw size={16} /> Reopen</button></div></>}
+    </article>)}</div>
+    {!requests.length && <Empty text="No Meta deletion requests yet" />}
+  </Panel>;
+}
+
+function SuperAdminLogin({ onDone, brandName }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -305,7 +363,7 @@ function SuperAdminLogin({ onDone }) {
     }
   };
 
-  return <main className="superAuthShell"><section className="superAuthPanel"><div className="superBrand dark"><span><LockKeyhole size={22} /></span><div><strong>Mathstrat</strong><small>Super Admin</small></div></div><div><p className="kicker">Platform owner access</p><h1>Sign in</h1><p>Use the secure admin credentials configured on the server.</p></div><form className="formGrid" onSubmit={submit}><label>Email<input name="platformOwnerEmail" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /></label><div className='fieldGroup'><label htmlFor='platformOwnerSecret'>Password</label><span className="passwordWrap"><input id='platformOwnerSecret' name="platformOwnerSecret" type={showPassword ? "text" : "password"} autoComplete="new-password" data-lpignore="true" data-form-type="other" minLength="12" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></div>{mfaRequired && <label>Authenticator or recovery code<input name="mfaCode" autoComplete="one-time-code" required /></label>}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}<span>{pending ? "Checking" : "Sign in"}</span></button></form></section></main>;
+  return <main className="superAuthShell"><section className="superAuthPanel"><div className="superBrand dark"><span><LockKeyhole size={22} /></span><div><strong>{brandName}</strong><small>Super Admin</small></div></div><div><p className="kicker">Platform owner access</p><h1>Sign in</h1><p>Use the secure admin credentials configured on the server.</p></div><form className="formGrid" onSubmit={submit}><label>Email<input name="platformOwnerEmail" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /></label><div className='fieldGroup'><label htmlFor='platformOwnerSecret'>Password</label><span className="passwordWrap"><input id='platformOwnerSecret' name="platformOwnerSecret" type={showPassword ? "text" : "password"} autoComplete="new-password" data-lpignore="true" data-form-type="other" minLength="12" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></div>{mfaRequired && <label>Authenticator or recovery code<input name="mfaCode" autoComplete="one-time-code" required /></label>}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}<span>{pending ? "Checking" : "Sign in"}</span></button></form></section></main>;
 }
 
 function SuperAdminSecurity({ notify }) {
@@ -361,7 +419,7 @@ function PlanManager({ plans, onSave }) {
     <form className="planEditor" onSubmit={submit}>
       <div className="formSplit"><Input label="Plan code" value={form.code} onChange={(event) => setFormValue(setForm, "code", event.target.value)} placeholder="professional" required /><Input label="Plan name" value={form.name} onChange={(event) => setFormValue(setForm, "name", event.target.value)} placeholder="Plan name" required /></div>
       <label>Description<textarea rows="3" value={form.description} onChange={(event) => setFormValue(setForm, "description", event.target.value)} placeholder="Short customer-facing plan description"></textarea></label>
-      <div className="formQuad"><Input label="Currency" value={form.currency} onChange={(event) => setFormValue(setForm, "currency", event.target.value.toUpperCase())} /><Input label="Monthly price" type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(event) => setFormValue(setForm, "monthlyPrice", event.target.value)} /><Input label="Yearly price" type="number" min="0" step="0.01" value={form.yearlyPrice} onChange={(event) => setFormValue(setForm, "yearlyPrice", event.target.value)} /><Input label="Trial days" type="number" min="0" value={form.trialDays} onChange={(event) => setFormValue(setForm, "trialDays", event.target.value)} /></div>
+      <div className="formQuad"><Input label="Currency" required maxLength="3" value={form.currency} onChange={(event) => setFormValue(setForm, "currency", event.target.value.toUpperCase())} /><Input label="Monthly price" type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(event) => setFormValue(setForm, "monthlyPrice", event.target.value)} /><Input label="Yearly price" type="number" min="0" step="0.01" value={form.yearlyPrice} onChange={(event) => setFormValue(setForm, "yearlyPrice", event.target.value)} /><Input label="Trial days" type="number" min="0" value={form.trialDays} onChange={(event) => setFormValue(setForm, "trialDays", event.target.value)} /></div>
       <div className="formQuad"><Input label="Contacts" type="number" min="0" value={form.contactLimit} onChange={(event) => setFormValue(setForm, "contactLimit", event.target.value)} /><Input label="Campaigns/month" type="number" min="0" value={form.campaignLimit} onChange={(event) => setFormValue(setForm, "campaignLimit", event.target.value)} /><Input label="Users" type="number" min="0" value={form.userLimit} onChange={(event) => setFormValue(setForm, "userLimit", event.target.value)} /><Input label="Automation flows" type="number" min="0" value={form.automationFlowLimit} onChange={(event) => setFormValue(setForm, "automationFlowLimit", event.target.value)} /></div>
       <div className="formSplit"><Input label="Messages/month" type="number" min="0" value={form.monthlyMessageLimit} onChange={(event) => setFormValue(setForm, "monthlyMessageLimit", event.target.value)} /><Input label="WhatsApp conversations" type="number" min="0" value={form.whatsappConversationLimit} onChange={(event) => setFormValue(setForm, "whatsappConversationLimit", event.target.value)} /></div>
       <label>Features<textarea rows="5" value={form.features} onChange={(event) => setFormValue(setForm, "features", event.target.value)} placeholder="One feature per line"></textarea></label>
@@ -421,7 +479,7 @@ function planToForm(plan) {
     code: plan.code,
     name: plan.name,
     description: plan.description || "",
-    currency: plan.currency || "INR",
+    currency: plan.currency || "",
     monthlyPrice: rupees(plan.monthlyPriceCents),
     yearlyPrice: rupees(plan.yearlyPriceCents),
     trialDays: String(plan.trialDays || 0),

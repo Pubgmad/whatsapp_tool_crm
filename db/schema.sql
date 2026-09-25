@@ -99,6 +99,12 @@ CREATE TABLE IF NOT EXISTS retention_job_runs (
   completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS worker_heartbeats (
+  worker_name TEXT PRIMARY KEY,
+  last_success_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS meta_connection_events (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -227,6 +233,9 @@ CREATE TABLE IF NOT EXISTS meta_data_deletion_requests (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT meta_data_deletion_status_check CHECK (status IN ('pending', 'completed', 'failed'))
 );
+ALTER TABLE meta_data_deletion_requests ADD COLUMN IF NOT EXISTS business_ids JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE meta_data_deletion_requests ADD COLUMN IF NOT EXISTS reviewed_by TEXT REFERENCES super_admins(id) ON DELETE SET NULL;
+ALTER TABLE meta_data_deletion_requests ADD COLUMN IF NOT EXISTS review_note TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_meta_data_deletion_requests_code ON meta_data_deletion_requests(confirmation_code);
 
 CREATE TABLE IF NOT EXISTS subscription_plans (
@@ -238,7 +247,7 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
   price_cents INTEGER NOT NULL DEFAULT 0,
   monthly_price_cents INTEGER NOT NULL DEFAULT 0,
   yearly_price_cents INTEGER NOT NULL DEFAULT 0,
-  currency TEXT NOT NULL DEFAULT 'INR',
+  currency TEXT NOT NULL,
   trial_days INTEGER NOT NULL DEFAULT 0,
   contact_limit INTEGER,
   campaign_limit INTEGER,
@@ -297,7 +306,7 @@ CREATE TABLE IF NOT EXISTS billing_events (
   subscription_id TEXT REFERENCES business_subscriptions(id) ON DELETE SET NULL,
   event_type TEXT NOT NULL,
   amount_cents INTEGER DEFAULT 0,
-  currency TEXT DEFAULT 'INR',
+  currency TEXT,
   provider TEXT DEFAULT 'manual',
   provider_event_id TEXT DEFAULT '',
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
