@@ -294,6 +294,8 @@ The web process alone does not continuously process queued campaigns and automat
 
 An interrupted send may have reached Meta even if its database result was not saved. Stale processing jobs are marked failed with an explicit *delivery unconfirmed* reason and are **not** automatically resent. Check Meta and the recipient before any manual retry. Provider rate-limit responses remain retryable.
 
+Authentication rate limits are shared through PostgreSQL and applied both per account and per client IP. On the VPS, keep the Next.js port private and configure Nginx to overwrite `X-Real-IP` with `$remote_addr` and `X-Forwarded-For` with `$remote_addr`; do not pass client-supplied forwarding headers through unchanged. Password reset revokes earlier company-user sessions. Enable email verification and configure `RESEND_API_KEY` and `EMAIL_FROM` before opening self-service registration, and enable MFA for the Super Admin. Once the initial Super Admin account exists, remove `SUPER_ADMIN_PASSWORD` from the runtime environment; the database retains only its password hash.
+
 For each VPS deployment: pull the intended branch, run `npm ci`, `npm run db:init`, `npm test`, `npm run build`, then restart the web and worker PM2 processes. Back up PostgreSQL before schema changes. Test a Stripe test-mode checkout and its webhook before entering live keys. Do not commit `.env.local` or paste payment keys into commands, tickets, or logs.
 
 This migration requires every WhatsApp Business Account ID and Phone Number ID to belong to only one company. If `db:init` reports duplicate ownership, resolve the affected tenant connections before retrying; do not delete assets blindly. For database integration coverage, set `TEST_DATABASE_URL` to a **separate test database** initialized with `db:init` and run `npm test`. Never point integration tests at the live database.
@@ -325,10 +327,13 @@ The **Meta Setup** workspace is backed by tenant-scoped PostgreSQL data and the 
 - Message template submission and synchronization, including media headers, action buttons, and authentication template configuration.
 - Interactive reply buttons and list messages inside the 24-hour service window.
 - Native WhatsApp Flow creation, JSON upload/validation, publication, and synchronization.
+- Per-number Flow encryption keys and a signed, encrypted data-exchange endpoint with workspace-configured responses.
 - WhatsApp account analytics snapshots and phone quality/messaging-tier monitoring.
-- A capability view that distinguishes configured features from products that still require Meta eligibility or App Review.
+- A capability view that distinguishes working integrations from products that are not integrated.
 
-Optional Meta products such as coexistence, Calling, catalog commerce, Click-to-WhatsApp ads, Marketing Messages API, and billing visibility are not simulated. Their readiness is shown only when the connected Meta account exposes the required capability.
+To use a managed Flow endpoint, set the public HTTPS `APP_URL` and server-only `META_APP_SECRET` and `ENCRYPTION_KEY`. In **Meta Setup > WhatsApp Flows**, configure encryption for the selected phone and wait for Meta to report `VALID`. Create a Flow with **Use CRM data endpoint**, upload its Flow JSON, then save response mappings for `INIT` and each `data_exchange:SCREEN_ID` or `navigate:SCREEN_ID` step before publishing. The mappings are stored per company in PostgreSQL; private keys are encrypted and never returned to the browser. This endpoint returns configured screen data, not a general business-logic engine or a store for submitted personal data.
+
+Coexistence history sync, Calling, Click-to-WhatsApp ad management, specialized Marketing Messages API, per-template insights, OTP app-signature management, and Meta credit-line/payment visibility are **not integrated**. A connected WABA alone does not enable those products. Expired customer authorization is recovered through Embedded Signup reauthorization, not an invented token refresh.
 
 After pulling a release on an existing server, apply the additive schema migration before restarting the app:
 

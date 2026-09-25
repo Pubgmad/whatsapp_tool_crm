@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertCsrf, createCsrfToken, secureCookieAttribute } from '../lib/security.js';
+import { assertCsrf, createCsrfToken, requestIp, secureCookieAttribute } from '../lib/security.js';
 import { createSessionToken, verifySessionToken } from '../lib/auth.js';
 import { decryptSecret, encryptSecret } from '../lib/meta.js';
 import { databaseSslConfig } from '../lib/db.js';
@@ -54,6 +54,14 @@ test('database TLS verifies certificates unless explicitly overridden', () => {
     if (previous[1] === undefined) delete process.env.DATABASE_SSL_INSECURE;
     else process.env.DATABASE_SSL_INSECURE = previous[1];
   }
+});
+
+test('rate-limit IP handling ignores spoofed first forwarded addresses', () => {
+  const request = new Request('https://crm.example/api/auth/login', {
+    headers: { 'x-forwarded-for': '198.51.100.20, 203.0.113.12' }
+  });
+  assert.equal(requestIp(request), '203.0.113.12');
+  assert.equal(requestIp(new Request('https://crm.example', { headers: { 'x-real-ip': 'not-an-ip' } })), 'unknown');
 });
 
 test('accepts sessions signed by the previous secret during rotation', () => {

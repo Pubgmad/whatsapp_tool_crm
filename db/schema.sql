@@ -52,6 +52,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret_encrypted TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_recovery_codes JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS auth_tokens (
   id TEXT PRIMARY KEY,
@@ -166,6 +167,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_phone_numbers (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_phone_numbers_owner ON whatsapp_phone_numbers(phone_number_id);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_phone_numbers_business ON whatsapp_phone_numbers(business_id, is_default DESC, created_at);
+ALTER TABLE whatsapp_phone_numbers ADD COLUMN IF NOT EXISTS flow_private_key_encrypted TEXT NOT NULL DEFAULT '';
+ALTER TABLE whatsapp_phone_numbers ADD COLUMN IF NOT EXISTS flow_public_key TEXT NOT NULL DEFAULT '';
+ALTER TABLE whatsapp_phone_numbers ADD COLUMN IF NOT EXISTS flow_key_signature_status TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS whatsapp_media_assets (
   id TEXT PRIMARY KEY,
@@ -196,6 +200,8 @@ CREATE TABLE IF NOT EXISTS whatsapp_native_flows (
   UNIQUE (business_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_whatsapp_native_flows_business ON whatsapp_native_flows(business_id, updated_at DESC);
+ALTER TABLE whatsapp_native_flows ADD COLUMN IF NOT EXISTS endpoint_phone_id TEXT REFERENCES whatsapp_phone_numbers(id) ON DELETE SET NULL;
+ALTER TABLE whatsapp_native_flows ADD COLUMN IF NOT EXISTS endpoint_responses JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS whatsapp_analytics_snapshots (
   id TEXT PRIMARY KEY,

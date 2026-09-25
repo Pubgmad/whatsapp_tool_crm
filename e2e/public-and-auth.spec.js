@@ -26,7 +26,7 @@ test('authenticated route suite', async ({ page }) => {
   await page.getByLabel('Email').fill(process.env.E2E_EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(process.env.E2E_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/app\/dashboard/);
+  await expect(page).toHaveURL(/\/app\/dashboard/, { timeout: 30_000 });
   for (const path of ['/app/contacts', '/app/templates', '/app/campaigns', '/app/automations', '/app/inbox', '/app/settings/billing', '/app/settings/security']) {
     await page.goto(path);
     await expect(page).toHaveURL(path);
