@@ -1,10 +1,11 @@
 import nextEnv from '@next/env';
 import pg from 'pg';
 import { decryptSecret, encryptSecret } from '../lib/meta.js';
+import { databaseSslConfig } from '../lib/db.js';
 
 nextEnv.loadEnvConfig(process.cwd());
 if (!process.env.DATABASE_URL || !process.env.ENCRYPTION_KEY || !process.env.ENCRYPTION_KEY_PREVIOUS) throw new Error('DATABASE_URL, ENCRYPTION_KEY, and ENCRYPTION_KEY_PREVIOUS are required.');
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined });
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: databaseSslConfig() });
 const client = await pool.connect();
 try {
   await client.query('BEGIN');

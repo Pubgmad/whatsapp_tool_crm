@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { receiveStripeWebhook } from '../lib/billing.js';
+import { checkoutPriceVersion, receiveStripeWebhook } from '../lib/billing.js';
+
+test('checkout idempotency changes when a Super Admin changes the plan price', () => {
+  const plan = { id: 'plan_1', currency: 'INR', updated_at: '2026-09-25T00:00:00Z' };
+  const original = checkoutPriceVersion(plan, 'monthly', 99900);
+  assert.notEqual(original, checkoutPriceVersion(plan, 'monthly', 149900));
+  assert.notEqual(original, checkoutPriceVersion({ ...plan, currency: 'USD' }, 'monthly', 99900));
+  assert.equal(original, checkoutPriceVersion(plan, 'monthly', 99900));
+});
 
 test('Stripe webhook rejects missing and invalid signatures before touching the database', async () => {
   const previousKey = process.env.STRIPE_SECRET_KEY;

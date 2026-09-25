@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import process from "node:process";
 import nextEnv from "@next/env";
 import pg from "pg";
+import { databaseSslConfig } from "../lib/db.js";
 
 const { loadEnvConfig } = nextEnv;
 const { Pool } = pg;
@@ -33,7 +34,7 @@ if (password.length < 8) throw new Error("REVIEWER_PASSWORD must be at least 8 c
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : undefined
+  ssl: databaseSslConfig()
 });
 
 const client = await pool.connect();

@@ -1,6 +1,7 @@
 ﻿import crypto from "node:crypto";
 import process from "node:process";
 import pg from "pg";
+import { databaseSslConfig } from "../lib/db.js";
 
 const { Pool } = pg;
 const id = (prefix) => `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
@@ -35,7 +36,7 @@ if (password.length < 8) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : undefined
+  ssl: databaseSslConfig()
 });
 
 const client = await pool.connect();

@@ -282,13 +282,21 @@ Configure `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the server's ignore
 
 Run `npm run db:init` before enabling the webhook. The checkout price is read from the Super Admin-managed plan at purchase time. Existing Stripe subscriptions retain their agreed Stripe price when a plan's displayed price changes; new checkouts use the new price. The Billing screen opens Stripe-hosted Checkout or Customer Portal. Only signed Stripe webhooks update local subscription state. Configure the Customer Portal in Stripe before exposing its button to customers.
 
+Workspace owners can switch active Stripe subscriptions between visible paid plans and monthly/yearly intervals. Stripe invoices prorations immediately; if the required payment cannot be completed, the switch is rejected and the old plan stays in effect. Some payment methods may require the owner to update payment details in the Stripe Customer Portal first. The CRM does not change the local plan until Stripe's signed webhook confirms it.
+
+Monthly message and WhatsApp-conversation limits reset at 00:00 UTC on the first of each calendar month. One confirmed outgoing Meta message consumes one message unit; a conversation unit is one distinct contacted customer in that month. A body-free usage ledger preserves these counts when chat history is deleted. The Super Admin controls usage-record retention separately from message retention; the active monthly window is always retained.
+
 `SUBSCRIPTION_ENFORCEMENT_ENABLED=false` is the safe migration default for existing workspaces. After a test purchase, a verified webhook, plan assignment, and access audit, set it to `true` and restart both processes. When enabled, expired or unpaid subscriptions cannot create contacts, send messages, start campaigns, create automations, or process queued sends. Existing data remains readable. Reviewer access remains exempt.
 
 ### Queue worker and retention
 
 The web process alone does not continuously process queued campaigns and automations. Run `npm run worker` as a second managed process (for example, a separate PM2 app) with the same ignored `.env.local`, `JOB_RUNNER_SECRET`, and `JOB_RUNNER_URL=http://127.0.0.1:3000`. The worker polls every `JOB_POLL_INTERVAL_MS` (default 15000) and runs bounded retention once per day. Run only one worker instance until queue concurrency has been capacity-tested. The Super Admin controls retention days; a zero-day setting means keep data. Workspace deletion requests still require explicit approval and are not automatically purged.
 
+An interrupted send may have reached Meta even if its database result was not saved. Stale processing jobs are marked failed with an explicit *delivery unconfirmed* reason and are **not** automatically resent. Check Meta and the recipient before any manual retry. Provider rate-limit responses remain retryable.
+
 For each VPS deployment: pull the intended branch, run `npm ci`, `npm run db:init`, `npm test`, `npm run build`, then restart the web and worker PM2 processes. Back up PostgreSQL before schema changes. Test a Stripe test-mode checkout and its webhook before entering live keys. Do not commit `.env.local` or paste payment keys into commands, tickets, or logs.
+
+This migration requires every WhatsApp Business Account ID and Phone Number ID to belong to only one company. If `db:init` reports duplicate ownership, resolve the affected tenant connections before retrying; do not delete assets blindly. For database integration coverage, set `TEST_DATABASE_URL` to a **separate test database** initialized with `db:init` and run `npm test`. Never point integration tests at the live database.
 
 ### Super Admin Capabilities
 
@@ -305,7 +313,7 @@ Suspension is enforced server-side through the normal company account loader, so
 
 ### Remaining launch checks
 
-Stripe Checkout, billing webhooks, Customer Portal, email verification, password reset, invitations, RLS, and a queue worker are implemented. A public launch still needs live Stripe/Meta account configuration and successful end-to-end payment/webhook tests, a database backup/restore drill, uptime and error monitoring, legal review of retention/privacy terms, and a deployment-specific security review. Plan switching within an active subscription is not automated; customers can manage payment/cancellation in Stripe Portal and contact the platform owner for a plan change.
+Stripe Checkout, plan switching, billing webhooks, Customer Portal, email verification, password reset, invitations, RLS, and a queue worker are implemented. A public launch still needs live Stripe/Meta account configuration and successful end-to-end payment/webhook tests, a database backup/restore drill, uptime and error monitoring, legal review of retention/privacy terms, and a deployment-specific security review.
 
 ## WhatsApp Operations
 

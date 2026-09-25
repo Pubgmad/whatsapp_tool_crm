@@ -20,15 +20,18 @@ test('sign-in controls are visible and failed authentication is safe', async ({ 
 });
 
 test('authenticated route suite', async ({ page }) => {
+  test.setTimeout(120_000);
   test.skip(!process.env.E2E_EMAIL || !process.env.E2E_PASSWORD, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated coverage.');
   await page.goto('/login');
   await page.getByLabel('Email').fill(process.env.E2E_EMAIL);
   await page.getByLabel('Password', { exact: true }).fill(process.env.E2E_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/app\/dashboard/);
-  for (const path of ['/app/contacts', '/app/templates', '/app/campaigns', '/app/automations', '/app/inbox', '/app/settings/security']) {
+  for (const path of ['/app/contacts', '/app/templates', '/app/campaigns', '/app/automations', '/app/inbox', '/app/settings/billing', '/app/settings/security']) {
     await page.goto(path);
-    await expect(page.locator('.workspace')).toBeVisible();
+    await expect(page).toHaveURL(path);
+    await expect(page.locator('section.workspace').last()).toBeVisible();
+    await expect(page.getByText('Workspace could not be loaded')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBeFalsy();
   }
 });

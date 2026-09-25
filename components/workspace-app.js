@@ -413,6 +413,8 @@ function Billing({ state, role }) {
   const [interval, setInterval] = useState('monthly');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [confirmPlan, setConfirmPlan] = useState('');
   useEffect(() => {
     api('/api/billing/plans').then((result) => {
       setPlans(result.plans || []);
@@ -428,6 +430,17 @@ function Billing({ state, role }) {
       window.location.assign(result.url);
     } catch (reason) { setError(reason.message); setPending(false); }
   };
+  const switchPlan = async (planId) => {
+    try {
+      setPending(true);
+      setError('');
+      setNotice('');
+      await postJson('/api/billing/change-plan', { planId, interval });
+      setConfirmPlan('');
+      setNotice('Stripe accepted the plan change. Billing will update after its confirmation webhook; refresh this page to check.');
+    } catch (reason) { setError(reason.message); }
+    finally { setPending(false); }
+  };
   const subscription = state.subscription || {};
   const plan = subscription.plan || {};
   const usage = subscription.usage || {};
@@ -436,13 +449,14 @@ function Billing({ state, role }) {
   const usageValue = (key) => limits[key] == null ? `${usage[key] || 0} / Unlimited` : `${usage[key] || 0} / ${limits[key]}`;
   return <div className="screenGrid">
     <section className="heroPanel"><div><span className="softLabel">{subscription.status || "pending"}</span><h2>{plan.name || "Unassigned"}</h2><p>{plan.description || "Subscription details are managed by the platform owner."}</p></div><div className="heroMetrics"><Metric label="Monthly" value={money(plan.monthlyPriceCents)} /><Metric label="Yearly" value={money(plan.yearlyPriceCents)} /><Metric label="Period ends" value={subscription.periodEnd ? formatTime(subscription.periodEnd) : "Not set"} /></div></section>
-    <Panel title="Current usage" subtitle="Live usage against the limits configured for this plan"><div className="meterGrid usageGrid"><Metric label="Contacts" value={usageValue("contacts")} /><Metric label="Campaigns" value={usageValue("campaigns")} /><Metric label="Messages" value={usageValue("messages")} /><Metric label="Users" value={usageValue("users")} /><Metric label="Automations" value={usageValue("automationFlows")} /><Metric label="Conversation limit" value={limits.whatsappConversations == null ? "Unlimited" : limits.whatsappConversations} /></div></Panel>
+    <Panel title="Current usage" subtitle="Live usage against the limits configured for this plan"><div className="meterGrid usageGrid"><Metric label="Contacts" value={usageValue("contacts")} /><Metric label="Campaigns" value={usageValue("campaigns")} /><Metric label="Messages" value={usageValue("messages")} /><Metric label="Users" value={usageValue("users")} /><Metric label="Automations" value={usageValue("automationFlows")} /><Metric label="WhatsApp conversations" value={usageValue("whatsappConversations")} /></div></Panel>
     <section className="billingPlans" aria-label="Subscription plans">
       <div className="billingPlansHead"><div><h2>Plans</h2><p>Prices and limits are managed by the platform owner.</p></div><div className="billingInterval" role="group" aria-label="Billing interval"><button type="button" className={interval === 'monthly' ? 'active' : ''} aria-pressed={interval === 'monthly'} onClick={() => setInterval('monthly')}>Monthly</button><button type="button" className={interval === 'yearly' ? 'active' : ''} aria-pressed={interval === 'yearly'} onClick={() => setInterval('yearly')}>Yearly</button></div></div>
       {error && <div className="formError" role="alert">{error}</div>}
+      {notice && <p role="status">{notice}</p>}
       {!billingAvailable && <div className="formError">Online billing is not configured yet.</div>}
       {subscription.provider === 'stripe' && subscription.status !== 'canceled' && <button className="secondaryAction" type="button" disabled={pending || role !== 'Owner'} onClick={() => openBilling('/api/billing/portal')}>Manage payment and subscription</button>}
-      <div className="planGrid">{plans.map((item) => { const price = interval === 'monthly' ? item.monthlyPriceCents : item.yearlyPriceCents; return <article className="planTile" key={item.id}><header><div><strong>{item.name}</strong><p>{item.description}</p></div>{item.code === plan.code && <Badge kind="good">Current</Badge>}</header><div className="planPrice">{money(price, item.currency)}<small>/{interval === 'monthly' ? 'month' : 'year'}</small></div><ul>{(item.features || []).map((feature) => <li key={feature}>{feature}</li>)}</ul><button className="primaryAction" type="button" disabled={pending || !billingAvailable || role !== 'Owner' || !price || (subscription.provider === 'stripe' && ['active', 'trialing', 'past_due'].includes(subscription.status))} onClick={() => openBilling('/api/billing/checkout', { planId: item.id, interval })}>Choose plan</button></article>; })}</div>
+      <div className="planGrid">{plans.map((item) => { const price = interval === 'monthly' ? item.monthlyPriceCents : item.yearlyPriceCents; const activeStripe = subscription.provider === 'stripe' && ['active', 'trialing'].includes(subscription.status); const current = activeStripe && item.code === plan.code && interval === subscription.billingInterval; const choiceKey = item.id + ':' + interval; return <article className="planTile" key={item.id}><header><div><strong>{item.name}</strong><p>{item.description}</p></div>{current && <Badge kind="good">Current</Badge>}</header><div className="planPrice">{money(price, item.currency)}<small>/{interval === 'monthly' ? 'month' : 'year'}</small></div><ul>{(item.features || []).map((feature) => <li key={feature}>{feature}</li>)}</ul><button className="primaryAction" type="button" disabled={pending || !billingAvailable || role !== 'Owner' || !price || current || (subscription.provider === 'stripe' && subscription.status === 'past_due')} onClick={() => activeStripe ? (confirmPlan === choiceKey ? switchPlan(item.id) : setConfirmPlan(choiceKey)) : openBilling('/api/billing/checkout', { planId: item.id, interval })}>{current ? 'Current plan' : activeStripe ? confirmPlan === choiceKey ? 'Confirm switch' : 'Switch plan' : 'Choose plan'}</button>{activeStripe && confirmPlan === choiceKey && <button className="secondaryAction" type="button" onClick={() => setConfirmPlan('')}>Cancel</button>}</article>; })}</div>
       {!plans.length && <EmptyState text="No public subscription plans are available" />}
     </section>
     <Panel title="Included features" subtitle={plan.name || "Current plan"}><div className="readinessList">{(plan.features || []).map((feature) => <div className="ready" key={feature}><span>{feature}</span><Badge kind="good">Included</Badge></div>)}{!(plan.features || []).length && <EmptyState text="No plan features have been configured" />}</div></Panel>

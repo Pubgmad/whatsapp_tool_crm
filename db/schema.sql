@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_accounts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (business_id, waba_id)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_accounts_waba_owner ON whatsapp_accounts(waba_id);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_business ON whatsapp_accounts(business_id, is_default DESC, created_at);
 
 CREATE TABLE IF NOT EXISTS whatsapp_phone_numbers (
@@ -163,6 +164,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_phone_numbers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (business_id, phone_number_id)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_phone_numbers_owner ON whatsapp_phone_numbers(phone_number_id);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_phone_numbers_business ON whatsapp_phone_numbers(business_id, is_default DESC, created_at);
 
 CREATE TABLE IF NOT EXISTS whatsapp_media_assets (
@@ -281,6 +283,7 @@ CREATE TABLE IF NOT EXISTS business_subscriptions (
   CONSTRAINT business_subscriptions_status_check CHECK (status IN ('trialing', 'active', 'past_due', 'canceled', 'expired', 'pending')),
   CONSTRAINT business_subscriptions_payment_check CHECK (payment_status IN ('none', 'pending', 'paid', 'failed', 'refunded'))
 );
+ALTER TABLE business_subscriptions ADD COLUMN IF NOT EXISTS billing_interval TEXT;
 
 CREATE TABLE IF NOT EXISTS billing_events (
   id TEXT PRIMARY KEY,
@@ -511,6 +514,49 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS caption TEXT NOT NULL DEFAULT '';
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS campaign_recipient_id TEXT REFERENCES campaign_recipients(id) ON DELETE SET NULL;
 
+CREATE TABLE IF NOT EXISTS message_usage_events (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  contact_ref TEXT NOT NULL,
+  meta_message_id TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_message_usage_business_month ON message_usage_events(business_id,sent_at);
+CREATE INDEX IF NOT EXISTS idx_message_usage_contact_month ON message_usage_events(business_id,contact_ref,sent_at);
+
+CREATE OR REPLACE FUNCTION record_outgoing_message_usage() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.direction='outgoing' AND COALESCE(NEW.meta_message_id,'')<>'' THEN
+    INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
+    SELECT 'mue_' || md5(NEW.meta_message_id), c.business_id,c.contact_id,NEW.meta_message_id,
+           CASE WHEN NEW.campaign_recipient_id IS NULL THEN 'conversation' ELSE 'campaign' END,NEW.at
+    FROM conversations c WHERE c.id=NEW.conversation_id
+    ON CONFLICT (meta_message_id) DO NOTHING;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS record_outgoing_message_usage ON messages;
+CREATE TRIGGER record_outgoing_message_usage AFTER INSERT ON messages
+FOR EACH ROW EXECUTE FUNCTION record_outgoing_message_usage();
+
+CREATE OR REPLACE FUNCTION record_campaign_message_usage() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.status IN ('sent','delivered','read') AND COALESCE(NEW.meta_message_id,'')<>'' THEN
+    INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
+    SELECT 'mue_' || md5(NEW.meta_message_id), k.business_id,NEW.contact_id,NEW.meta_message_id,
+           'campaign',COALESCE(NEW.sent_at,NOW())
+    FROM campaigns k WHERE k.id=NEW.campaign_id
+    ON CONFLICT (meta_message_id) DO NOTHING;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS record_campaign_message_usage ON campaign_recipients;
+CREATE TRIGGER record_campaign_message_usage AFTER INSERT OR UPDATE OF status,meta_message_id ON campaign_recipients
+FOR EACH ROW EXECUTE FUNCTION record_campaign_message_usage();
+
 CREATE TABLE IF NOT EXISTS conversation_notes (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -566,7 +612,7 @@ CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run
 DO $$
 DECLARE tenant_table TEXT;
 BEGIN
-  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','events','audit_logs'] LOOP
+  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','message_usage_events','events','audit_logs'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', tenant_table);

@@ -4,6 +4,7 @@ import process from "node:process";
 import nextEnv from "@next/env";
 import pg from "pg";
 import { seedPlatformSettings } from "../lib/platform.js";
+import { databaseSslConfig } from "../lib/db.js";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -18,7 +19,7 @@ if (!process.env.DATABASE_URL) {
 const schema = (await fs.readFile(new URL("../db/schema.sql", import.meta.url), "utf8")).replace(/^\uFEFF/, "");
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : undefined
+  ssl: databaseSslConfig()
 });
 
 function hashPassword(value) {
@@ -138,8 +139,44 @@ const client = await pool.connect();
 try {
   await client.query("BEGIN");
   await client.query('SELECT set_config(\'app.system_access\',\'true\',true)');
+  const assetTables = (await client.query(
+    "SELECT to_regclass('public.businesses') IS NOT NULL AS businesses, to_regclass('public.whatsapp_accounts') IS NOT NULL AS accounts, to_regclass('public.whatsapp_phone_numbers') IS NOT NULL AS phones"
+  )).rows[0];
+  if (assetTables.businesses && assetTables.accounts && assetTables.phones) {
+    for (const [legacyColumn, table, assetColumn] of [
+      ['waba_id', 'whatsapp_accounts', 'waba_id'],
+      ['phone_number_id', 'whatsapp_phone_numbers', 'phone_number_id']
+    ]) {
+      const conflict = await client.query(
+        `SELECT asset_id FROM (
+           SELECT NULLIF(${legacyColumn},'') AS asset_id,id AS business_id FROM businesses
+           UNION ALL SELECT ${assetColumn} AS asset_id,business_id FROM ${table}
+         ) ownership WHERE asset_id IS NOT NULL
+         GROUP BY asset_id HAVING COUNT(DISTINCT business_id)>1 LIMIT 1`
+      );
+      if (conflict.rows[0]) {
+        throw new Error(`A WhatsApp ${assetColumn} is linked to multiple companies. Resolve asset ownership before running db:init.`);
+      }
+    }
+  }
   await client.query("DO $$ BEGIN IF to_regclass('public.businesses') IS NOT NULL THEN ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'; END IF; END $$;");
   await client.query(schema);
+  await client.query(
+    `INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
+     SELECT 'mue_' || md5(m.meta_message_id),c.business_id,c.contact_id,m.meta_message_id,
+            CASE WHEN m.campaign_recipient_id IS NULL THEN 'conversation' ELSE 'campaign' END,m.at
+     FROM messages m JOIN conversations c ON c.id=m.conversation_id
+     WHERE m.direction='outgoing' AND COALESCE(m.meta_message_id,'')<>''
+     ON CONFLICT (meta_message_id) DO NOTHING`
+  );
+  await client.query(
+    `INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
+     SELECT 'mue_' || md5(cr.meta_message_id),k.business_id,cr.contact_id,cr.meta_message_id,
+            'campaign',COALESCE(cr.sent_at,k.created_at)
+     FROM campaign_recipients cr JOIN campaigns k ON k.id=cr.campaign_id
+     WHERE cr.status IN ('sent','delivered','read') AND COALESCE(cr.meta_message_id,'')<>''
+     ON CONFLICT (meta_message_id) DO NOTHING`
+  );
   await client.query("CREATE TABLE IF NOT EXISTS platform_audit_logs (id TEXT PRIMARY KEY, super_admin_id TEXT REFERENCES super_admins(id) ON DELETE SET NULL, action TEXT NOT NULL, metadata JSONB NOT NULL DEFAULT '{}'::jsonb, at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await client.query("CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_at ON platform_audit_logs(at DESC)");
   await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS automation_flow_limit INTEGER");
