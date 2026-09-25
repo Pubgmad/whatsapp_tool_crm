@@ -24,6 +24,12 @@ const navItems = [
   { id: "unsubscribes", label: "Suppression", icon: Ban }
 ];
 
+const managerViews = new Set(["setup", "templates", "automation", "campaigns"]);
+function canOpenWorkspaceView(role, view) {
+  if (view === "billing") return role === "Owner";
+  return !managerViews.has(view) || role === "Owner" || role === "Manager";
+}
+
 const workspaceRoutes = {
   overview: "/app/dashboard",
   setup: "/app/settings/whatsapp",
@@ -297,7 +303,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
       <aside className={`sideRail ${mobileNavOpen ? "open" : ""}`}>
         <div className="brandBlock"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>{platformConfig.brand_name}</strong><span>{account.business.name}</span></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
         <nav className="navList" aria-label="Product sections">
-          {navItems.map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
+          {navItems.filter((item) => canOpenWorkspaceView(account.role, item.id)).map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
         </nav>
         <div className="railNote"><ShieldCheck size={18} /><span>{account.user.email}</span></div>
       </aside>
@@ -394,6 +400,9 @@ function SecuritySettings() {
 }
 
 function Screens({ activeView, ...props }) {
+  if (!canOpenWorkspaceView(props.role, activeView)) {
+    return <Panel title="Workspace access"><p>This section is available to workspace owners{activeView === "billing" ? "" : " and managers"}.</p></Panel>;
+  }
   const screens = { overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, security: <SecuritySettings />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
   const pageKey = { contacts: "contacts", templates: "templates", campaigns: "campaigns", results: "results", inbox: "inbox", unsubscribes: "unsubscribes" }[activeView];
   return <>
@@ -803,8 +812,9 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
 }
 function Results({ state, mutate }) {
   const processQueue = () => mutate(postJson("/api/campaigns/process", { limit: 25 }), "Queue processed");
+  const canManage = ["Owner", "Manager"].includes(state.account.role);
   const lifecycle = (campaign, action) => mutate(postJson(`/api/campaigns/${campaign.id}`, { action }, "PATCH"), `Campaign ${action}d`);
-  return <div className="screenGrid"><section className="actionBand"><div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div><button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button></section>{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={campaign.scheduledAt ? `Scheduled ${formatTime(campaign.scheduledAt)} | ${campaign.timezone}` : formatTime(campaign.createdAt)}><div className="resultHeader campaignResultActions"><Badge kind={campaign.status === "failed" || campaign.status === "cancelled" ? "bad" : ["scheduled", "processing", "paused", "queued"].includes(campaign.status) ? "warn" : "good"}>{campaign.status}</Badge>{["queued", "scheduled", "processing"].includes(campaign.status) && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "pause")}><Pause size={15} /> Pause</button>}{campaign.status === "paused" && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "resume")}><Play size={15} /> Resume</button>}{["queued", "scheduled", "processing", "paused"].includes(campaign.status) && <button className="secondaryAction compactAction dangerSoft" onClick={() => lifecycle(campaign, "cancel")}><X size={15} /> Cancel</button>}</div><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.id || recipient.metaMessageId}><td><strong>{contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : recipient.status === "queued" ? "warn" : "good"}>{recipient.status}</Badge></td><td><span>{recipient.message}</span>{recipient.errorMessage && <small className="errorLine">{recipient.errorMessage}</small>}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
+  return <div className="screenGrid"><section className="actionBand"><div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div>{canManage && <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button>}</section>{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={campaign.scheduledAt ? `Scheduled ${formatTime(campaign.scheduledAt)} | ${campaign.timezone}` : formatTime(campaign.createdAt)}><div className="resultHeader campaignResultActions"><Badge kind={campaign.status === "failed" || campaign.status === "cancelled" ? "bad" : ["scheduled", "processing", "paused", "queued"].includes(campaign.status) ? "warn" : "good"}>{campaign.status}</Badge>{canManage && ["queued", "scheduled", "processing"].includes(campaign.status) && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "pause")}><Pause size={15} /> Pause</button>}{canManage && campaign.status === "paused" && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "resume")}><Play size={15} /> Resume</button>}{canManage && ["queued", "scheduled", "processing", "paused"].includes(campaign.status) && <button className="secondaryAction compactAction dangerSoft" onClick={() => lifecycle(campaign, "cancel")}><X size={15} /> Cancel</button>}</div><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.id || recipient.metaMessageId}><td><strong>{contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : recipient.status === "queued" ? "warn" : "good"}>{recipient.status}</Badge></td><td><span>{recipient.message}</span>{recipient.errorMessage && <small className="errorLine">{recipient.errorMessage}</small>}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
 }
 function MessageContent({ message }) {
   const mediaUrl = `/api/media/${message.id}`;
