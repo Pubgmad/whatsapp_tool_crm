@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertCsrf, createCsrfToken, readJsonBodyLimited, requestIp, secureCookieAttribute } from '../lib/security.js';
+import { assertCsrf, createCsrfToken, readJsonBodyLimited, readTextBodyLimited, requestIp, secureCookieAttribute } from '../lib/security.js';
 import { assertRegistrationEmailReady, createSessionToken, emailVerificationRequired, verifySessionToken } from '../lib/auth.js';
 import { decryptSecret, encryptSecret } from '../lib/meta.js';
 import { databaseSslConfig } from '../lib/db.js';
@@ -72,6 +72,14 @@ test('bounded JSON reader rejects oversized and invalid uploads', async () => {
   await assert.rejects(() => readJsonBodyLimited(tooLarge, 100), { code: 'UPLOAD_TOO_LARGE' });
   const invalid = new Request('https://crm.example/api/contacts/import', { method: 'POST', body: '{invalid' });
   await assert.rejects(() => readJsonBodyLimited(invalid, 100), { code: 'INVALID_JSON' });
+});
+
+test('bounded raw-body reader preserves signed webhook payloads', async () => {
+  const raw = '{"entry":[{"id":"123"}]}';
+  const request = new Request('https://crm.example/api/webhooks/meta', { method: 'POST', body: raw });
+  assert.equal(await readTextBodyLimited(request, 100), raw);
+  const oversized = new Request('https://crm.example/api/webhooks/meta', { method: 'POST', body: 'x'.repeat(101) });
+  await assert.rejects(() => readTextBodyLimited(oversized, 100), { code: 'UPLOAD_TOO_LARGE' });
 });
 
 test('database TLS verifies certificates unless explicitly overridden', () => {

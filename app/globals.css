@@ -91,3 +91,4 @@ input:not([type=checkbox]):not([type=file]),textarea,select{width:100%;min-width
 .companyPagination,.companyPagination>div{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 .companyPagination{justify-content:space-between;margin-top:16px;color:var(--muted);font-size:13px}
 .companyPagination .secondaryAction{min-width:84px}
+.messageReferral{display:grid;gap:2px;min-width:0;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.messageReferral span{color:var(--brand-dark);font-size:10px;font-weight:750}.messageReferral strong{font-size:11px;font-weight:650;line-height:1.35}

@@ -836,11 +836,14 @@ function Results({ state, mutate }) {
 }
 function MessageContent({ message }) {
   const mediaUrl = `/api/media/${message.id}`;
-  if (message.messageType === "image" || message.messageType === "sticker") return <><a className="mediaPreview" href={mediaUrl} target="_blank" rel="noreferrer"><Image size={16} /><img src={mediaUrl} alt={message.caption || "WhatsApp attachment"} loading="lazy" /></a>{message.caption && <p>{message.caption}</p>}</>;
-  if (message.messageType === "video") return <><video className="messageMedia" controls preload="metadata" src={mediaUrl} /><p>{message.caption}</p></>;
-  if (message.messageType === "audio") return <audio className="messageAudio" controls preload="metadata" src={mediaUrl} />;
-  if (message.messageType === "document") return <a className="mediaDownload" href={mediaUrl} target="_blank" rel="noreferrer"><FileText size={17} /><span>{message.metadata?.filename || message.caption || "Open document"}</span></a>;
-  return <p>{message.body}</p>;
+  const referral = message.metadata?.referral;
+  let content;
+  if (message.messageType === "image" || message.messageType === "sticker") content = <><a className="mediaPreview" href={mediaUrl} target="_blank" rel="noreferrer"><Image size={16} /><img src={mediaUrl} alt={message.caption || "WhatsApp attachment"} loading="lazy" /></a>{message.caption && <p>{message.caption}</p>}</>;
+  else if (message.messageType === "video") content = <><video className="messageMedia" controls preload="metadata" src={mediaUrl} /><p>{message.caption}</p></>;
+  else if (message.messageType === "audio") content = <audio className="messageAudio" controls preload="metadata" src={mediaUrl} />;
+  else if (message.messageType === "document") content = <a className="mediaDownload" href={mediaUrl} target="_blank" rel="noreferrer"><FileText size={17} /><span>{message.metadata?.filename || message.caption || "Open document"}</span></a>;
+  else content = <p>{message.body}</p>;
+  return <>{referral && <div className="messageReferral"><span>{referral.sourceType === "AD" ? "WhatsApp ad" : "WhatsApp post"} / {referral.sourceId}</span>{referral.headline && <strong>{referral.headline}</strong>}</div>}{content}</>;
 }
 
 function TemplateReplyForm({ approvedTemplates, activeContact, mutate }) {

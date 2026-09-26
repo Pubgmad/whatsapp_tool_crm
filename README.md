@@ -28,7 +28,7 @@ MongoDB can work, but it is less natural for this workflow because the product h
 ## What Runs Today
 
 - Sign up, sign in, and sign out.
-- One business workspace per owner account.
+- Company users can belong to multiple business workspaces and switch between authorized memberships.
 - PostgreSQL-backed contacts, imports, suppression, restore, and delete.
 - PostgreSQL-backed templates with draft, pending, approved, and rejected statuses.
 - Campaign creation from approved templates and opted-in contacts.
@@ -38,6 +38,7 @@ MongoDB can work, but it is less natural for this workflow because the product h
 - Inbox conversations, messages, and 24-hour reply-window enforcement.
 - STOP / unsubscribe handling through incoming WhatsApp webhooks.
 - Meta webhook endpoint for incoming messages and delivery status updates.
+- Incoming Click-to-WhatsApp ad/post referrals are stored with the received message and first conversation attribution. This does not create or manage Meta ad campaigns.
 - Meta deauthorization and data deletion callbacks with signed-request validation.
 - Meta webhook signature validation with `META_APP_SECRET` when enabled/configured.
 - Encrypted storage for Meta access tokens when `ENCRYPTION_KEY` is configured.
@@ -56,7 +57,7 @@ To send real WhatsApp messages, you need:
 - Webhook verify token matching `META_WEBHOOK_VERIFY_TOKEN`.
 - Message templates approved by Meta.
 
-A personal WhatsApp number should not be used for production. Use a dedicated business number, because a number connected to the WhatsApp Business Platform cannot also be actively used in the normal WhatsApp mobile app in the same way.
+Use a business-controlled number for production. Standard Cloud API onboarding may require moving a number off the WhatsApp Business app; eligible businesses can instead use Meta's separate Business App coexistence onboarding flow. This CRM does not yet implement coexistence onboarding or history synchronization.
 
 ### Meta account lifecycle callbacks
 
