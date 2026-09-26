@@ -1,6 +1,7 @@
 import { errorJson, json } from '@/lib/db';
 import { requireSession } from '@/lib/auth';
 import { beginMfa, disableMfa, enableMfa, mfaStatus } from '@/lib/account-security';
+import { readJsonBodyLimited } from '@/lib/security';
 
 export async function GET(request) {
   try {
@@ -12,7 +13,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const session = await requireSession(request);
-    const body = await request.json();
+    const body = await readJsonBodyLimited(request, 16384);
     if (body.action === 'begin') return json(await beginMfa(session.userId));
     if (body.action === 'enable') return json(await enableMfa(session.userId, body.code));
     if (body.action === 'disable') return json(await disableMfa(session.userId, body.password, body.code));

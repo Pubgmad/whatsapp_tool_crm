@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertCsrf, createCsrfToken, readJsonBodyLimited, readTextBodyLimited, requestIp, secureCookieAttribute } from '../lib/security.js';
+import { assertCsrf, createCsrfToken, readJsonBodyLimited, readMultipartFormLimited, readTextBodyLimited, requestIp, secureCookieAttribute } from '../lib/security.js';
 import { assertRegistrationEmailReady, createSessionToken, emailVerificationRequired, verifySessionToken } from '../lib/auth.js';
 import { decryptSecret, encryptSecret } from '../lib/meta.js';
 import { databaseSslConfig } from '../lib/db.js';
@@ -80,6 +80,30 @@ test('bounded raw-body reader preserves signed webhook payloads', async () => {
   assert.equal(await readTextBodyLimited(request, 100), raw);
   const oversized = new Request('https://crm.example/api/webhooks/meta', { method: 'POST', body: 'x'.repeat(101) });
   await assert.rejects(() => readTextBodyLimited(oversized, 100), { code: 'UPLOAD_TOO_LARGE' });
+});
+
+test('bounded multipart reader preserves binary files and rejects chunked oversized uploads', async () => {
+  const form = new FormData();
+  form.set('phoneId', 'phone_123');
+  form.set('file', new Blob([Uint8Array.from([0, 255, 128, 10])], { type: 'image/png' }), 'test.png');
+  const request = new Request('https://crm.example/api/whatsapp/media', { method: 'POST', body: form });
+  const parsed = await readMultipartFormLimited(request, 4096);
+  assert.equal(parsed.get('phoneId'), 'phone_123');
+  assert.deepEqual(new Uint8Array(await parsed.get('file').arrayBuffer()), Uint8Array.from([0, 255, 128, 10]));
+
+  const chunked = new Request('https://crm.example/api/whatsapp/media', {
+    method: 'POST',
+    headers: { 'content-type': 'multipart/form-data; boundary=abc' },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(80));
+        controller.enqueue(new Uint8Array(80));
+        controller.close();
+      }
+    }),
+    duplex: 'half'
+  });
+  await assert.rejects(() => readMultipartFormLimited(chunked, 100), { code: 'UPLOAD_TOO_LARGE' });
 });
 
 test('database TLS verifies certificates unless explicitly overridden', () => {

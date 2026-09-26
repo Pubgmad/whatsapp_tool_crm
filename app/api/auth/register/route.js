@@ -1,12 +1,13 @@
 ﻿import { createSessionToken, registerAccount, sessionCookie } from "@/lib/auth";
 import { errorJson, json } from "@/lib/db";
+import { readJsonBodyLimited } from "@/lib/security";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function POST(request) {
   try {
     const { assertCsrf, enforceRequestRateLimit } = await import('@/lib/security');
     assertCsrf(request);
-    const body = await request.json();
+    const body = await readJsonBodyLimited(request, 16384);
     await enforceRequestRateLimit(request, String(body.email || '').toLowerCase(), 'login');
     const session = await registerAccount(body);
     if ((await import('@/lib/auth')).emailVerificationRequired()) {

@@ -32,5 +32,7 @@ test('Meta sends require a real message ID', async (context) => {
     assert.equal((await send()).metaMessageId, 'wamid.real');
     globalThis.fetch = async () => Response.json({ messages: [] });
     await assert.rejects(send(), (error) => error.code === 'META_SEND_UNCONFIRMED' && error.status === 409);
+    globalThis.fetch = async () => { throw new TypeError('network failed'); };
+    await assert.rejects(send(), (error) => error.code === 'META_SEND_UNCONFIRMED' && error.status === 409);
   }
 });
