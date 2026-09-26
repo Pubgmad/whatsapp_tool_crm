@@ -1,13 +1,15 @@
 import { AppError, enterSystemContext, query } from "@/lib/db";
 import { decryptSecret } from "@/lib/meta";
 import { decryptFlowRequest, encryptFlowResponse, verifyFlowSignature } from "@/lib/whatsapp-flow-crypto";
+import { readTextBodyLimited } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request, { params }) {
-  const rawBody = await request.text();
-  if (rawBody.length > 350000) return new Response(null, { status: 413 });
+  let rawBody;
+  try { rawBody = await readTextBodyLimited(request, 350000); }
+  catch (error) { return new Response(null, { status: error instanceof AppError ? error.status : 400 }); }
   if (!verifyFlowSignature(rawBody, request.headers.get("x-hub-signature-256"), process.env.META_APP_SECRET)) {
     return new Response(null, { status: 432 });
   }
