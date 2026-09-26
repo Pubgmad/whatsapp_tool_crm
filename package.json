@@ -8,6 +8,7 @@
     "dev": "next dev",
     "build": "next build",
     "test": "node --test tests/*.test.mjs",
+    "test:integration": "node scripts/test-integration.mjs",
     "test:e2e": "playwright test",
     "start": "next start",
     "worker": "node scripts/worker.mjs",

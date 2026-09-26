@@ -30,8 +30,9 @@ test("Meta deletion disconnects tokens and reuses a pending confirmation on retr
       body: new URLSearchParams({ signed_request: `${signature}.${payload}` })
     });
     const first = await handleMetaDataDeletion(request());
-    assert.equal(first.status, 200);
-    confirmationCode = (await first.json()).confirmation_code;
+    const firstPayload = await first.json();
+    assert.equal(first.status, 200, JSON.stringify(firstPayload));
+    confirmationCode = firstPayload.confirmation_code;
     const second = await handleMetaDataDeletion(request());
     assert.equal(second.status, 200);
     assert.equal((await second.json()).confirmation_code, confirmationCode);

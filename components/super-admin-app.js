@@ -77,7 +77,7 @@ const adminHeadings = {
   plans: ["Subscription plans", "Control pricing, billing periods, features, limits, visibility, and availability."],
   content: ["Platform content", "Manage customer-facing business content and configurable platform values."],
   companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."],
-  "data-requests": ["Meta data requests", "Review deletion requests and record completion decisions."],
+  "data-requests": ["Data requests", "Review workspace and Meta data deletion requests."],
   security: ['Owner security', 'Protect platform-level access with an authenticator and single-use recovery codes.']
 };
 
@@ -284,7 +284,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
       <PlanManager plans={plans} onSave={savePlan} /></>}
       {initialSection === "content" && <ContentManager settings={settings} onSave={saveSetting} />}
-      {initialSection === "data-requests" && <MetaDeletionQueue notify={notify} />}
+      {initialSection === "data-requests" && <><WorkspaceDeletionQueue notify={notify} /><MetaDeletionQueue notify={notify} /></>}
       {initialSection === 'security' && <SuperAdminSecurity notify={notify} />}
 
       {initialSection === "companies" && <Panel title="Companies" subtitle="Tenant-level monitoring and controls">
@@ -299,6 +299,51 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
     {selected && <CompanyDrawer detail={selected} onClose={() => { setSelected(null); router.push("/super-admin/companies"); }} onAction={updateCompany} />}
   </main>;
+}
+
+function WorkspaceDeletionQueue({ notify }) {
+  const [requests, setRequests] = useState([]);
+  const [confirmations, setConfirmations] = useState({});
+  const [pendingId, setPendingId] = useState("");
+  const [error, setError] = useState("");
+  const load = async () => {
+    try {
+      const result = await api("/api/super-admin/workspace-deletion");
+      setRequests(result.requests || []);
+      setError("");
+    } catch (reason) { setError(reason.message); }
+  };
+  useEffect(() => { load(); }, []);
+  const review = async (item, action) => {
+    setPendingId(item.id);
+    try {
+      await postJson("/api/super-admin/workspace-deletion", {
+        id: item.id,
+        action,
+        confirmation: action === "approve" ? confirmations[item.id] : ""
+      }, "PATCH");
+      setConfirmations((current) => ({ ...current, [item.id]: "" }));
+      notify(action === "approve" ? "Workspace deleted" : "Deletion request rejected");
+      await load();
+    } catch (reason) { setError(reason.message); }
+    finally { setPendingId(""); }
+  };
+  return <Panel title="Workspace deletion" subtitle="Requests become reviewable after the company’s configured grace period. Active Stripe subscriptions must be cancelled first.">
+    <div className="assetToolbar"><span>{requests.filter((item) => item.status === "pending_approval").length} awaiting review</span><button className="secondaryAction" type="button" onClick={load}><RefreshCcw size={16} /> Refresh</button></div>
+    {error && <div className="formError" role="alert">{error}</div>}
+    <div className="deletionRequestList">{requests.map((item) => <article className="deletionRequestRow" key={item.id}>
+      <div><strong>{item.companyName}</strong><span className={`badge ${item.status === "pending_approval" ? "warn" : "neutral"}`}>{item.status.replaceAll("_", " ")}</span></div>
+      <small>Requested {formatTime(item.requestedAt)} | Eligible {formatTime(item.executeAfter)} | Subscription {item.subscriptionStatus}{item.billedByStripe ? " (Stripe)" : ""} | WhatsApp {item.metaConnected ? "connected" : "disconnected"}</small>
+      {item.status === "pending_approval" && <>
+        <label>Type DELETE_WORKSPACE to permanently remove this company and its CRM data<input value={confirmations[item.id] || ""} onChange={(event) => setConfirmations((current) => ({ ...current, [item.id]: event.target.value }))} autoComplete="off" /></label>
+        <div className="actionCluster">
+          <button className="primaryAction" type="button" disabled={pendingId === item.id || confirmations[item.id] !== "DELETE_WORKSPACE"} onClick={() => review(item, "approve")}><Trash2 size={16} /> Delete workspace</button>
+          <button className="secondaryAction" type="button" disabled={pendingId === item.id} onClick={() => review(item, "reject")}><Ban size={16} /> Reject request</button>
+        </div>
+      </>}
+    </article>)}</div>
+    {!requests.length && <Empty text="No workspace deletion requests yet" />}
+  </Panel>;
 }
 
 function MetaDeletionQueue({ notify }) {

@@ -50,3 +50,34 @@ test('deployed application exposes security headers and CSRF endpoint', { skip: 
   assert.ok(payload.csrfToken);
   assert.match(csrf.headers.get('set-cookie') || '', /wcrm_csrf=/);
 });
+
+test('workspace deletion review is not accessible without a Super Admin session', { skip: !process.env.E2E_BASE_URL }, async () => {
+  const response = await fetch(`${process.env.E2E_BASE_URL.replace(/\/$/, '')}/api/super-admin/workspace-deletion`);
+  assert.equal(response.status, 401);
+});
+
+test('deleting one workspace cascades only its own tenant records', { skip: !process.env.TEST_DATABASE_URL }, async () => {
+  const client = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+  await client.connect();
+  const suffix = crypto.randomBytes(8).toString('hex');
+  const first = `test_delete_a_${suffix}`;
+  const second = `test_delete_b_${suffix}`;
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.system_access','true',true)");
+    await client.query(
+      'INSERT INTO businesses (id,name,slug) VALUES ($1,$2,$3),($4,$5,$6)',
+      [first, 'Delete test A', first, second, 'Delete test B', second]
+    );
+    await client.query(
+      'INSERT INTO contacts (id,business_id,name,phone) VALUES ($1,$2,$3,$4),($5,$6,$7,$8)',
+      [`contact_a_${suffix}`, first, 'A', '100000001', `contact_b_${suffix}`, second, 'B', '100000002']
+    );
+    await client.query('DELETE FROM businesses WHERE id=$1', [first]);
+    const remaining = await client.query('SELECT business_id FROM contacts WHERE id=ANY($1)', [[`contact_a_${suffix}`, `contact_b_${suffix}`]]);
+    assert.deepEqual(remaining.rows.map((row) => row.business_id), [second]);
+  } finally {
+    await client.query('ROLLBACK');
+    await client.end();
+  }
+});
