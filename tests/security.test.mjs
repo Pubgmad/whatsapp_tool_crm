@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertCsrf, createCsrfToken, readJsonBodyLimited, readMultipartFormLimited, readTextBodyLimited, requestIp, secureCookieAttribute } from '../lib/security.js';
+import { assertCsrf, createCsrfToken, readJsonBodyLimited, readMultipartFormLimited, readOptionalJsonBodyLimited, readTextBodyLimited, requestIp, secureCookieAttribute } from '../lib/security.js';
 import { assertRegistrationEmailReady, createSessionToken, emailVerificationRequired, verifySessionToken } from '../lib/auth.js';
 import { decryptSecret, encryptSecret } from '../lib/meta.js';
 import { databaseSslConfig } from '../lib/db.js';
@@ -72,6 +72,19 @@ test('bounded JSON reader rejects oversized and invalid uploads', async () => {
   await assert.rejects(() => readJsonBodyLimited(tooLarge, 100), { code: 'UPLOAD_TOO_LARGE' });
   const invalid = new Request('https://crm.example/api/contacts/import', { method: 'POST', body: '{invalid' });
   await assert.rejects(() => readJsonBodyLimited(invalid, 100), { code: 'INVALID_JSON' });
+  const nullBody = new Request('https://crm.example/api/contacts/import', { method: 'POST', body: 'null' });
+  await assert.rejects(() => readJsonBodyLimited(nullBody, 100), { code: 'INVALID_JSON' });
+});
+
+test('optional JSON reader accepts an empty body but still rejects oversized and malformed bodies', async () => {
+  const empty = new Request('https://crm.example/api/campaigns/process', { method: 'POST' });
+  assert.deepEqual(await readOptionalJsonBodyLimited(empty, 64), {});
+  const tooLarge = new Request('https://crm.example/api/campaigns/process', { method: 'POST', body: 'x'.repeat(65) });
+  await assert.rejects(() => readOptionalJsonBodyLimited(tooLarge, 64), { code: 'UPLOAD_TOO_LARGE' });
+  const invalid = new Request('https://crm.example/api/campaigns/process', { method: 'POST', body: '{invalid' });
+  await assert.rejects(() => readOptionalJsonBodyLimited(invalid, 64), { code: 'INVALID_JSON' });
+  const arrayBody = new Request('https://crm.example/api/campaigns/process', { method: 'POST', body: '[]' });
+  await assert.rejects(() => readOptionalJsonBodyLimited(arrayBody, 64), { code: 'INVALID_JSON' });
 });
 
 test('bounded raw-body reader preserves signed webhook payloads', async () => {
