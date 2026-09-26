@@ -274,7 +274,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
         <Panel title="Platform readiness" subtitle="Current operational state">
           <div className="statusStack"><div><span>Connected workspaces</span><strong>{dashboard.summary.whatsappConnected}</strong></div><div><span>Pending companies</span><strong>{dashboard.summary.pendingCompanies}</strong></div></div>
         </Panel>
-      </section></>}
+      </section><MetaCreditLines /></>}
 
       {initialSection === "plans" && <><section className="superGrid">
         <Panel title="Plan catalogue" subtitle="Super Admin controlled pricing, features, limits, visibility, and activation">
@@ -299,6 +299,34 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
     {selected && <CompanyDrawer detail={selected} onClose={() => { setSelected(null); router.push("/super-admin/companies"); }} onAction={updateCompany} />}
   </main>;
+}
+
+function MetaCreditLines() {
+  const [state, setState] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setState(await api("/api/super-admin/meta-credit-lines"));
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+  return <Panel title="Meta credit lines" subtitle="Read-only status for the connected business portfolio">
+    <div className="statusStack">
+      {loading && <span>Checking Meta...</span>}
+      {error && <p className="errorLine" role="alert">{error}</p>}
+      {state && !state.configured && <span>Not configured for this platform.</span>}
+      {state?.configured && !state.creditLines.length && <span>No eligible credit line returned by Meta.</span>}
+      {state?.creditLines.map((line) => <div key={line.id}><span>{line.legalEntityName || "Legal entity"}</span><strong>{line.id}</strong></div>)}
+    </div>
+    <button className="secondaryAction" type="button" disabled={loading} onClick={load}><RefreshCcw size={16} /> Refresh</button>
+  </Panel>;
 }
 
 function WorkspaceDeletionQueue({ notify }) {
