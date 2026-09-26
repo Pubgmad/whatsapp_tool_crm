@@ -632,6 +632,7 @@ CREATE INDEX IF NOT EXISTS idx_automation_sessions_contact ON automation_session
 CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_one_active_session ON automation_sessions(business_id, contact_id) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS idx_automation_jobs_status ON automation_jobs(status, run_at);
 CREATE INDEX IF NOT EXISTS idx_conversations_business ON conversations(business_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_referral_period ON conversations(business_id, first_referral_at) WHERE first_referral IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_at ON messages(conversation_id, at ASC);
 CREATE INDEX IF NOT EXISTS idx_messages_campaign_recipient ON messages(campaign_recipient_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_notes_conversation ON conversation_notes(conversation_id, created_at DESC);
