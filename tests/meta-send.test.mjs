@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encryptSecret, sendInteractiveMessage, sendTemplateMessage, sendTextMessage } from '../lib/meta.js';
+import { encryptSecret, sendInteractiveMessage, sendMarketingTemplateMessage, sendTemplateMessage, sendTextMessage } from '../lib/meta.js';
 
 const previousKey = process.env.ENCRYPTION_KEY;
 process.env.ENCRYPTION_KEY = 'test-only-meta-send-encryption-key';
@@ -25,7 +25,8 @@ test('Meta sends require a real message ID', async (context) => {
   const sends = [
     () => sendTextMessage({ setup, to: '15551234567', body: 'Hello' }),
     () => sendInteractiveMessage({ setup, to: '15551234567', body: 'Choose', options: [{ id: 'yes', label: 'Yes' }] }),
-    () => sendTemplateMessage({ setup, to: '15551234567', templateName: 'welcome' })
+    () => sendTemplateMessage({ setup, to: '15551234567', templateName: 'welcome' }),
+    () => sendMarketingTemplateMessage({ setup, to: '15551234567', templateName: 'offer' })
   ];
   for (const send of sends) {
     globalThis.fetch = async () => Response.json({ messages: [{ id: 'wamid.real' }] });
@@ -35,4 +36,25 @@ test('Meta sends require a real message ID', async (context) => {
     globalThis.fetch = async () => { throw new TypeError('network failed'); };
     await assert.rejects(send(), (error) => error.code === 'META_SEND_UNCONFIRMED' && error.status === 409);
   }
+});
+
+test('Marketing Messages uses its dedicated endpoint with no Cloud API fallback', async (context) => {
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.ENCRYPTION_KEY;
+  process.env.ENCRYPTION_KEY = 'test-only-meta-send-encryption-key';
+  context.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.ENCRYPTION_KEY;
+    else process.env.ENCRYPTION_KEY = originalKey;
+  });
+  globalThis.fetch = async (url, options) => {
+    assert.match(url, /\/456\/marketing_messages$/);
+    const payload = JSON.parse(options.body);
+    assert.equal(payload.product_policy, 'STRICT');
+    assert.equal(payload.template.name, 'offer');
+    assert.equal(payload.to, '15551234567');
+    return Response.json({ messages: [{ id: 'wamid.marketing' }] });
+  };
+  const sent = await sendMarketingTemplateMessage({ setup, to: '+1 555 123 4567', templateName: 'offer' });
+  assert.equal(sent.metaMessageId, 'wamid.marketing');
 });

@@ -455,6 +455,14 @@ ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'que
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ;
 ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'UTC';
 
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS delivery_method TEXT NOT NULL DEFAULT 'cloud_api';
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'campaigns'::regclass AND conname = 'campaigns_delivery_method_check') THEN
+    ALTER TABLE campaigns ADD CONSTRAINT campaigns_delivery_method_check
+      CHECK (delivery_method IN ('cloud_api', 'marketing_messages_api'));
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS campaign_recipients (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
