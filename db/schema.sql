@@ -146,8 +146,16 @@ CREATE TABLE IF NOT EXISTS whatsapp_accounts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (business_id, waba_id)
 );
+ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS health_status TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS health_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS health_checked_at TIMESTAMPTZ;
+ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS health_claimed_at TIMESTAMPTZ;
+ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS last_webhook_at TIMESTAMPTZ;
+ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS last_message_webhook_at TIMESTAMPTZ;
+ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS last_webhook_field TEXT NOT NULL DEFAULT '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_accounts_waba_owner ON whatsapp_accounts(waba_id);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_business ON whatsapp_accounts(business_id, is_default DESC, created_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_health_due ON whatsapp_accounts(health_claimed_at) WHERE access_token_encrypted <> '';
 
 CREATE TABLE IF NOT EXISTS whatsapp_phone_numbers (
   id TEXT PRIMARY KEY,

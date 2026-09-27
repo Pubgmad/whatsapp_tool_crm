@@ -21,16 +21,17 @@ async function tick() {
     method: 'POST',
     headers: { authorization: `Bearer ${secret}`, 'content-type': 'application/json' },
     body: JSON.stringify({ runRetention }),
-    signal: AbortSignal.timeout(Math.max(intervalMs, 30000))
+    signal: AbortSignal.timeout(Math.max(intervalMs, 60000))
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`Job endpoint returned ${response.status}: ${result.code || 'UNKNOWN'}`);
   if (runRetention) nextRetentionAt = Date.now() + retentionIntervalMs;
-  const activity = [result.campaigns?.claimed, result.automation?.claimed, result.retention].some(Boolean);
+  const activity = [result.campaigns?.claimed, result.automation?.claimed, result.retention, result.metaHealth?.failed].some(Boolean);
   if (activity) console.info('Job cycle', {
     campaigns: result.campaigns,
     automation: result.automation,
-    retention: result.retention
+    retention: result.retention,
+    metaHealth: result.metaHealth
   });
 }
 

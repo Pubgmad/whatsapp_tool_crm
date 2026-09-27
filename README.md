@@ -344,6 +344,12 @@ To use a managed Flow endpoint, set the public HTTPS `APP_URL` and server-only `
 
 Coexistence history sync, Calling, Click-to-WhatsApp ad management, specialized Marketing Messages API, per-template insights, OTP app-signature management, and Meta credit-line/payment visibility are **not integrated**. A connected WABA alone does not enable those products. Expired customer authorization is recovered through Embedded Signup reauthorization, not an invented token refresh.
 
+### Meta connection monitoring
+
+The queue worker also checks connected WABAs against Meta at a bounded interval (default 15 minutes, up to 10 accounts per cycle). It checks token validity, scopes, expiry, and app subscription; a missing WABA subscription is retried automatically. Revoked access is shown as **Reconnect needed** in the company workspace, while temporary Meta failures and a stale worker are shown separately. Meta Setup records the last webhook and message/status callback. No-traffic periods are not treated as webhook failures.
+
+Keep both the web process and `npm run worker` running. Configure `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, and the Embedded Signup configuration on the server. Optional bounded settings are `META_HEALTH_INTERVAL_MINUTES` and `META_HEALTH_BATCH_SIZE`. Run `npm run db:init` before restarting either process after this update. **Verify** checks immediately; **Reconnect with Meta** starts a new authorization when access has expired.
+
 After pulling a release on an existing server, apply the additive schema migration before restarting the app:
 
 ```bash

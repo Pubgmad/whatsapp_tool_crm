@@ -106,3 +106,8 @@ input:not([type=checkbox]):not([type=file]),textarea,select{width:100%;min-width
 .companyPagination{justify-content:space-between;margin-top:16px;color:var(--muted);font-size:13px}
 .companyPagination .secondaryAction{min-width:84px}
 .messageReferral{display:grid;gap:2px;min-width:0;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.messageReferral span{color:var(--brand-dark);font-size:10px;font-weight:750}.messageReferral strong{font-size:11px;font-weight:650;line-height:1.35}
+.connectionAlert{display:flex;align-items:center;flex-wrap:wrap;gap:10px;min-width:0;margin-bottom:14px;padding:12px 14px;border:1px solid #e5b8a5;border-radius:7px;background:#fff2eb;color:#70301d;font-size:13px;line-height:1.4}
+.connectionAlert>span{flex:1 1 240px;min-width:0;overflow-wrap:anywhere}
+.connectionAlert>.secondaryAction{flex:0 1 auto}
+.webhookCard strong{font-size:12px;font-weight:650;text-align:right;overflow-wrap:anywhere}
+@media(max-width:520px){.connectionAlert>.secondaryAction{width:100%}.webhookCard strong{text-align:left}}
