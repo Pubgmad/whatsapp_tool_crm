@@ -182,6 +182,24 @@ CREATE TABLE IF NOT EXISTS whatsapp_phone_numbers (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_phone_numbers_owner ON whatsapp_phone_numbers(phone_number_id);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_phone_numbers_business ON whatsapp_phone_numbers(business_id, is_default DESC, created_at);
+ALTER TABLE whatsapp_phone_numbers ADD COLUMN IF NOT EXISTS onboarding_method TEXT NOT NULL DEFAULT 'embedded_signup';
+CREATE TABLE IF NOT EXISTS whatsapp_coexistence_sync (
+  phone_id TEXT PRIMARY KEY REFERENCES whatsapp_phone_numbers(id) ON DELETE CASCADE,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  contacts_requested_at TIMESTAMPTZ,
+  history_requested_at TIMESTAMPTZ,
+  contacts_request_id TEXT NOT NULL DEFAULT '',
+  history_request_id TEXT NOT NULL DEFAULT '',
+  contacts_status TEXT NOT NULL DEFAULT 'not_requested',
+  history_status TEXT NOT NULL DEFAULT 'not_requested',
+  contacts_imported INTEGER NOT NULL DEFAULT 0,
+  messages_imported INTEGER NOT NULL DEFAULT 0,
+  echoes_imported INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT NOT NULL DEFAULT '',
+  last_event_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_coexistence_sync_business ON whatsapp_coexistence_sync(business_id);
 ALTER TABLE whatsapp_phone_numbers ADD COLUMN IF NOT EXISTS flow_private_key_encrypted TEXT NOT NULL DEFAULT '';
 ALTER TABLE whatsapp_phone_numbers ADD COLUMN IF NOT EXISTS flow_public_key TEXT NOT NULL DEFAULT '';
 ALTER TABLE whatsapp_phone_numbers ADD COLUMN IF NOT EXISTS flow_key_signature_status TEXT NOT NULL DEFAULT '';
@@ -566,7 +584,8 @@ CREATE INDEX IF NOT EXISTS idx_message_usage_contact_month ON message_usage_even
 CREATE OR REPLACE FUNCTION record_outgoing_message_usage() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-  IF NEW.direction='outgoing' AND COALESCE(NEW.meta_message_id,'')<>'' THEN
+  IF NEW.direction='outgoing' AND COALESCE(NEW.meta_message_id,'')<>''
+     AND COALESCE(NEW.metadata->>'source','') NOT IN ('coexistence_history','coexistence_echo') THEN
     INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
     SELECT 'mue_' || md5(NEW.meta_message_id), c.business_id,c.contact_id,NEW.meta_message_id,
            CASE WHEN NEW.campaign_recipient_id IS NULL THEN 'conversation' ELSE 'campaign' END,NEW.at
@@ -651,7 +670,7 @@ CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run
 DO $$
 DECLARE tenant_table TEXT;
 BEGIN
-  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','message_usage_events','events','audit_logs'] LOOP
+  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_coexistence_sync','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','message_usage_events','events','audit_logs'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', tenant_table);
