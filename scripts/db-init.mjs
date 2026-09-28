@@ -163,6 +163,8 @@ try {
   }
   await client.query("DO $$ BEGIN IF to_regclass('public.businesses') IS NOT NULL THEN ALTER TABLE businesses ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active'; END IF; END $$;");
   await client.query(schema);
+  await client.query(await fs.readFile(new URL('../db/whatsapp-commerce.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-template-parameters.sql', import.meta.url), 'utf8'));
   await client.query(
     `INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
      SELECT 'mue_' || md5(m.meta_message_id),c.business_id,c.contact_id,m.meta_message_id,

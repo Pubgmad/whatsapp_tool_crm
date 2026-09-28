@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { templateSendComponents } from '../lib/template-send-components.js';
+import { templateSendComponents, validateTemplateParameters } from '../lib/template-send-components.js';
+
+test('campaign parameters match the approved template header and dynamic buttons', () => {
+  const template = { component_schema: { headerFormat: 'IMAGE', buttons: [{ type: 'URL', value: 'https://example.com/{{1}}' }] } };
+  assert.throws(() => validateTemplateParameters(template, {}), { code: 'TEMPLATE_HEADER_REQUIRED' });
+  assert.throws(() => validateTemplateParameters(template, { header: { type: 'image', id: '123' } }), { code: 'TEMPLATE_BUTTON_REQUIRED' });
+  const valid = { header: { type: 'image', id: '123' }, buttons: [{ index: 0, type: 'url', value: 'order' }] };
+  assert.equal(validateTemplateParameters(template, valid), valid);
+  assert.throws(() => validateTemplateParameters(template, { ...valid, buttons: [{ index: 1, type: 'url', value: 'order' }] }), { code: 'TEMPLATE_PARAMETERS_INVALID' });
+});
 
 test('text-only sends remain compatible', () => {
   assert.deepEqual(templateSendComponents(['Ada', 0]), [{ type: 'body', parameters: [{ type: 'text', text: 'Ada' }, { type: 'text', text: '0' }] }]);

@@ -1,4 +1,6 @@
 "use client";
+import WhatsAppCommerce from './whatsapp-commerce';
+import TemplateParameterFields from './template-parameter-fields';
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,12 +21,13 @@ const navItems = [
   { id: "templates", label: "Templates", icon: MessageSquareText },
   { id: "automation", label: "Automation", icon: Bot },
   { id: "campaigns", label: "Campaigns", icon: Send },
+  { id: 'commerce', label: 'Commerce', icon: ShoppingBag },
   { id: "results", label: "Results", icon: BarChart3 },
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "unsubscribes", label: "Suppression", icon: Ban }
 ];
 
-const managerViews = new Set(["setup", "templates", "automation", "campaigns"]);
+const managerViews = new Set(["setup", "templates", "automation", "campaigns", 'commerce']);
 function canOpenWorkspaceView(role, view) {
   if (view === "billing") return role === "Owner";
   return !managerViews.has(view) || role === "Owner" || role === "Manager";
@@ -40,6 +43,7 @@ const workspaceRoutes = {
   templates: "/app/templates",
   automation: "/app/automations",
   campaigns: "/app/campaigns",
+  commerce: '/app/commerce',
   results: "/app/analytics",
   inbox: "/app/inbox",
   unsubscribes: "/app/suppression"
@@ -430,7 +434,7 @@ function Screens({ activeView, ...props }) {
   if (!canOpenWorkspaceView(props.role, activeView)) {
     return <Panel title="Workspace access"><p>This section is available to workspace owners{activeView === "billing" ? "" : " and managers"}.</p></Panel>;
   }
-  const screens = { overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, security: <SecuritySettings />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
+  const screens = { commerce: <WhatsAppCommerce api={api} postJson={postJson} />, overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, security: <SecuritySettings />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
   const pageKey = { contacts: "contacts", templates: "templates", campaigns: "campaigns", results: "results", inbox: "inbox", unsubscribes: "unsubscribes" }[activeView];
   return <>
     {screens[activeView]}
@@ -890,6 +894,8 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
   const segments = (state.audienceSegments || []).filter((segment) => segment.isActive);
   const [templateId, setTemplateId] = useState(approvedTemplates[0]?.id || "");
   const [deliveryMethod, setDeliveryMethod] = useState('cloud_api');
+  const [templateParameters, setTemplateParameters] = useState({});
+  useEffect(() => { setTemplateParameters({}); }, [templateId]);
   const [automationFlowId, setAutomationFlowId] = useState("");
   const [segmentId, setSegmentId] = useState("");
   const [variables, setVariables] = useState({});
@@ -907,13 +913,13 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
-      await postJson("/api/campaigns", { name: form.get("name"), templateId, deliveryMethod, automationFlowId, segmentId, variables, contactIds: selectedContactIds, scheduledAt: form.get("scheduledAt") ? new Date(form.get("scheduledAt")).toISOString() : "", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      await postJson("/api/campaigns", { name: form.get("name"), templateId, deliveryMethod, parameters: templateParameters, automationFlowId, segmentId, variables, contactIds: selectedContactIds, scheduledAt: form.get("scheduledAt") ? new Date(form.get("scheduledAt")).toISOString() : "", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
       await mutate(postJson("/api/campaigns/process", { limit: 25 }), "Campaign queued");
       setActiveView("results");
     } catch (error) { mutate(Promise.reject(error)); }
   };
   const targetCount = segment ? segment.contactCount : selectedContactIds.length;
-  return <div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Approved template<select value={template?.id || ""} onChange={(event) => { setTemplateId(event.target.value); setVariables({}); setDeliveryMethod('cloud_api'); }} disabled={!approvedTemplates.length}><option value="">{approvedTemplates.length ? "Choose template" : "No approved templates available"}</option>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name} ({item.language})</option>)}</select></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {state.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<select value={segmentId} onChange={(event) => { setSegmentId(event.target.value); if (event.target.value) setSelectedContactIds([]); }}><option value="">Select contacts manually</option>{segments.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.contactCount})</option>)}</select></label><label>Schedule<input name="scheduledAt" type="datetime-local" /></label><label>Reply automation<select value={automationFlowId} onChange={(event) => setAutomationFlowId(event.target.value)}><option value="">No follow-up flow</option>{activeFlows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}<div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!template || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div>;
+  return <div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Approved template<select value={template?.id || ""} onChange={(event) => { setTemplateId(event.target.value); setVariables({}); setDeliveryMethod('cloud_api'); }} disabled={!approvedTemplates.length}><option value="">{approvedTemplates.length ? "Choose template" : "No approved templates available"}</option>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name} ({item.language})</option>)}</select></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {state.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<select value={segmentId} onChange={(event) => { setSegmentId(event.target.value); if (event.target.value) setSelectedContactIds([]); }}><option value="">Select contacts manually</option>{segments.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.contactCount})</option>)}</select></label><label>Schedule<input name="scheduledAt" type="datetime-local" /></label><label>Reply automation<select value={automationFlowId} onChange={(event) => setAutomationFlowId(event.target.value)}><option value="">No follow-up flow</option>{activeFlows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!template || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div>;
 }
 function WhatsAppReferralReport() {
   const [days, setDays] = useState(30);
