@@ -1,4 +1,9 @@
 .commerceScreen { min-width: 0; display: grid; gap: 16px; }
+.commerceScreen .formGrid { margin-block: 16px; }
+.commerceScreen input, .commerceScreen select, .commerceScreen textarea { max-width: 100%; min-width: 0; }
+.billingActions { display: grid; gap: 12px; padding-block: 16px; border-bottom: 1px solid #d9e2df; }
+.billingActions .rowActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.billingActions input, .billingActions select { min-width: 0; max-width: 100%; }
 .commerceToolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .commerceToolbar h2 { margin: 0 auto 0 0; font-size: 20px; display: flex; align-items: center; gap: 8px; }
 .commerceTabs { display: flex; gap: 4px; border-bottom: 1px solid #d9e2df; }

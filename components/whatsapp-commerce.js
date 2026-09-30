@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, RefreshCcw, ShoppingBag } from 'lucide-react';
 import './whatsapp-commerce.css';
+import MerchantPayments from './merchant-payments';
+import NativePayments from './whatsapp-native-payments';
+import CommerceAutomation from './commerce-automation';
 
-export default function WhatsAppCommerce({ api, postJson }) {
+export default function WhatsAppCommerce({ api, postJson, role }) {
   const [data, setData] = useState({ orders: [], accounts: [], page: 1, hasMore: false });
   const [page, setPage] = useState(1);
   const [view, setView] = useState('orders');
@@ -73,9 +76,15 @@ export default function WhatsAppCommerce({ api, postJson }) {
     <header className='commerceToolbar'><h2><ShoppingBag size={20} /> WhatsApp commerce</h2><div className='commerceTabs' role='tablist' aria-label='Commerce views'>
       <button type='button' role='tab' aria-selected={view === 'orders'} onClick={() => setView('orders')}>Orders</button>
       <button type='button' role='tab' aria-selected={view === 'catalogs'} onClick={() => setView('catalogs')}>Catalogs</button>
+      <button type='button' role='tab' aria-selected={view === 'payments'} onClick={() => setView('payments')}>Payments</button>
+      <button type='button' role='tab' aria-selected={view === 'native-payments'} onClick={() => setView('native-payments')}>Native checkout</button>
+      <button type='button' role='tab' aria-selected={view === 'automation'} onClick={() => setView('automation')}>Automation</button>
     </div><button type='button' className='iconButton' title='Refresh orders' aria-label='Refresh orders' disabled={pending} onClick={load}><RefreshCcw size={18} /></button></header>
     {error && <div className='formError' role='alert'>{error}</div>}
     {pending && <div className='commerceLoading' role='status'><Loader2 size={18} className='spin' /> Loading</div>}
+    {view==='payments'&&<MerchantPayments api={api} postJson={postJson} role={role} orders={data.orders}/>}
+    {view==='native-payments'&&<NativePayments api={api} postJson={postJson} role={role} orders={data.orders} accounts={data.accounts}/>}
+    {view==='automation'&&<CommerceAutomation api={api} postJson={postJson} role={role}/>}
     {view === 'orders' && <>
       <div className='commerceTable'><table><thead><tr><th>Customer / order</th><th>Items</th><th>Total</th><th>Payment</th><th>Fulfillment</th></tr></thead><tbody>
         {data.orders.map((order) => <tr key={order.id}><td><strong>{order.customer_phone}</strong><small>{order.reference_id || order.id}</small><small>{new Date(order.created_at).toLocaleString()}</small></td><td>{order.items.map((item, index) => <small key={`${item.retailerId}-${index}`}>{item.retailerId} x {item.quantity}</small>)}</td><td>{order.currency} {order.total_amount}</td><td>{order.payment_status}</td><td><select aria-label={`Fulfillment for ${order.id}`} value={order.fulfillment_status} disabled={Boolean(busyOrder)} onChange={(event) => update(order, event.target.value)}>{['pending', 'processing', 'shipped', 'completed', 'cancelled'].map((status) => <option key={status} value={status}>{status}</option>)}</select></td></tr>)}

@@ -16,6 +16,8 @@ test("initial platform branding reads deployment configuration", () => {
     assert.equal(config.brand_name, "Custom CRM");
     assert.equal(config.company_name, "Custom Company");
     assert.equal(config.support_email, "support@example.test");
+    assert.equal("privacy_intro" in config, false);
+    assert.equal("privacy_last_updated" in config, false);
   } finally {
     if (previous.brand === undefined) delete process.env.PLATFORM_BRAND_NAME;
     else process.env.PLATFORM_BRAND_NAME = previous.brand;

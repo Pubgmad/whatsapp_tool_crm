@@ -1,0 +1,12 @@
+.audienceComposer { display: grid; gap: 16px; min-width: 0; }
+.audienceComposer fieldset { border: 0; border-bottom: 1px solid #dde4e1; padding: 0 0 16px; margin: 0; min-width: 0; }
+.audienceComposer legend { font-size: 14px; font-weight: 600; padding: 0 0 12px; }
+.audienceFields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(210px,100%),1fr)); gap: 12px; margin-bottom: 12px; }
+.audienceComposer label { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
+.audienceComposer input,.audienceComposer select { width: 100%; min-width: 0; box-sizing: border-box; }
+.audienceRule { display: grid; grid-template-columns: minmax(150px,2fr) repeat(3,minmax(110px,1fr)) 36px; gap: 12px; align-items: end; margin-bottom: 12px; }
+.audienceComposer button { display: inline-flex; gap: 8px; align-items: center; justify-content: center; min-height: 36px; }
+.audienceButtons { display: flex; gap: 10px; align-items: end; }
+.audienceComposer > button { justify-self: start; }
+@media(max-width:800px) { .audienceRule { grid-template-columns: repeat(2,minmax(0,1fr)); } .audienceRule > button { justify-self: start; } }
+@media(max-width:480px) { .audienceRule { grid-template-columns: minmax(0,1fr); } }

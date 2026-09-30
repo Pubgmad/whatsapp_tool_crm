@@ -325,6 +325,21 @@ CREATE TABLE IF NOT EXISTS business_subscriptions (
   CONSTRAINT business_subscriptions_status_check CHECK (status IN ('trialing', 'active', 'past_due', 'canceled', 'expired', 'pending')),
   CONSTRAINT business_subscriptions_payment_check CHECK (payment_status IN ('none', 'pending', 'paid', 'failed', 'refunded'))
 );
+CREATE TABLE IF NOT EXISTS privacy_policy_versions (
+  id TEXT PRIMARY KEY,
+  version INTEGER NOT NULL UNIQUE,
+  document JSONB NOT NULL,
+  effective_date TEXT NOT NULL,
+  published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  published_by TEXT REFERENCES super_admins(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS privacy_policy_drafts (
+  id TEXT PRIMARY KEY,
+  document JSONB NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_by TEXT REFERENCES super_admins(id) ON DELETE SET NULL
+);
 ALTER TABLE business_subscriptions ADD COLUMN IF NOT EXISTS billing_interval TEXT;
 
 CREATE TABLE IF NOT EXISTS billing_events (

@@ -1,0 +1,13 @@
+.campaignControls{display:grid;gap:10px;min-width:0;margin:12px 0 18px}
+.campaignControlButtons{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
+.campaignControlButtons .muted,.campaignControls p{margin:0;font-size:12px;overflow-wrap:anywhere}
+.campaignControlForm{display:flex;align-items:end;flex-wrap:wrap;gap:12px;min-width:0;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.campaignControlForm label{display:grid;flex:1 1 190px;min-width:0;gap:6px;font-size:12px;font-weight:650}
+.campaignControlForm input,.campaignControlForm textarea{width:100%;min-width:0}
+.campaignControlForm textarea{min-height:42px;resize:vertical}
+.campaignControlForm button{flex:0 0 auto;min-height:40px}
+.campaignPolicy{min-width:0;padding:12px 0}
+.campaignPolicy h3{margin:0 0 10px;font-size:16px}
+.campaignControlForm .checkboxLabel{display:flex;align-items:center;gap:8px;min-height:40px}
+.campaignControlForm input[type=checkbox]{width:18px;height:18px;flex:0 0 18px}
+@media(max-width:520px){.campaignControlForm label{flex-basis:100%}.campaignControlForm .primaryAction{flex:1 1 180px}.campaignControlButtons button{flex:1 1 140px}}

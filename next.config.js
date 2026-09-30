@@ -4,7 +4,7 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=()" },
   { key: "Content-Security-Policy", value: `default-src 'self'; script-src 'self' 'unsafe-inline' https://connect.facebook.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://graph.facebook.com https://www.facebook.com; frame-src https://www.facebook.com https://web.facebook.com; font-src 'self' data:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'${httpsDeployment ? '; upgrade-insecure-requests' : ''}` }
 ];
 if (httpsDeployment) securityHeaders.splice(4, 0, { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' });
@@ -12,6 +12,13 @@ if (httpsDeployment) securityHeaders.splice(4, 0, { key: 'Strict-Transport-Secur
 const nextConfig = {
   agentRules: false,
   devIndicators: false,
+  async redirects() {
+    return [
+      { source: '/admin', destination: '/super-admin', permanent: false },
+      { source: '/admin/dashboard', destination: '/super-admin', permanent: false },
+      { source: '/admin/login', destination: '/super-admin/login', permanent: false }
+    ];
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   }

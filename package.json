@@ -19,9 +19,11 @@
     "security:rotate-secrets": "node scripts/rotate-secrets.mjs"
   },
   "dependencies": {
+    "facebook-nodejs-business-sdk": "24.0.1",
     "lucide-react": "1.38.0",
     "next": "16.3.3",
     "pg": "8.23.0",
+    "razorpay": "^2.9.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "stripe": "22.6.2"

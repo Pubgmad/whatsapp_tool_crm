@@ -6,8 +6,13 @@ import { useRouter } from "next/navigation";
 import {
   Activity, BadgeCheck, Ban, Building2, Eye, EyeOff, FileText, Loader2, LockKeyhole,
   LogOut, Menu, Pencil, Plus, RefreshCcw, Save, Search, ShieldCheck, SlidersHorizontal,
+  ArrowDown, ArrowUp, History,
   Trash2, WalletCards, Wifi, WifiOff, X
 } from "lucide-react";
+import PolicyText from "./policy-text";
+import SupportPolicy from './support-policy';
+import MetaCreditOperations from "./meta-credit-operations";
+import { isSessionFailure } from '../lib/auth-navigation';
 
 const emptyPlan = {
   id: "",
@@ -44,7 +49,7 @@ const api = async (path, options = {}) => {
   const { csrfRetry = false, ...requestOptions } = options;
   const method = String(requestOptions.method || 'GET').toUpperCase();
   const securedOptions = !['GET', 'HEAD', 'OPTIONS'].includes(method) ? { ...requestOptions, headers: { 'Content-Type': 'application/json', ...(requestOptions.headers || {}), 'x-csrf-token': await getCsrfToken() } } : requestOptions;
-  const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...securedOptions });
+  const response = await fetch(path, { cache: 'no-store', credentials: 'same-origin', headers: { "Content-Type": "application/json" }, ...securedOptions });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return api(path, { ...requestOptions, csrfRetry: true }); }
@@ -67,6 +72,7 @@ const adminSections = [
   { id: "overview", label: "Overview", href: "/super-admin", icon: Activity },
   { id: "plans", label: "Plans", href: "/super-admin/plans", icon: WalletCards },
   { id: "content", label: "Content", href: "/super-admin/content", icon: FileText },
+  { id: "privacy-policy", label: "Privacy policy", href: "/super-admin/privacy-policy", icon: ShieldCheck },
   { id: "companies", label: "Companies", href: "/super-admin/companies", icon: Building2 },
   { id: "data-requests", label: "Data requests", href: "/super-admin/data-requests", icon: FileText },
   { id: 'security', label: 'Security', href: '/super-admin/security', icon: LockKeyhole }
@@ -76,6 +82,7 @@ const adminHeadings = {
   overview: ["Platform command center", "Monitor companies, subscriptions, WhatsApp readiness, and platform status."],
   plans: ["Subscription plans", "Control pricing, billing periods, features, limits, visibility, and availability."],
   content: ["Platform content", "Manage customer-facing business content and configurable platform values."],
+  "privacy-policy": ["Privacy policy", "Draft, preview, publish, and review the public privacy policy."],
   companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."],
   "data-requests": ["Data requests", "Review workspace and Meta data deletion requests."],
   security: ['Owner security', 'Protect platform-level access with an authenticator and single-use recovery codes.']
@@ -96,6 +103,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   const [companyRefresh, setCompanyRefresh] = useState(0);
   const [companyLoading, setCompanyLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [bootstrapError, setBootstrapError] = useState(null);
   const [notice, setNotice] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [platformBrand, setPlatformBrand] = useState("Platform");
@@ -104,9 +112,9 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   useEffect(() => { api("/api/platform").then((result) => setPlatformBrand(result.platform?.company_name || result.platform?.brand_name || "Platform")).catch(() => {}); }, []);
   useEffect(() => {
     if (loading) return;
-    if (authOnly && admin) router.replace("/super-admin");
-    if (!authOnly && !admin) router.replace("/super-admin/login");
-  }, [admin, authOnly, loading, router]);
+    if (authOnly && admin) window.location.replace('/super-admin');
+    if (!authOnly && !admin && isSessionFailure(bootstrapError)) window.location.replace('/super-admin/login');
+  }, [admin, authOnly, loading, bootstrapError]);
   useEffect(() => {
     if (!admin || !initialCompanyId || selected?.company?.id === initialCompanyId) return;
     api(`/api/super-admin/companies/${initialCompanyId}`).then(setSelected).catch((error) => notify(error.message));
@@ -142,14 +150,18 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   const bootstrap = async () => {
     try {
       setLoading(true);
+      setBootstrapError(null);
       const me = await api("/api/super-admin/me");
       setAdmin(me.admin);
-      await loadPlatformData();
-    } catch {
-      setAdmin(null);
-      setDashboard(null);
-      setPlans([]);
-      setSettings([]);
+      if (!authOnly) await loadPlatformData();
+    } catch (error) {
+      setBootstrapError(error);
+      if (isSessionFailure(error)) {
+        setAdmin(null);
+        setDashboard(null);
+        setPlans([]);
+        setSettings([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -229,6 +241,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   };
 
   if (loading) return <main className="superLoading"><ShieldCheck size={30} /><span>Checking platform access</span></main>;
+  if (bootstrapError && !isSessionFailure(bootstrapError)) return <main className="superLoading"><ShieldCheck size={30}/><span>Platform could not be loaded</span><p role="alert">{bootstrapError.message}</p><button className="primaryAction" onClick={bootstrap}><RefreshCcw size={18}/>Retry</button></main>;
   if (!admin && authOnly) return <SuperAdminLogin onDone={bootstrap} brandName={platformBrand} />;
   if (!admin) return <main className="superLoading"><Loader2 className="spin" size={30} /><span>Opening Super Admin sign in</span></main>;
   if (authOnly) return <main className="superLoading"><Loader2 className="spin" size={30} /><span>Opening Super Admin</span></main>;
@@ -284,6 +297,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
       <PlanManager plans={plans} onSave={savePlan} /></>}
       {initialSection === "content" && <ContentManager settings={settings} onSave={saveSetting} />}
+      {initialSection === "privacy-policy" && <PrivacyPolicyEditor settings={settings} notify={notify} />}
       {initialSection === "data-requests" && <><WorkspaceDeletionQueue notify={notify} /><MetaDeletionQueue notify={notify} /></>}
       {initialSection === 'security' && <SuperAdminSecurity notify={notify} />}
 
@@ -302,31 +316,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 }
 
 function MetaCreditLines() {
-  const [state, setState] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const load = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setState(await api("/api/super-admin/meta-credit-lines"));
-    } catch (cause) {
-      setError(cause.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => { load(); }, []);
-  return <Panel title="Meta credit lines" subtitle="Read-only status for the connected business portfolio">
-    <div className="statusStack">
-      {loading && <span>Checking Meta...</span>}
-      {error && <p className="errorLine" role="alert">{error}</p>}
-      {state && !state.configured && <span>Not configured for this platform.</span>}
-      {state?.configured && !state.creditLines.length && <span>No eligible credit line returned by Meta.</span>}
-      {state?.creditLines.map((line) => <div key={line.id}><span>{line.legalEntityName || "Legal entity"}</span><strong>{line.id}</strong></div>)}
-    </div>
-    <button className="secondaryAction" type="button" disabled={loading} onClick={load}><RefreshCcw size={16} /> Refresh</button>
-  </Panel>;
+  return <Panel title="Meta credit lines"><MetaCreditOperations api={api}/></Panel>;
 }
 
 function WorkspaceDeletionQueue({ notify }) {
@@ -502,6 +492,127 @@ function PlanManager({ plans, onSave }) {
   </Panel>;
 }
 
+function policyToForm(document) {
+  return {
+    title: document.title,
+    intro: document.intro,
+    sections: document.sections.map((section) => ({
+      heading: section.heading,
+      paragraphsText: section.paragraphs.join("\n\n"),
+      bulletsText: section.bullets.join("\n")
+    }))
+  };
+}
+
+function policyFromForm(form) {
+  return {
+    title: form.title.trim(),
+    intro: form.intro.trim(),
+    sections: form.sections.map((section) => ({
+      heading: section.heading.trim(),
+      paragraphs: section.paragraphsText.split(/\n\s*\n/).map((item) => item.trim()).filter(Boolean),
+      bullets: section.bulletsText.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
+    }))
+  };
+}
+
+function PrivacyPolicyEditor({ settings, notify }) {
+  const [snapshot, setSnapshot] = useState(null);
+  const [form, setForm] = useState(null);
+  const [dirty, setDirty] = useState(false);
+  const [view, setView] = useState("edit");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [selectedVersion, setSelectedVersion] = useState(null);
+  const [confirmPublish, setConfirmPublish] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const supportEmail = settings.find((setting) => setting.key === "support_email")?.value || "";
+  const companyName = settings.find((setting) => setting.key === "company_name")?.value || "";
+  const productName = settings.find((setting) => setting.key === "product_tagline")?.value || "";
+
+  useEffect(() => {
+    let active = true;
+    api(`/api/super-admin/privacy-policy?page=${historyPage}`).then((result) => {
+      if (!active) return;
+      setSnapshot(result);
+      setForm((current) => current || policyToForm(result.draft.document));
+    }).catch((reason) => { if (active) setError(reason.message); });
+    return () => { active = false; };
+  }, [historyPage]);
+
+  const change = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setDirty(true);
+    setConfirmPublish(false);
+  };
+  const changeSection = (index, field, value) => {
+    setForm((current) => ({ ...current, sections: current.sections.map((section, at) => at === index ? { ...section, [field]: value } : section) }));
+    setDirty(true);
+    setConfirmPublish(false);
+  };
+  const moveSection = (index, direction) => {
+    setForm((current) => {
+      const sections = [...current.sections];
+      const target = index + direction;
+      if (target < 0 || target >= sections.length) return current;
+      [sections[index], sections[target]] = [sections[target], sections[index]];
+      return { ...current, sections };
+    });
+    setDirty(true);
+  };
+  const mutatePolicy = async (action, extra = {}) => {
+    setPending(true);
+    setError("");
+    try {
+      const result = await postJson("/api/super-admin/privacy-policy", { action, revision: snapshot.draft.revision, ...extra });
+      setSnapshot(result);
+      setForm(policyToForm(result.draft.document));
+      setDirty(false);
+      setConfirmPublish(false);
+      setSelectedVersion(null);
+      notify(action === "publish" ? "Privacy policy published" : action === "restore" ? "Published version restored to draft" : "Draft saved");
+      if (action === "restore") setView("edit");
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  if (!snapshot || !form) return <div className="policyLoading">{error || "Loading privacy policy"}</div>;
+  const preview = selectedVersion?.document || policyFromForm(form);
+  const previewDate = selectedVersion?.effectiveDate || "Draft preview";
+
+  return <div className="policyWorkspace">
+    <div className="policyToolbar">
+      <div className="policyTabs" role="tablist" aria-label="Privacy policy views">
+        {[["edit", "Edit"], ["preview", "Preview"], ["history", "History"]].map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={view === key} className={view === key ? "active" : ""} onClick={() => { setView(key); setSelectedVersion(null); setConfirmPublish(false); }}>{label}</button>)}
+      </div>
+      <span className="policyPublished">Live version {snapshot.published?.version || "none"}{dirty ? " | Unsaved changes" : ""}</span>
+    </div>
+    {error && <div className="formError" role="alert">{error}</div>}
+    {view === "edit" && <div className="policyEdit">
+      <div className="policyActions">
+        <button className="secondaryAction" type="button" disabled={pending || !dirty} onClick={() => mutatePolicy("save", { document: policyFromForm(form) })}><Save size={17} /> Save draft</button>
+        <button className="primaryAction" type="button" disabled={pending || dirty} onClick={() => confirmPublish ? mutatePolicy("publish") : setConfirmPublish(true)}><BadgeCheck size={17} /> {confirmPublish ? "Confirm publish" : "Publish"}</button>
+        {confirmPublish && <button className="secondaryAction" type="button" onClick={() => setConfirmPublish(false)}>Cancel</button>}
+      </div>
+      {confirmPublish && <p className="policyWarning">Publishing replaces the public policy immediately and updates its effective date. Review the preview and have legal counsel approve the wording first.</p>}
+      <label>Policy title<input value={form.title} maxLength={120} onChange={(event) => change("title", event.target.value)} /></label>
+      <label>Introduction<textarea rows={4} value={form.intro} maxLength={5000} onChange={(event) => change("intro", event.target.value)} /></label>
+      <div className="policySectionHeading"><h2>Sections</h2><button className="secondaryAction" type="button" onClick={() => { setForm((current) => ({ ...current, sections: [...current.sections, { heading: "", paragraphsText: "", bulletsText: "" }] })); setDirty(true); }}><Plus size={16} /> Add section</button></div>
+      {form.sections.map((section, index) => <section className="policySectionEditor" key={index}>
+        <div className="policySectionHeading"><h3>{index + 1}. {section.heading || "Untitled section"}</h3><div className="policyReorder"><button className="iconButton" type="button" title="Move up" aria-label="Move section up" disabled={index === 0} onClick={() => moveSection(index, -1)}><ArrowUp size={16} /></button><button className="iconButton" type="button" title="Move down" aria-label="Move section down" disabled={index === form.sections.length - 1} onClick={() => moveSection(index, 1)}><ArrowDown size={16} /></button><button className="iconButton dangerSoft" type="button" title="Remove section" aria-label="Remove section" disabled={form.sections.length === 1} onClick={() => { setForm((current) => ({ ...current, sections: current.sections.filter((_, at) => at !== index) })); setDirty(true); }}><Trash2 size={16} /></button></div></div>
+        <label>Heading<input value={section.heading} maxLength={200} onChange={(event) => changeSection(index, "heading", event.target.value)} /></label>
+        <label>Paragraphs<textarea rows={5} value={section.paragraphsText} onChange={(event) => changeSection(index, "paragraphsText", event.target.value)} /></label>
+        <label>List items<textarea rows={4} value={section.bulletsText} onChange={(event) => changeSection(index, "bulletsText", event.target.value)} /></label>
+      </section>)}
+    </div>}
+    {view === "preview" && <article className="legalDoc policyPreview"><header className="legalHero"><p className="kicker">{companyName} {productName}</p><h1>{preview.title}</h1><p><PolicyText value={preview.intro} supportEmail={supportEmail} companyName={companyName} /></p><span>{previewDate}</span></header>{preview.sections.map((section, index) => <section key={index}><h2>{index + 1}. {section.heading}</h2>{section.paragraphs.map((paragraph, at) => <p key={at}><PolicyText value={paragraph} supportEmail={supportEmail} companyName={companyName} /></p>)}{section.bullets.length > 0 && <ul>{section.bullets.map((bullet, at) => <li key={at}><PolicyText value={bullet} supportEmail={supportEmail} companyName={companyName} /></li>)}</ul>}</section>)}</article>}
+    {view === "history" && <div className="policyHistory"><h2><History size={19} /> Published revisions</h2>{snapshot.history.map((revision) => <div className="policyRevision" key={revision.version}><div><strong>Version {revision.version}</strong><span>Effective {revision.effectiveDate} | Published {formatTime(revision.publishedAt)}</span></div><div><button className="secondaryAction" type="button" onClick={() => { setSelectedVersion(revision); setView("preview"); }}><Eye size={16} /> View</button><button className="secondaryAction" type="button" disabled={pending} onClick={() => { if (!dirty || window.confirm("Discard unsaved changes and restore this version as the draft?")) mutatePolicy("restore", { version: revision.version }); }}><RefreshCcw size={16} /> Restore draft</button></div></div>)}<div className="policyHistoryPages"><button className="secondaryAction" type="button" disabled={historyPage <= 1} onClick={() => setHistoryPage((page) => page - 1)}>Previous</button><span>Page {historyPage} of {snapshot.pagination.pages}</span><button className="secondaryAction" type="button" disabled={historyPage >= snapshot.pagination.pages} onClick={() => setHistoryPage((page) => page + 1)}>Next</button></div></div>}
+  </div>;
+}
+
 function ContentManager({ settings, onSave }) {
   const groups = useMemo(() => settings.reduce((acc, setting) => ({ ...acc, [setting.category]: [...(acc[setting.category] || []), setting] }), {}), [settings]);
   return <Panel title="Platform content" subtitle="Public business copy and labels controlled by Super Admin" id="content">
@@ -618,6 +729,7 @@ function CompanyDrawer({ detail, onClose, onAction }) {
       <div className="drawerActions"><button className="secondaryAction" type="button" onClick={() => onAction(company.id, "activate")}><BadgeCheck size={17} />Activate</button><button className="secondaryAction dangerSoft" type="button" onClick={() => onAction(company.id, "suspend")}><Ban size={17} />Suspend</button></div>
       <section className="detailGrid"><Info label="Account" value={company.accountStatus} /><Info label="Subscription" value={company.subscriptionStatus} /><Info label="Plan" value={company.planName} /><Info label="Payment" value={company.paymentStatus} /><Info label="Registered" value={formatDate(company.registeredAt)} /><Info label="Renewal" value={formatDate(company.renewalAt)} /><Info label="Trial ends" value={formatDate(company.trialEndsAt)} /><Info label="WhatsApp" value={company.whatsappStatus} /><Info label="Business number" value={company.whatsappNumber || "Not connected"} /><Info label="Users" value={company.userCount} /><Info label="Contacts" value={company.contactCount} /><Info label="Campaigns" value={company.campaignCount} /></section>
       <section><h3>Company users</h3><div className="miniList">{detail.users.map((user) => <div key={user.id}><strong>{user.name}</strong><span>{user.email}</span><small>{user.role}</small></div>)}</div></section>
+      <SupportPolicy key={company.id} endpoint={'/api/super-admin/companies/'+encodeURIComponent(company.id)+'/support-policy'} canEdit={true} api={api} postJson={postJson}/>
       <section><h3>Recent platform activity</h3><div className="miniList">{detail.recentActivity.map((item, index) => <div key={`${item.type}-${index}`}><strong>{item.type}</strong><span>{formatTime(item.at)}</span></div>)}{!detail.recentActivity.length && <Empty text="No activity recorded" />}</div></section>
     </div>
   </aside>;

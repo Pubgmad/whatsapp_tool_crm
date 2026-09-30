@@ -1,0 +1,4 @@
+.creditOperationsTable { max-width:100%; overflow-x:auto; margin:18px 0; }
+.creditOperationsTable table { width:100%; min-width:620px; border-collapse:collapse; }
+.creditOperationsTable td,.creditOperationsTable th { text-align:left; padding:10px; border-bottom:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; max-width:260px; }
+.creditOperationsTable small { display:block; margin-top:4px; color:var(--muted); }

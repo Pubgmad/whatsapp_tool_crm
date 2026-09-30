@@ -26,12 +26,16 @@ async function tick() {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`Job endpoint returned ${response.status}: ${result.code || 'UNKNOWN'}`);
   if (runRetention) nextRetentionAt = Date.now() + retentionIntervalMs;
-  const activity = [result.campaigns?.claimed, result.automation?.claimed, result.retention, result.metaHealth?.failed].some(Boolean);
+  const activity = [result.campaigns?.claimed, result.automation?.claimed, result.retention, result.metaHealth?.failed, result.integrations?.claimed, result.commerce?.started, result.commerce?.failed, result.support?.assigned, result.support?.breached, result.connectors?.processed, result.connectors?.skipped].some(Boolean);
   if (activity) console.info('Job cycle', {
     campaigns: result.campaigns,
     automation: result.automation,
     retention: result.retention,
-    metaHealth: result.metaHealth
+    metaHealth: result.metaHealth,
+    integrations: result.integrations,
+    commerce: result.commerce,
+    support: result.support,
+    connectors: result.connectors
   });
 }
 

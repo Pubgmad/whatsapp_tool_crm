@@ -1,6 +1,25 @@
 "use client";
 import WhatsAppCommerce from './whatsapp-commerce';
+import RazorpaySubscriptionActions from './razorpay-subscription-actions';
+import AdvancedTemplateComposer from './advanced-template-composer';
+import WhatsAppCalling from './whatsapp-calling';
+import WhatsAppAds from './whatsapp-ads';
+import WhatsAppConversions from './whatsapp-conversions';
 import TemplateParameterFields from './template-parameter-fields';
+import CampaignControls, {CampaignPolicy} from './campaign-controls';
+import CoexistenceProgress from './coexistence-progress';
+import WhatsAppEntryPoints from './whatsapp-entry-points';
+import SupportPolicy from './support-policy';
+import WhatsAppFlowDesigner from './whatsapp-flow-designer';
+import WhatsAppJourneyAnalytics from './whatsapp-journey-analytics';
+import NativeFlowWorkspace from './native-flow-workspace';
+import WorkspaceIntegrations from './workspace-integrations';
+import TrackedLinks from './tracked-links';
+import ProviderConnectors from './provider-connectors';
+import AutomationAdvancedNodeFields from './automation-advanced-node-fields';
+import AutomationConnections from './automation-connections';
+import AudienceSegmentComposer from './audience-segment-composer';
+import { isSessionFailure, createRequestGate } from '../lib/auth-navigation';
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -22,12 +41,15 @@ const navItems = [
   { id: "automation", label: "Automation", icon: Bot },
   { id: "campaigns", label: "Campaigns", icon: Send },
   { id: 'commerce', label: 'Commerce', icon: ShoppingBag },
+  { id: 'conversions', label: 'Conversions', icon: Activity },
+  { id: 'calling', label: 'Calls', icon: PhoneCall },
+  { id: 'ads', label: 'WhatsApp Ads', icon: RadioTower },
   { id: "results", label: "Results", icon: BarChart3 },
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "unsubscribes", label: "Suppression", icon: Ban }
 ];
 
-const managerViews = new Set(["setup", "templates", "automation", "campaigns", 'commerce']);
+const managerViews = new Set(["setup", "templates", "automation", "campaigns", 'commerce', 'conversions','calling','ads']);
 function canOpenWorkspaceView(role, view) {
   if (view === "billing") return role === "Owner";
   return !managerViews.has(view) || role === "Owner" || role === "Manager";
@@ -44,6 +66,9 @@ const workspaceRoutes = {
   automation: "/app/automations",
   campaigns: "/app/campaigns",
   commerce: '/app/commerce',
+  conversions: '/app/conversions',
+  calling: '/app/calling',
+  ads: '/app/ads',
   results: "/app/analytics",
   inbox: "/app/inbox",
   unsubscribes: "/app/suppression"
@@ -71,7 +96,7 @@ const api = async (path, options = {}) => {
   const { csrfRetry = false, ...requestOptions } = options;
   const method = String(requestOptions.method || 'GET').toUpperCase();
   const securedOptions = !['GET', 'HEAD', 'OPTIONS'].includes(method) ? { ...requestOptions, headers: { 'Content-Type': 'application/json', ...(requestOptions.headers || {}), 'x-csrf-token': await getCsrfToken() } } : requestOptions;
-  const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...securedOptions });
+  const response = await fetch(path, { cache: 'no-store', credentials: 'same-origin', headers: { "Content-Type": "application/json" }, ...securedOptions });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return api(path, { ...requestOptions, csrfRetry: true }); }
@@ -181,12 +206,14 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [pages, setPages] = useState({});
   const [workspaces, setWorkspaces] = useState([]);
+  const scopeGate = useRef(null);
+  if (!scopeGate.current) scopeGate.current = createRequestGate();
 
   const approvedTemplates = useMemo(() => state?.templates.filter((template) => template.status === "Approved") || [], [state]);
   const marketableContacts = useMemo(() => state?.contacts.filter((contact) => contact.marketingPermission && !contact.unsubscribed) || [], [state]);
   const suppressedContacts = useMemo(() => state?.contacts.filter((contact) => contact.unsubscribed || !contact.marketingPermission) || [], [state]);
 
-  useEffect(() => { if (!authMode) bootstrap(); }, []);
+  useEffect(() => { if (!authMode) bootstrap(); return () => scopeGate.current.invalidate(); }, []);
   useEffect(() => {
     if (!account || authMode) return;
     api("/api/workspaces").then((result) => setWorkspaces(result.workspaces || [])).catch(() => setWorkspaces([]));
@@ -202,23 +229,23 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     const location = workspaceLocation(pathname);
     if (location.view === "inbox") setPages((current) => ({ ...current, messages: 1 }));
     loadScope(location, true, location.view === "inbox" ? { messagePage: 1 } : {})
-      .then(() => setBootstrapError(null))
+      .then(result => { if (result) setBootstrapError(null); })
       .catch((error) => {
-        if (error.code === "AUTH_REQUIRED") setAccount(null);
+        if (isSessionFailure(error)) setAccount(null);
         setBootstrapError(error);
       });
   }, [account, authMode, pathname]);
   useEffect(() => {
     if (loading || configError) return;
-    if (authMode && account) router.replace("/app/dashboard");
-    if (!authMode && !account && bootstrapError?.code === 'AUTH_REQUIRED') router.replace("/login");
+    if (authMode && account) window.location.replace('/app/dashboard');
+    if (!authMode && !account && isSessionFailure(bootstrapError)) window.location.replace('/login');
   }, [account, authMode, bootstrapError, configError, loading, router]);
   useEffect(() => {
     if (!account) return undefined;
     const timer = window.setInterval(async () => {
       if (document.visibilityState !== "visible") return;
       try { await loadScope(workspaceLocation(window.location.pathname), false); }
-      catch (error) { if (error.code === "AUTH_REQUIRED") { setBootstrapError(error); setAccount(null); } }
+      catch (error) { if (isSessionFailure(error)) { setBootstrapError(error); setAccount(null); } }
     }, 15000);
     return () => window.clearInterval(timer);
   }, [account, pages, pathname]);
@@ -226,32 +253,39 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2600); };
 
   const bootstrap = async () => {
+    const request = scopeGate.current.begin();
     try {
       setLoading(true);
       setBootstrapError(null);
       const publicConfig = await api("/api/platform").catch(() => ({ platform: fallbackPlatform }));
       setPlatform({ ...fallbackPlatform, ...(publicConfig.platform || {}) });
       const me = await api("/api/me");
-      setAccount(me);
       const location = authMode ? { view: "overview", conversationId: "" } : workspaceLocation(pathname);
       const nextState = await api(stateUrl(location.view, { conversationId: location.conversationId || "" }));
+      if (!scopeGate.current.current(request)) return;
       setState(mergeWorkspaceState(null, nextState));
+      setAccount(me);
       setPlatform({ ...fallbackPlatform, ...(nextState.platform || publicConfig.platform || {}) });
       setConfigError("");
     } catch (error) {
+      if (!scopeGate.current.current(request)) return;
       setState(null);
-      if (error.code === "AUTH_REQUIRED") setAccount(null);
+      if (isSessionFailure(error)) setAccount(null);
       setBootstrapError(error);
       if (["DB_NOT_CONFIGURED", "AUTH_NOT_CONFIGURED"].includes(error.code)) setConfigError(error.message);
     } finally {
-      setLoading(false);
+      if (scopeGate.current.current(request)) setLoading(false);
     }
   };
 
   const loadScope = async (location = workspaceLocation(pathname), updatePlatform = true, overrides = {}) => {
+    const request = scopeGate.current.begin();
     const page = overrides.page || pages[location.view] || 1;
     const messagePage = overrides.messagePage || pages.messages || 1;
-    const nextState = await api(stateUrl(location.view, { page, messagePage, conversationId: location.conversationId || "" }));
+    let nextState;
+    try { nextState = await api(stateUrl(location.view, { page, messagePage, conversationId: location.conversationId || "" })); }
+    catch (error) { if (scopeGate.current.current(request)) throw error; return null; }
+    if (!scopeGate.current.current(request)) return null;
     setState((current) => mergeWorkspaceState(current, nextState));
     if (updatePlatform && nextState.platform) setPlatform((current) => ({ ...current, ...nextState.platform }));
     return nextState;
@@ -259,12 +293,12 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   const refresh = async () => {
     try { await loadScope(); }
-    catch (error) { notify(error.message); if (error.code === "AUTH_REQUIRED") { setBootstrapError(error); setAccount(null); } }
+    catch (error) { notify(error.message); if (isSessionFailure(error)) { setBootstrapError(error); setAccount(null); } }
   };
 
   const mutate = async (promise, message) => {
-    try { await promise; await loadScope(); notify(message); }
-    catch (error) { notify(error.message); }
+    try { await promise; await loadScope(); notify(message); return true; }
+    catch (error) { notify(error.message); return false; }
   };
 
   const changePage = async (key, page) => {
@@ -278,9 +312,10 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   const logout = async () => {
     await postJson("/api/auth/logout", {});
+    scopeGate.current.invalidate();
     setAccount(null);
     setState(null);
-    router.replace("/login");
+    window.location.replace('/login');
   };
 
   const selectWorkspace = async (event) => {
@@ -313,8 +348,8 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   if (loading) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
   if (configError) return <SystemSetup message={configError} platform={platform} />;
   if (account && !state && bootstrapError) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
-  if (!account && !authMode && bootstrapError && bootstrapError.code !== 'AUTH_REQUIRED') return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
-  if (!account && authMode) return <AuthScreen onDone={() => router.replace("/app/dashboard")} platform={platform} initialMode={authMode} onModeChange={(mode) => router.push(mode === "signup" ? "/signup" : "/login")} />;
+  if (!account && !authMode && bootstrapError && !isSessionFailure(bootstrapError)) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
+  if (!account && authMode) return <AuthScreen onDone={() => window.location.replace('/app/dashboard')} platform={platform} initialMode={authMode} onModeChange={(mode) => router.push(mode === "signup" ? "/signup" : "/login")} />;
   if (!account) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening sign in</p></main>;
   if (authMode) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening workspace</p></main>;
   if (!state) return <main className="loading"><Sparkles size={32} /><p>Preparing workspace</p></main>;
@@ -434,7 +469,7 @@ function Screens({ activeView, ...props }) {
   if (!canOpenWorkspaceView(props.role, activeView)) {
     return <Panel title="Workspace access"><p>This section is available to workspace owners{activeView === "billing" ? "" : " and managers"}.</p></Panel>;
   }
-  const screens = { commerce: <WhatsAppCommerce api={api} postJson={postJson} />, overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, security: <SecuritySettings />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
+  const screens = { ads: <WhatsAppAds api={api} postJson={postJson} uploadForm={uploadForm} role={props.role} />, calling: <WhatsAppCalling api={api} postJson={postJson} role={props.role} />, conversions: <WhatsAppConversions api={api} postJson={postJson} role={props.role} />, commerce: <WhatsAppCommerce api={api} postJson={postJson} role={props.role} />, overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, security: <SecuritySettings />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
   const pageKey = { contacts: "contacts", templates: "templates", campaigns: "campaigns", results: "results", inbox: "inbox", unsubscribes: "unsubscribes" }[activeView];
   return <>
     {screens[activeView]}
@@ -466,7 +501,7 @@ function Billing({ state, role }) {
       setPending(true);
       setError('');
       const result = await postJson(path, body);
-      if (!result.url?.startsWith('https://')) throw new Error('Stripe did not return a secure billing page.');
+      if (!result.url?.startsWith('https://')) throw new Error('The payment provider did not return a secure billing page.');
       window.location.assign(result.url);
     } catch (reason) { setError(reason.message); setPending(false); }
   };
@@ -477,7 +512,7 @@ function Billing({ state, role }) {
       setNotice('');
       await postJson('/api/billing/change-plan', { planId, interval });
       setConfirmPlan('');
-      setNotice('Stripe accepted the plan change. Billing will update after its confirmation webhook; refresh this page to check.');
+      setNotice('The payment provider accepted the plan change. Billing will update after its confirmation webhook; refresh this page to check.');
     } catch (reason) { setError(reason.message); }
     finally { setPending(false); }
   };
@@ -491,12 +526,13 @@ function Billing({ state, role }) {
     <section className="heroPanel"><div><span className="softLabel">{subscription.status || "pending"}</span><h2>{plan.name || "Unassigned"}</h2><p>{plan.description || "Subscription details are managed by the platform owner."}</p></div><div className="heroMetrics"><Metric label="Monthly" value={money(plan.monthlyPriceCents)} /><Metric label="Yearly" value={money(plan.yearlyPriceCents)} /><Metric label="Period ends" value={subscription.periodEnd ? formatTime(subscription.periodEnd) : "Not set"} /></div></section>
     <Panel title="Current usage" subtitle="Live usage against the limits configured for this plan"><div className="meterGrid usageGrid"><Metric label="Contacts" value={usageValue("contacts")} /><Metric label="Campaigns" value={usageValue("campaigns")} /><Metric label="Messages" value={usageValue("messages")} /><Metric label="Users" value={usageValue("users")} /><Metric label="Automations" value={usageValue("automationFlows")} /><Metric label="WhatsApp conversations" value={usageValue("whatsappConversations")} /></div></Panel>
     <section className="billingPlans" aria-label="Subscription plans">
+      {(billingAvailable||subscription.provider==='razorpay')&&subscription.provider!=='stripe'&&<RazorpaySubscriptionActions postJson={postJson} role={role} plans={plans} interval={interval}/>}
       <div className="billingPlansHead"><div><h2>Plans</h2><p>Prices and limits are managed by the platform owner.</p></div><div className="billingInterval" role="group" aria-label="Billing interval"><button type="button" className={interval === 'monthly' ? 'active' : ''} aria-pressed={interval === 'monthly'} onClick={() => setInterval('monthly')}>Monthly</button><button type="button" className={interval === 'yearly' ? 'active' : ''} aria-pressed={interval === 'yearly'} onClick={() => setInterval('yearly')}>Yearly</button></div></div>
       {error && <div className="formError" role="alert">{error}</div>}
       {notice && <p role="status">{notice}</p>}
       {!billingAvailable && <div className="formError">Online billing is not configured yet.</div>}
       {subscription.provider === 'stripe' && subscription.status !== 'canceled' && <button className="secondaryAction" type="button" disabled={pending || role !== 'Owner'} onClick={() => openBilling('/api/billing/portal')}>Manage payment and subscription</button>}
-      <div className="planGrid">{plans.map((item) => { const price = interval === 'monthly' ? item.monthlyPriceCents : item.yearlyPriceCents; const activeStripe = subscription.provider === 'stripe' && ['active', 'trialing'].includes(subscription.status); const current = activeStripe && item.code === plan.code && interval === subscription.billingInterval; const choiceKey = item.id + ':' + interval; return <article className="planTile" key={item.id}><header><div><strong>{item.name}</strong><p>{item.description}</p></div>{current && <Badge kind="good">Current</Badge>}</header><div className="planPrice">{money(price, item.currency)}<small>/{interval === 'monthly' ? 'month' : 'year'}</small></div><ul>{(item.features || []).map((feature) => <li key={feature}>{feature}</li>)}</ul><button className="primaryAction" type="button" disabled={pending || !billingAvailable || role !== 'Owner' || !price || current || (subscription.provider === 'stripe' && subscription.status === 'past_due')} onClick={() => activeStripe ? (confirmPlan === choiceKey ? switchPlan(item.id) : setConfirmPlan(choiceKey)) : openBilling('/api/billing/checkout', { planId: item.id, interval })}>{current ? 'Current plan' : activeStripe ? confirmPlan === choiceKey ? 'Confirm switch' : 'Switch plan' : 'Choose plan'}</button>{activeStripe && confirmPlan === choiceKey && <button className="secondaryAction" type="button" onClick={() => setConfirmPlan('')}>Cancel</button>}</article>; })}</div>
+      <div className="planGrid">{plans.map((item) => { const price = interval === 'monthly' ? item.monthlyPriceCents : item.yearlyPriceCents; const activeProvider = ['stripe','razorpay'].includes(subscription.provider) && ['active', 'trialing'].includes(subscription.status); const current = activeProvider && item.code === plan.code && interval === subscription.billingInterval; const choiceKey = item.id + ':' + interval; return <article className="planTile" key={item.id}><header><div><strong>{item.name}</strong><p>{item.description}</p></div>{current && <Badge kind="good">Current</Badge>}</header><div className="planPrice">{money(price, item.currency)}<small>/{interval === 'monthly' ? 'month' : 'year'}</small></div><ul>{(item.features || []).map((feature) => <li key={feature}>{feature}</li>)}</ul><button className="primaryAction" type="button" disabled={pending || !billingAvailable || role !== 'Owner' || !price || current || (subscription.provider === 'stripe' && subscription.status === 'past_due')} onClick={() => activeProvider ? (confirmPlan === choiceKey ? switchPlan(item.id) : setConfirmPlan(choiceKey)) : openBilling('/api/billing/checkout', { planId: item.id, interval })}>{current ? 'Current plan' : activeProvider ? confirmPlan === choiceKey ? 'Confirm switch' : 'Switch plan' : 'Choose plan'}</button>{activeProvider && confirmPlan === choiceKey && <button className="secondaryAction" type="button" onClick={() => setConfirmPlan('')}>Cancel</button>}</article>; })}</div>
       {!plans.length && <EmptyState text="No public subscription plans are available" />}
     </section>
     <Panel title="Included features" subtitle={plan.name || "Current plan"}><div className="readinessList">{(plan.features || []).map((feature) => <div className="ready" key={feature}><span>{feature}</span><Badge kind="good">Included</Badge></div>)}{!(plan.features || []).length && <EmptyState text="No plan features have been configured" />}</div></Panel>
@@ -610,26 +646,19 @@ function Setup({ state, mutate }) {
     </section>
     {!state.meta.embeddedSignupAvailable && <div className="formError">The platform owner must configure META_APP_ID, META_APP_SECRET and META_EMBEDDED_SIGNUP_CONFIG_ID on the server.</div>}
     {signupError && <div className="formError" role="alert">{signupError}</div>}
-    {operations.phoneNumbers.filter((phone) => phone.coexistence).map((phone) => <section className="coexistenceSummary" key={phone.id}>
-      <header><div><h3>Business App sync</h3><span>{phone.displayPhoneNumber || phone.phoneNumberId}</span></div><Badge kind={phone.coexistence.lastEventAt ? 'good' : 'warn'}>{phone.coexistence.lastEventAt ? 'Receiving events' : 'Awaiting Meta'}</Badge></header>
-      <div className="coexistenceMetrics">
-        <div><span>Contacts</span><strong>{phone.coexistence.contactsImported}</strong><small>{phone.coexistence.contactsStatus}</small></div>
-        <div><span>History messages</span><strong>{phone.coexistence.messagesImported}</strong><small>{phone.coexistence.historyStatus}</small></div>
-        <div><span>Business App replies</span><strong>{phone.coexistence.echoesImported}</strong><small>Last event: {formatTime(phone.coexistence.lastEventAt)}</small></div>
-      </div>
-      {phone.coexistence.lastError && <p className="formError" role="alert">{phone.coexistence.lastError}</p>}
-      <div className="connectionActions">
-        <button className="secondaryAction" type="button" disabled={!['failed', 'not_requested'].includes(phone.coexistence.contactsStatus)} onClick={() => mutate(postJson('/api/meta/coexistence/sync', { phoneId: phone.id, kind: 'contacts' }), 'Contact sync requested')}><RefreshCcw size={16} /> Sync contacts</button>
-        <button className="secondaryAction" type="button" disabled={!['failed', 'not_requested'].includes(phone.coexistence.historyStatus)} onClick={() => mutate(postJson('/api/meta/coexistence/sync', { phoneId: phone.id, kind: 'history' }), 'History sync requested')}><RefreshCcw size={16} /> Sync history</button>
-      </div>
-    </section>)}
+    <CoexistenceProgress phones={operations.phoneNumbers.filter(phone=>phone.coexistence)} api={api} postJson={postJson}/>
     <nav className="operationsTabs" aria-label="WhatsApp settings">
       {[
         ["connection", Activity, "Connection"], ["numbers", Smartphone, "Numbers"], ["profile", Building2, "Profile"],
         ["flows", Workflow, "WhatsApp Flows"], ["media", Paperclip, "Media"], ["commerce", ShoppingBag, "Commerce"],
-        ["analytics", BarChart3, "Meta analytics"], ["capabilities", RadioTower, "Capabilities"]
+        ["entry_points", Link2, "Links and QR codes"], ["analytics", BarChart3, "Meta analytics"], ["journeys", Activity, "Customer journeys"], ["capabilities", RadioTower, "Capabilities"], ...(state.account.role==='Owner'?[["integrations", KeyRound, "Integrations"]]:[])
       ].map(([id, Icon, label]) => <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => setSection(id)}><Icon size={16} /><span>{label}</span></button>)}
     </nav>
+    {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={state.account.role}/>}
+    {section === 'flows' && <WhatsAppFlowDesigner api={api} postJson={postJson} flows={operations.nativeFlows} onUploaded={()=>mutate(Promise.resolve({ok:true}), 'Flow uploaded')}/>}
+    {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={state.account.role}/>}
+    {section === 'journeys' && <WhatsAppJourneyAnalytics api={api}/>}
+    {section === 'integrations' && state.account.role==='Owner' && <><WorkspaceIntegrations api={api} postJson={postJson}/><ProviderConnectors api={api} postJson={postJson}/><TrackedLinks api={api} postJson={postJson} role={state.account.role}/></>}
     {section === "connection" && <>
 <div className="contentGrid twoColumns"><Panel title="Connection health" subtitle="Live values verified against this company workspace"><div className="connectionSummary"><div><span>Connection</span><Badge kind={state.setup.status === "Connected" ? "good" : "warn"}>{state.setup.status}</Badge></div><div><span>Onboarding</span><strong>{state.setup.onboardingMethod === 'coexistence' ? 'Business App coexistence' : state.setup.onboardingMethod === 'embedded_signup' ? 'Embedded Signup' : 'Manual'}</strong></div><div><span>Webhook subscription</span><Badge kind={state.setup.webhookSubscribed ? "good" : "warn"}>{state.setup.webhookSubscribed ? "Subscribed" : "Not verified"}</Badge></div><div><span>Business number</span><strong>{state.setup.whatsappNumber || "Not connected"}</strong></div><div><span>WABA ID</span><strong>{state.setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{state.setup.phoneNumberId || "Not connected"}</strong></div><div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div><div><span>Quality rating</span><strong>{metadata.qualityRating || activePhone?.qualityRating || "Unavailable"}</strong></div><div><span>Token health</span><Badge kind={activeAccount?.token.status === "healthy" ? "good" : "warn"}>{activeAccount?.token.status || "Unknown"}</Badge></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Meta health</span><Badge kind={activeAccount?.health?.status === "healthy" ? "good" : "warn"}>{activeAccount?.health?.status === "healthy" ? "Healthy" : activeAccount?.health?.status === "reconnect_required" ? "Reconnect needed" : activeAccount?.health?.status === "degraded" ? "Needs attention" : "Awaiting check"}</Badge></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div><div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={state.setup.status !== "Connected"}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "WhatsApp assets synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={state.setup.status !== "Connected"}><Unplug size={17} /> Disconnect</button></div></Panel><Panel title="Webhook endpoint" subtitle="Subscribe this HTTPS callback to WhatsApp webhook fields"><div className="webhookCard"><code>{state.setup.webhookUrl || state.meta.webhookUrl || "Configure APP_URL on the server"}</code><div><span>Signature verification</span><Badge kind="good">Server-side</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></Panel></div>
       <details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Embedded Signup is recommended for customer workspaces"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>
@@ -667,14 +696,13 @@ function Contacts({ state, mutate }) {
   const add = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/contacts", { name: form.get("name"), phone: form.get("phone"), tags: form.get("tags"), optInSource: form.get("optInSource"), consentEvidence: form.get("consentEvidence"), marketingPermission: form.get("marketingPermission") === "on" }), "Contact saved"); event.currentTarget.reset(); };
   const importRows = (event) => { event.preventDefault(); if (!csvText.trim()) return; mutate(postJson("/api/contacts/import", { csv: csvText }).then((next) => { setCsvText(""); setFileName(""); return next; }), "Contacts imported"); };
   const chooseFile = async (event) => { const file = event.target.files?.[0]; if (!file) return; event.target.value = ""; if (file.size > 2 * 1024 * 1024) { mutate(Promise.reject(new Error("Choose a CSV file no larger than 2 MB."))); return; } setFileName(file.name); setCsvText(await file.text()); };
-  const saveSegment = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/segments", { name: form.get("name"), description: form.get("description"), rules: { permission: form.get("permission"), tagMode: form.get("tagMode"), tags: form.get("tags"), sources: form.get("sources"), lastActiveDays: form.get("lastActiveDays"), createdWithinDays: form.get("createdWithinDays") } }), "Segment saved"); event.currentTarget.reset(); };
   const saveContact = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const allowed = form.get("marketingPermission") === "allowed"; mutate(postJson(`/api/contacts/${editContact.id}`, { name: form.get("name"), phone: form.get("phone"), tags: form.get("tags"), optInSource: form.get("optInSource"), consentEvidence: form.get("consentEvidence"), marketingPermission: allowed, unsubscribed: !allowed, customAttributes: attributesFromText(form.get("customAttributes")) }, "PATCH").then((next) => { setEditContact(null); return next; }), "Contact updated"); };
   return <div className="screenGrid">
     <div className="contentGrid audienceGrid">
       {canManage && <Panel title="Add contact" subtitle="Create a permission-aware WhatsApp contact"><form className="formGrid" onSubmit={add}><Input name="name" label="Name" required /><Input name="phone" label="Phone with country code" required /><Input name="tags" label="Tags" placeholder="lead, customer" /><Input name="optInSource" label="Opt-in source" /><Input name="consentEvidence" label="Consent evidence (when allowed)" placeholder="When and how this contact opted in" /><label className="checkRow"><input name="marketingPermission" type="checkbox" /> Marketing permission recorded</label><button className="primaryAction" type="submit"><Plus size={18} /> Add contact</button></form></Panel>}
       {canManage && <Panel title="Import contacts" subtitle="CSV: name, phone, permission, tags, opt_in_source, consent_evidence"><form className="formGrid importForm" onSubmit={importRows}><label className="fileDrop"><input type="file" accept=".csv,text/csv" onChange={chooseFile} /><Upload size={22} /><strong>{fileName || "Choose CSV file"}</strong><span>{fileName ? "Ready to import" : "or paste CSV rows below"}</span></label><label>CSV rows<textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder="name,phone,permission,tags,opt_in_source,consent_evidence" /></label><div className="importMeta"><span>{csvText.trim() ? `${csvText.trim().split(/\r?\n/).length} rows ready` : "No rows loaded"}</span><button className="secondaryAction" type="submit" disabled={!csvText.trim()}><Upload size={18} /> Import</button></div></form></Panel>}
     </div>
-    <Panel title="Saved segments" subtitle="Reusable audiences recalculated from current contact data">{canManage && <form className="segmentComposer" onSubmit={saveSegment}><Input name="name" label="Segment name" required /><Input name="description" label="Description" /><label>Permission<select name="permission" defaultValue="marketable"><option value="marketable">Marketable only</option><option value="blocked">Suppressed only</option><option value="all">All contacts</option></select></label><label>Tag match<select name="tagMode"><option value="any">Any tag</option><option value="all">All tags</option></select></label><Input name="tags" label="Tags" /><Input name="sources" label="Sources" /><Input name="lastActiveDays" label="Active within days" type="number" min="1" /><Input name="createdWithinDays" label="Created within days" type="number" min="1" /><button className="primaryAction" type="submit"><Save size={18} /> Save segment</button></form>}<div className="segmentList">{segments.map((segment) => <article key={segment.id}><div><strong>{segment.name}</strong><span>{segment.description || "Dynamic audience"}</span></div><Badge kind={segment.isActive ? "good" : "neutral"}>{segment.contactCount} contacts</Badge>{canManage && <button className="iconButton dangerSoft" type="button" title="Delete segment" onClick={() => mutate(reloadAfter(api(`/api/segments/${segment.id}`, { method: "DELETE" })), "Segment removed")}><Trash2 size={16} /></button>}</article>)}{!segments.length && <EmptyState text="No saved segments yet" />}</div></Panel>
+    <Panel title="Saved segments" subtitle="Reusable audiences recalculated from current contact data">{canManage && <AudienceSegmentComposer api={api} postJson={postJson} onSaved={() => mutate(Promise.resolve(), 'Segment saved')}/>}<div className="segmentList">{segments.map((segment) => <article key={segment.id}><div><strong>{segment.name}</strong><span>{segment.description || "Dynamic audience"}</span></div><Badge kind={segment.isActive ? "good" : "neutral"}>{segment.contactCount} contacts</Badge>{canManage && <button className="iconButton dangerSoft" type="button" title="Delete segment" onClick={() => mutate(reloadAfter(api(`/api/segments/${segment.id}`, { method: "DELETE" })), "Segment removed")}><Trash2 size={16} /></button>}</article>)}{!segments.length && <EmptyState text="No saved segments yet" />}</div></Panel>
     <Panel title="Contacts" subtitle={`${filteredContacts.length} shown of ${state.contacts.length}`}><div className="dataToolbar contactToolbar"><label className="searchBox"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search contacts" /></label><select value={permissionFilter} onChange={(event) => setPermissionFilter(event.target.value)}><option value="all">All contacts</option><option value="allowed">Marketable</option><option value="blocked">Suppressed</option></select>{canManage && <a className="secondaryAction exportAction" href="/api/contacts/export"><Download size={18} /> Export CSV</a>}</div><DataTable headers={["Name", "Phone", "Permission", "Last activity", "Actions"]}>{filteredContacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong><div className="chipRow compact">{(contact.tags || []).map((tag) => <span key={tag}>{tag}</span>)}</div></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions">{canManage && <><button onClick={() => setEditContact(contact)}><Pencil size={15} /> Edit</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE"), "Removed")}><Trash2 size={15} /> Remove</button></>}</td></tr>)}</DataTable>{!filteredContacts.length && <EmptyState text="No contacts match this view" />}</Panel>
     {editContact && <div className="modalBackdrop" role="presentation" onMouseDown={() => setEditContact(null)}><section className="editModal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="kicker">Contact profile</p><h2>Edit contact</h2></div><button className="iconButton" type="button" onClick={() => setEditContact(null)} aria-label="Close"><X size={18} /></button></header><form className="formGrid" onSubmit={saveContact}><Input name="name" label="Name" defaultValue={editContact.name} required /><Input name="phone" label="Phone" defaultValue={editContact.phone} required /><Input name="tags" label="Tags" defaultValue={(editContact.tags || []).join(", ")} /><Input name="optInSource" label="Opt-in source" defaultValue={editContact.optInSource || ""} /><Input name="consentEvidence" label="New consent evidence (if restoring permission)" /><label>Marketing permission<select name="marketingPermission" defaultValue={editContact.marketingPermission && !editContact.unsubscribed ? "allowed" : "blocked"}><option value="allowed">Allowed</option><option value="blocked">Suppressed</option></select></label><label>Custom fields<textarea name="customAttributes" defaultValue={attributesToText(editContact.customAttributes)} placeholder={"company=Example\ninterest=Pricing"} /></label><button className="primaryAction" type="submit"><Save size={18} /> Save changes</button></form></section></div>}
   </div>;
@@ -733,7 +761,7 @@ function Templates({ state, mutate }) {
     }).then((next) => { form.reset(); return next; }), "Template submitted");
   };
   const sync = () => mutate(postJson("/api/templates/sync", {}), "Templates synced");
-return <div className="screenGrid"><section className="actionBand"><div><strong>Meta template library</strong><span>Approval status and components stay synchronized with your WABA.</span></div><button className="secondaryAction" type="button" onClick={sync}><RefreshCcw size={18} /> Sync from Meta</button></section><Panel title="Create WhatsApp template" subtitle="Marketing, utility, authentication, media headers, and action buttons"><form className="templateComposer fullTemplateComposer" onSubmit={create}><Input name="name" label="Template name" required /><label>Category<select name="category"><option value="MARKETING">Marketing</option><option value="UTILITY">Utility</option><option value="AUTHENTICATION">Authentication / OTP</option></select></label><label>Language<select name="language"><option value="en_US">English (US)</option><option value="en">English</option><option value="en_GB">English (UK)</option><option value="hi">Hindi</option></select></label><label>Header format<select name="headerFormat"><option value="NONE">No header</option><option value="TEXT">Text</option><option value="IMAGE">Image</option><option value="VIDEO">Video</option><option value="DOCUMENT">Document</option></select></label><Input name="headerText" label="Text header" maxLength="60" /><Input name="headerMediaHandle" label="Meta media handle" /><label className="templateBodyField">Body<textarea name="body" placeholder="Use variables like {{name}}" required /></label><Input name="footerText" label="Footer" maxLength="60" /><Input name="buttons" label="Quick replies" placeholder="Pricing, Book demo" /><details className="advancedTemplateFields"><summary>Advanced buttons and OTP settings</summary><label>Buttons<textarea name="advancedButtons" rows="4" placeholder={"QUICK_REPLY|Pricing\nURL|Visit website|https://example.com\nPHONE_NUMBER|Call us|+919000000000"} /></label><div className="formSplit"><label>OTP action<select name="otpType"><option value="COPY_CODE">Copy code</option><option value="ONE_TAP">One-tap autofill</option></select></label><Input name="otpButtonText" label="OTP button text" defaultValue="Copy code" maxLength="25" /><Input name="codeExpirationMinutes" label="Code expiry (minutes)" type="number" min="1" max="90" defaultValue="10" /></div><div className="formSplit"><Input name="otpPackageName" label="Android package name (one-tap)" autoComplete="off" /><Input name="otpSignatureHash" label="Android app signature hash (one-tap)" autoComplete="off" /><Input name="otpAutofillText" label="One-tap button text" maxLength="25" /></div></details><button className="primaryAction" type="submit"><MessageSquareText size={18} /> Submit to Meta</button></form></Panel><div className="cardGrid">{state.templates.map((template) => <article className="templateCard" key={template.id}><div className="cardHead"><div><h3>{template.name}</h3><small>{template.category} | {template.language} | {template.componentSchema?.headerFormat || "TEXT"}</small></div><Badge kind={template.status === "Approved" ? "good" : template.status === "Pending" ? "warn" : "bad"}>{template.status}</Badge></div>{template.headerText && <strong className="templateHeaderText">{template.headerText}</strong>}<p>{template.body}</p>{template.footerText && <small className="templateFooterText">{template.footerText}</small>}<div className="chipRow">{(template.buttons || []).map((button) => <span key={`${button.type || "button"}-${button.text}`}>{button.type && button.type !== "QUICK_REPLY" ? `${button.type}: ` : ""}{button.text}</span>)}{template.variables.map((variable) => <span key={variable}>{`{{${variable}}}`}</span>)}</div><TemplateInsights template={template} />{template.rejectionReason && <small className="errorLine">{template.rejectionReason}</small>}</article>)}</div>{!state.templates.length && <Panel title="No templates"><EmptyState text="Submit or sync a WhatsApp template to begin" /></Panel>}</div>;
+return <div className="screenGrid"><section className="actionBand"><div><strong>Meta template library</strong><span>Approval status and components stay synchronized with your WABA.</span></div><button className="secondaryAction" type="button" onClick={sync}><RefreshCcw size={18} /> Sync from Meta</button></section><Panel title="Create WhatsApp template" subtitle="Marketing, utility, authentication, media headers, and action buttons"><form className="templateComposer fullTemplateComposer" onSubmit={create}><Input name="name" label="Template name" required /><label>Category<select name="category"><option value="MARKETING">Marketing</option><option value="UTILITY">Utility</option><option value="AUTHENTICATION">Authentication / OTP</option></select></label><label>Language<select name="language"><option value="en_US">English (US)</option><option value="en">English</option><option value="en_GB">English (UK)</option><option value="hi">Hindi</option></select></label><label>Header format<select name="headerFormat"><option value="NONE">No header</option><option value="TEXT">Text</option><option value="IMAGE">Image</option><option value="VIDEO">Video</option><option value="DOCUMENT">Document</option></select></label><Input name="headerText" label="Text header" maxLength="60" /><Input name="headerMediaHandle" label="Meta media handle" /><label className="templateBodyField">Body<textarea name="body" placeholder="Use variables like {{name}}" required /></label><Input name="footerText" label="Footer" maxLength="60" /><Input name="buttons" label="Quick replies" placeholder="Pricing, Book demo" /><details className="advancedTemplateFields"><summary>Advanced buttons and OTP settings</summary><label>Buttons<textarea name="advancedButtons" rows="4" placeholder={"QUICK_REPLY|Pricing\nURL|Visit website|https://example.com\nPHONE_NUMBER|Call us|+919000000000"} /></label><div className="formSplit"><label>OTP action<select name="otpType"><option value="COPY_CODE">Copy code</option><option value="ONE_TAP">One-tap autofill</option></select></label><Input name="otpButtonText" label="OTP button text" defaultValue="Copy code" maxLength="25" /><Input name="codeExpirationMinutes" label="Code expiry (minutes)" type="number" min="1" max="90" defaultValue="10" /></div><div className="formSplit"><Input name="otpPackageName" label="Android package name (one-tap)" autoComplete="off" /><Input name="otpSignatureHash" label="Android app signature hash (one-tap)" autoComplete="off" /><Input name="otpAutofillText" label="One-tap button text" maxLength="25" /></div></details><button className="primaryAction" type="submit"><MessageSquareText size={18} /> Submit to Meta</button></form></Panel><AdvancedTemplateComposer postJson={postJson} onCreated={()=>mutate(Promise.resolve({ok:true}),"Template submitted")}/><div className="cardGrid">{state.templates.map((template) => <article className="templateCard" key={template.id}><div className="cardHead"><div><h3>{template.name}</h3><small>{template.category} | {template.language} | {template.componentSchema?.headerFormat || "TEXT"}</small></div><Badge kind={template.status === "Approved" ? "good" : template.status === "Pending" ? "warn" : "bad"}>{template.status}</Badge></div>{template.headerText && <strong className="templateHeaderText">{template.headerText}</strong>}<p>{template.body}</p>{template.footerText && <small className="templateFooterText">{template.footerText}</small>}<div className="chipRow">{(template.buttons || []).map((button) => <span key={`${button.type || "button"}-${button.text}`}>{button.type && button.type !== "QUICK_REPLY" ? `${button.type}: ` : ""}{button.text}</span>)}{template.variables.map((variable) => <span key={variable}>{`{{${variable}}}`}</span>)}</div><TemplateInsights template={template} />{template.rejectionReason && <small className="errorLine">{template.rejectionReason}</small>}</article>)}</div>{!state.templates.length && <Panel title="No templates"><EmptyState text="Submit or sync a WhatsApp template to begin" /></Panel>}</div>;
 }
 function AutomationFlows({ state, mutate, approvedTemplates }) {
   const flows = state.automationFlows || [];
@@ -788,8 +816,11 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
       buttonText: node.buttonText || "",
       sectionTitle: node.sectionTitle || "",
       templateId: node.templateId || "",
+      templateValues: node.templateValues || {},
+      templateParameters: node.templateParameters || {},
       delayMinutes: node.delayMinutes || 0,
       assignedUserId: node.assignedUserId || ""
+      ,errorNext:node.errorNext||"",falseNext:node.falseNext||"",attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing"
     })));
     setFormError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -814,8 +845,11 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
       buttonText: String(node.buttonText || "").trim(),
       sectionTitle: String(node.sectionTitle || "").trim(),
       templateId: node.templateId,
+      templateValues: node.templateValues || {},
+      templateParameters: node.templateParameters || {},
       delayMinutes: Math.max(0, Number(node.delayMinutes) || 0),
-      assignedUserId: node.assignedUserId
+      assignedUserId: node.assignedUserId,
+      errorNext:node.errorNext||"",falseNext:node.falseNext||"",attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing"
     })).filter((node) => node.id);
     return { startNodeId: cleanNodes[0]?.id || "", nodes: cleanNodes };
   };
@@ -869,11 +903,13 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
           <header><button className="iconButton dragHandle" type="button" title="Drag node"><Bot size={16} /></button><div><strong>{node.id || `Node ${nodeIndex + 1}`}</strong><span>{nodeIndex === 0 ? "Start node" : "Step node"}</span></div><button className="iconButton dangerSoft" type="button" title="Remove node" onClick={() => removeNode(node.id)}><Trash2 size={16} /></button></header>
           <div className="nodeFields">
             <label>Node ID<input value={node.id} onChange={(event) => updateNode(node.id, "id", event.target.value)} /></label>
-            <label>Type<select value={node.type} onChange={(event) => updateNode(node.id, "type", event.target.value)}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option><option value="handoff">Human handoff</option><option value="end">End</option></select></label>
+            <label>Type<select value={node.type} onChange={(event) => updateNode(node.id, "type", event.target.value)}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option><option value="handoff">Human handoff</option><option value="end">End</option><option value="attribute_condition">Contact condition</option><option value="set_contact_attribute">Set contact field</option><option value="api_request">API request</option><option value="order_lookup">Order lookup</option><option value="set_order_status">Update order status</option></select></label>
             <label>Input<select value={node.inputKind} onChange={(event) => updateNode(node.id, "inputKind", event.target.value)}><option value="buttons">Buttons</option><option value="list">List</option><option value="text">Free text</option><option value="none">No input</option></select></label>
             <label>Next node<select value={node.next} onChange={(event) => updateNode(node.id, "next", event.target.value)}><option value="">None</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label>
           </div>
+          <AutomationAdvancedNodeFields node={node} nodes={nodes} update={(key,value)=>updateNode(node.id,key,value)} api={api}/>
           {node.type === "template" && <div className="nodeFields"><label>Approved template<select value={node.templateId} onChange={(event) => updateNode(node.id, "templateId", event.target.value)}><option value="">Select template</option>{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label><label>Delay minutes<input type="number" min="0" value={node.delayMinutes} onChange={(event) => updateNode(node.id, "delayMinutes", event.target.value)} /></label></div>}
+          {node.type === 'template' && <><div className="nodeFields">{(approvedTemplates.find(template=>template.id===node.templateId)?.variables||[]).map(key=><label key={key}>Variable {key}<input required value={node.templateValues?.[key]||''} onChange={event=>updateNode(node.id,'templateValues',{...(node.templateValues||{}),[key]:event.target.value})}/></label>)}</div><TemplateParameterFields template={approvedTemplates.find(template=>template.id===node.templateId)} value={node.templateParameters||{}} onChange={value=>updateNode(node.id,'templateParameters',value)}/></>}
           {node.type === "handoff" && <label>Assign to<select value={node.assignedUserId} onChange={(event) => updateNode(node.id, "assignedUserId", event.target.value)}><option value="">Keep unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select></label>}
           <label>Message<textarea rows="4" value={node.body} onChange={(event) => updateNode(node.id, "body", event.target.value)} placeholder="Message body. Use variables like {{name}} or captured values."></textarea></label>
           <div className="nodeFields"><label>Fallback<textarea rows="2" value={node.fallback} onChange={(event) => updateNode(node.id, "fallback", event.target.value)} placeholder="Shown when reply does not match"></textarea></label><label>Capture as<input value={node.captureAs} onChange={(event) => updateNode(node.id, "captureAs", event.target.value)} placeholder="Variable name" /></label></div>
@@ -883,6 +919,7 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
       </section>
     </form>
 
+    <AutomationConnections api={api} postJson={postJson} role={state.account.role}/>
     <div className="flowCardGrid">
       {flows.map((flow) => <article className="templateCard flowCard" key={flow.id}><div className="cardHead"><div><h3>{flow.name}</h3><p>{flow.description || "No description"}</p></div><Badge kind={flow.status === "active" ? "good" : flow.status === "paused" ? "warn" : "neutral"}>{flow.status}</Badge></div><div className="statusGrid"><Metric label="Nodes" value={flow.nodeCount} /><Metric label="Active" value={flow.activeSessions} /><Metric label="Completed" value={flow.completedSessions} /><Metric label="Rate" value={`${flow.completionRate || 0}%`} /></div><div className="chipRow">{flow.triggerKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}{!flow.triggerKeywords.length && <span>{flow.triggerMode}</span>}</div><div className="flowActions"><button className="secondaryAction" type="button" onClick={() => loadFlow(flow)}>Edit</button><button className="secondaryAction" type="button" onClick={() => updateStatus(flow, flow.status === "active" ? "paused" : "active")}>{flow.status === "active" ? "Pause" : "Activate"}</button><button className="secondaryAction dangerSoft" type="button" onClick={() => archive(flow)}><Trash2 size={16} /> Archive</button></div></article>)}
       {!flows.length && <Panel title="No automation flows"><EmptyState text="Create and activate a flow to automate replies from incoming WhatsApp messages." /></Panel>}
@@ -913,13 +950,13 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
-      await postJson("/api/campaigns", { name: form.get("name"), templateId, deliveryMethod, parameters: templateParameters, automationFlowId, segmentId, variables, contactIds: selectedContactIds, scheduledAt: form.get("scheduledAt") ? new Date(form.get("scheduledAt")).toISOString() : "", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
-      await mutate(postJson("/api/campaigns/process", { limit: 25 }), "Campaign queued");
+      const created = await postJson("/api/campaigns", { name: form.get("name"), templateId, deliveryMethod, parameters: templateParameters, automationFlowId, segmentId, variables, contactIds: selectedContactIds, scheduledAt: form.get("scheduledAt") ? new Date(form.get("scheduledAt")).toISOString() : "", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, frequencyHours: form.get('frequencyHours'), requireApproval: form.get('requireApproval')==='on' });
+      await mutate(postJson("/api/campaigns/process", { limit: 25 }), created.approvalStatus==='pending' ? 'Campaign awaiting owner review' : "Campaign queued");
       setActiveView("results");
     } catch (error) { mutate(Promise.reject(error)); }
   };
   const targetCount = segment ? segment.contactCount : selectedContactIds.length;
-  return <div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Approved template<select value={template?.id || ""} onChange={(event) => { setTemplateId(event.target.value); setVariables({}); setDeliveryMethod('cloud_api'); }} disabled={!approvedTemplates.length}><option value="">{approvedTemplates.length ? "Choose template" : "No approved templates available"}</option>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name} ({item.language})</option>)}</select></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {state.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<select value={segmentId} onChange={(event) => { setSegmentId(event.target.value); if (event.target.value) setSelectedContactIds([]); }}><option value="">Select contacts manually</option>{segments.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.contactCount})</option>)}</select></label><label>Schedule<input name="scheduledAt" type="datetime-local" /></label><label>Reply automation<select value={automationFlowId} onChange={(event) => setAutomationFlowId(event.target.value)}><option value="">No follow-up flow</option>{activeFlows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!template || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div>;
+  return <div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Approved template<select value={template?.id || ""} onChange={(event) => { setTemplateId(event.target.value); setVariables({}); setDeliveryMethod('cloud_api'); }} disabled={!approvedTemplates.length}><option value="">{approvedTemplates.length ? "Choose template" : "No approved templates available"}</option>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name} ({item.language})</option>)}</select></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {state.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<select value={segmentId} onChange={(event) => { setSegmentId(event.target.value); if (event.target.value) setSelectedContactIds([]); }}><option value="">Select contacts manually</option>{segments.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.contactCount})</option>)}</select></label><label>Schedule<input name="scheduledAt" type="datetime-local" /></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<select value={automationFlowId} onChange={(event) => setAutomationFlowId(event.target.value)}><option value="">No follow-up flow</option>{activeFlows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!template || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div>;
 }
 function WhatsAppReferralReport() {
   const [days, setDays] = useState(30);
@@ -960,27 +997,32 @@ function Results({ state, mutate }) {
   const processQueue = () => mutate(postJson("/api/campaigns/process", { limit: 25 }), "Queue processed");
   const canManage = ["Owner", "Manager"].includes(state.account.role);
   const lifecycle = (campaign, action) => mutate(postJson(`/api/campaigns/${campaign.id}`, { action }, "PATCH"), `Campaign ${action}d`);
-return <div className="screenGrid"><WhatsAppReferralReport /><section className="actionBand"><div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div>{canManage && <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button>}</section>{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={campaign.scheduledAt ? `Scheduled ${formatTime(campaign.scheduledAt)} | ${campaign.timezone}` : formatTime(campaign.createdAt)}><div className="resultHeader campaignResultActions"><Badge kind={campaign.status === "failed" || campaign.status === "cancelled" ? "bad" : ["scheduled", "processing", "paused", "queued"].includes(campaign.status) ? "warn" : "good"}>{campaign.status}</Badge><Badge kind="neutral">{campaign.deliveryMethod === "marketing_messages_api" ? "Marketing Messages API" : "Cloud API"}</Badge>{canManage && ["queued", "scheduled", "processing"].includes(campaign.status) && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "pause")}><Pause size={15} /> Pause</button>}{canManage && campaign.status === "paused" && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "resume")}><Play size={15} /> Resume</button>}{canManage && ["queued", "scheduled", "processing", "paused"].includes(campaign.status) && <button className="secondaryAction compactAction dangerSoft" onClick={() => lifecycle(campaign, "cancel")}><X size={15} /> Cancel</button>}</div><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.id || recipient.metaMessageId}><td><strong>{contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : recipient.status === "queued" ? "warn" : "good"}>{recipient.status}</Badge></td><td><span>{recipient.message}</span>{recipient.errorMessage && <small className="errorLine">{recipient.errorMessage}</small>}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
+  const control = async (campaign,action,values) => { await postJson(`/api/campaigns/${campaign.id}`,{action,...values},'PATCH');await mutate(Promise.resolve({ok:true}),'Campaign updated'); };
+return <div className="screenGrid"><CampaignPolicy role={state.account.role} businessId={state.account.business.id} api={api} postJson={postJson}/><WhatsAppReferralReport /><section className="actionBand"><div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div>{canManage && <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button>}</section>{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={campaign.scheduledAt ? `Scheduled ${formatTime(campaign.scheduledAt)} | ${campaign.timezone}` : formatTime(campaign.createdAt)}><div className="resultHeader campaignResultActions"><Badge kind={campaign.status === "failed" || campaign.status === "cancelled" ? "bad" : ["scheduled", "processing", "paused", "queued", "draft", "pending_approval"].includes(campaign.status) ? "warn" : "good"}>{campaign.status}</Badge><Badge kind="neutral">{campaign.deliveryMethod === "marketing_messages_api" ? "Marketing Messages API" : "Cloud API"}</Badge>{canManage && ["queued", "scheduled", "processing"].includes(campaign.status) && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "pause")}><Pause size={15} /> Pause</button>}{canManage && campaign.status === "paused" && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "resume")}><Play size={15} /> Resume</button>}{canManage && ["queued", "scheduled", "processing", "paused"].includes(campaign.status) && <button className="secondaryAction compactAction dangerSoft" onClick={() => lifecycle(campaign, "cancel")}><X size={15} /> Cancel</button>}</div><CampaignControls campaign={campaign} role={state.account.role} submit={control} /><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.id || recipient.metaMessageId}><td><strong>{recipient.contactName || contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : recipient.status === "queued" ? "warn" : "good"}>{recipient.status}</Badge></td><td><span>{recipient.message}</span>{recipient.jobStatus&&<small>{recipient.jobStatus} | Attempts {recipient.attempts} / {recipient.maxAttempts}</small>}{recipient.nextRunAt&&<small>Next attempt: {formatTime(recipient.nextRunAt)}</small>}{recipient.jobError&&recipient.jobError!==recipient.errorMessage&&<small>{recipient.jobError}</small>}{recipient.errorMessage && <small className="errorLine">{recipient.errorMessage}</small>}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
 }
 function MessageContent({ message }) {
   const mediaUrl = `/api/media/${message.id}`;
   const referral = message.metadata?.referral;
+  const sourceLabel = message.metadata?.source === 'coexistence_history' ? 'Imported Business App history' : message.metadata?.source === 'coexistence_echo' ? 'Sent from Business App' : '';
   let content;
   if (message.messageType === "image" || message.messageType === "sticker") content = <><a className="mediaPreview" href={mediaUrl} target="_blank" rel="noreferrer"><Image size={16} /><img src={mediaUrl} alt={message.caption || "WhatsApp attachment"} loading="lazy" /></a>{message.caption && <p>{message.caption}</p>}</>;
   else if (message.messageType === "video") content = <><video className="messageMedia" controls preload="metadata" src={mediaUrl} /><p>{message.caption}</p></>;
   else if (message.messageType === "audio") content = <audio className="messageAudio" controls preload="metadata" src={mediaUrl} />;
   else if (message.messageType === "document") content = <a className="mediaDownload" href={mediaUrl} target="_blank" rel="noreferrer"><FileText size={17} /><span>{message.metadata?.filename || message.caption || "Open document"}</span></a>;
   else content = <p>{message.body}</p>;
-  return <>{referral && <div className="messageReferral"><span>{referral.sourceType === "AD" ? "WhatsApp ad" : "WhatsApp post"} / {referral.sourceId}</span>{referral.headline && <strong>{referral.headline}</strong>}</div>}{content}</>;
+  return <>{sourceLabel&&<small>{sourceLabel}</small>}{referral && <div className="messageReferral"><span>{referral.sourceType === "AD" ? "WhatsApp ad" : "WhatsApp post"} / {referral.sourceId}</span>{referral.headline && <strong>{referral.headline}</strong>}</div>}{content}</>;
 }
 
 function TemplateReplyForm({ approvedTemplates, activeContact, mutate }) {
   const [templateId, setTemplateId] = useState(approvedTemplates[0]?.id || "");
+  const [parameters, setParameters] = useState({});
   useEffect(() => { if (!approvedTemplates.some((item) => item.id === templateId)) setTemplateId(approvedTemplates[0]?.id || ""); }, [approvedTemplates, templateId]);
   const template = approvedTemplates.find((item) => item.id === templateId);
+  const flowButtons = template?.componentSchema?.components?.find((component) => String(component.type).toUpperCase() === 'BUTTONS')?.buttons || template?.componentSchema?.buttons || template?.buttons || [];
+  const flowTemplate = flowButtons.some((button) => String(button.type).toUpperCase() === 'FLOW');
   const replyVariables = (template?.variables || []).filter((variable) => variable !== "name");
-  const submit = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const variables = Object.fromEntries(replyVariables.map((variable) => [variable, form.get(variable)])); mutate(postJson("/api/messages/template-reply", { contactId: activeContact.id, templateId, variables }), "Template sent"); };
-  return <form className="composer templateLine" onSubmit={submit}><select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{approvedTemplates.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.language})</option>)}</select>{replyVariables.map((variable) => <input key={variable} name={variable} placeholder={`{{${variable}}}`} required />)}<button className="secondaryAction" disabled={!template}><Send size={17} /> Send template</button></form>;
+  const submit = async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const variables = Object.fromEntries(replyVariables.map((variable) => [variable, form.get(variable)])); const {flowInvite, ...sendParameters} = parameters; const path = flowTemplate ? '/api/whatsapp/flow-templates' : '/api/messages/template-reply'; const payload = {contactId: activeContact.id, templateId, variables, parameters: flowTemplate ? {...sendParameters, flowInvite: flowInvite || {requestId: crypto.randomUUID(), expiresHours: 24}} : sendParameters}; if(flowTemplate)payload.action='send'; const succeeded = await mutate(postJson(path, payload), 'Template sent'); if(flowTemplate && succeeded)setParameters({...sendParameters, flowInvite: {requestId: crypto.randomUUID(), expiresHours: flowInvite?.expiresHours || 24}}); };
+  return <form className="composer templateLine" onSubmit={submit}><select value={templateId} onChange={(event) => {setTemplateId(event.target.value);setParameters({});}}>{approvedTemplates.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.language})</option>)}</select>{replyVariables.map((variable) => <input key={variable} name={variable} placeholder={`{{${variable}}}`} required />)}<TemplateParameterFields template={template} value={parameters} onChange={setParameters} /><button className="secondaryAction" disabled={!template}><Send size={17} /> Send template</button></form>;
 }
 
 function InteractiveReplyForm({ activeContact, mutate }) {
@@ -1037,6 +1079,10 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>;
 }
 function Team({ state, mutate }) {
+  return <><TeamMembers state={state} mutate={mutate}/>{['Owner','Manager'].includes(state.account?.role)&&<SupportPolicy endpoint="/api/team/support-policy" canEdit={state.account.role==='Owner'} api={api} postJson={postJson}/>}</>;
+}
+
+function TeamMembers({ state, mutate }) {
   const members = state.teamMembers || [];
   const canManage = ["Owner", "Manager"].includes(state.account?.role);
   const [invitations, setInvitations] = useState([]);

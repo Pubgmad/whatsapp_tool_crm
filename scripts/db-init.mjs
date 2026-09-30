@@ -4,6 +4,7 @@ import process from "node:process";
 import nextEnv from "@next/env";
 import pg from "pg";
 import { seedPlatformSettings } from "../lib/platform.js";
+import { DEFAULT_PRIVACY_POLICY } from "../lib/privacy-policy.js";
 import { databaseSslConfig } from "../lib/db.js";
 
 const { loadEnvConfig } = nextEnv;
@@ -165,6 +166,27 @@ try {
   await client.query(schema);
   await client.query(await fs.readFile(new URL('../db/whatsapp-commerce.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/whatsapp-template-parameters.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-conversions.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/meta-credit-operations.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/razorpay.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-calling.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-native-payments.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-ads.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/campaign-controls.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/coexistence-recovery.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-entry-points.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-flow-designs.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-call-followups.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/workspace-integrations.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-experiences.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/commerce-automation.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/engagement-audiences.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-widgets.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/support-policy.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/click-tracking.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/automation-advanced-nodes.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/provider-connectors.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/flow-runtime.sql', import.meta.url), 'utf8'));
   await client.query(
     `INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
      SELECT 'mue_' || md5(m.meta_message_id),c.business_id,c.contact_id,m.meta_message_id,
@@ -246,6 +268,16 @@ try {
        updated_at = NOW()`
   );
   await seedPlatformSettings(client);
+  const privacySettings = (await client.query("SELECT key,value FROM platform_settings WHERE key IN ('privacy_intro','privacy_last_updated')")).rows;
+  const privacyValues = Object.fromEntries(privacySettings.map((row) => [row.key, row.value]));
+  const initialPolicy = { ...DEFAULT_PRIVACY_POLICY, intro: String(privacyValues.privacy_intro || DEFAULT_PRIVACY_POLICY.intro) };
+  await client.query(
+    "INSERT INTO privacy_policy_versions (id,version,document,effective_date) VALUES ('privacy_initial',1,$1::jsonb,$2) ON CONFLICT (version) DO NOTHING",
+    [JSON.stringify(initialPolicy), String(privacyValues.privacy_last_updated || new Date().toISOString().slice(0, 10))]
+  );
+  await client.query(
+    "INSERT INTO privacy_policy_drafts (id,document) SELECT 'current',document FROM privacy_policy_versions ORDER BY version DESC LIMIT 1 ON CONFLICT (id) DO NOTHING"
+  );
   await seedSubscriptionPlans(client);
   await backfillSubscriptions(client);
   await seedSuperAdmin(client);

@@ -1,10 +1,18 @@
 import { requireSession } from '@/lib/auth';
-import { requestCoexistenceSync } from '@/lib/coexistence';
+import { requestCoexistenceSync, coexistenceStatusForBusiness } from '@/lib/coexistence';
 import { AppError, errorJson, json, query } from '@/lib/db';
 import { readJsonBodyLimited } from '@/lib/security';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export async function GET(request) {
+  try {
+    const session=await requireSession(request);
+    if (!['Owner','Manager'].includes(session.role)) throw new AppError('Workspace management access is required.',403,'FORBIDDEN');
+    return json({phones:await coexistenceStatusForBusiness(session.businessId)});
+  } catch(error) {return errorJson(error);}
+}
 
 export async function POST(request) {
   try {

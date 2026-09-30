@@ -13,6 +13,15 @@ try {
   const targets = [
     ['businesses', 'id', 'access_token_encrypted'],
     ['whatsapp_accounts', 'id', 'access_token_encrypted'],
+    ['whatsapp_conversion_settings', 'business_id', 'access_token_encrypted'],
+    ['whatsapp_ads_connections', 'business_id', 'access_token_encrypted'],
+    ['workspace_webhooks', 'id', 'signing_secret_encrypted'],
+    ['tracked_link_tokens', 'id', 'token_encrypted'],
+    ['automation_outbound_connections', 'id', 'credential_encrypted'],
+    ['provider_connectors', 'id', 'secret_encrypted'],
+    ['merchant_payment_settings', 'business_id', 'key_secret_encrypted'],
+    ['merchant_payment_settings', 'business_id', 'webhook_secret_encrypted'],
+    ['merchant_payment_settings', 'business_id', 'webhook_secret_previous_encrypted'],
     ['users', 'id', 'mfa_secret_encrypted'],
     ['super_admins', 'id', 'mfa_secret_encrypted']
   ];

@@ -1,0 +1,13 @@
+.supportPolicy{min-width:0;padding:20px 0;border-top:1px solid var(--line)}
+.supportPolicy h3{font-size:17px;line-height:1.4;margin:0}
+.supportPolicy h4{font-size:14px;margin:20px 0 10px}
+.supportPolicyGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px;margin:14px 0}
+.supportPolicyGrid label,.supportHours label{display:grid;gap:6px;min-width:0;font-size:13px;overflow-wrap:anywhere}
+.supportPolicy input:not([type=checkbox]),.supportPolicy select{width:100%;min-width:0}
+.supportPolicy .checkRow{display:flex;align-items:center;gap:8px}
+.supportPolicy .checkRow input{flex:0 0 auto}
+.supportHours{display:grid;grid-template-columns:minmax(100px,1fr) repeat(2,minmax(0,1fr));gap:12px;align-items:center;padding:8px 0}
+.supportPolicy button{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.supportPolicy table{min-width:520px}
+.supportPolicy .wa-module-table{overflow-x:auto;max-width:100%}
+@media(max-width:480px){.supportHours{grid-template-columns:repeat(2,minmax(0,1fr))}.supportHours>.checkRow{grid-column:1/-1}}
