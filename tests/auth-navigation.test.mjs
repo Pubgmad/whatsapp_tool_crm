@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { isSessionFailure, createRequestGate } from '../lib/auth-navigation.js';
 import nextConfig from '../next.config.js';
 
-test('only invalid or revoked sessions trigger automatic sign-in navigation', () => {
+test('session failures remain distinct from infrastructure and access errors', () => {
   for (const code of ['AUTH_REQUIRED','SESSION_REVOKED','SUPER_ADMIN_AUTH_REQUIRED']) assert.equal(isSessionFailure({code}),true);
   for (const code of ['DB_NOT_CONFIGURED','SERVER_ERROR','RATE_LIMITED','ACCOUNT_SUSPENDED','EMAIL_NOT_VERIFIED','SUPER_ADMIN_FORBIDDEN']) assert.equal(isSessionFailure({code}),false);
   assert.equal(isSessionFailure(new Error('Connection closed')),false);

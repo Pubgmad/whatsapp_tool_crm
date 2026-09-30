@@ -199,6 +199,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [loading, setLoading] = useState(!authMode);
   const [configError, setConfigError] = useState("");
   const [bootstrapError, setBootstrapError] = useState(null);
+  const [recoveryError, setRecoveryError] = useState("");
   const [activeView, setActiveView] = useState(initialLocation.view);
   const [activeConversationId, setActiveConversationId] = useState(initialLocation.conversationId);
   const [notice, setNotice] = useState("");
@@ -236,11 +237,6 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
       });
   }, [account, authMode, pathname]);
   useEffect(() => {
-    if (loading || configError) return;
-    if (authMode && account) window.location.replace('/app/dashboard');
-    if (!authMode && !account && isSessionFailure(bootstrapError)) window.location.replace('/login');
-  }, [account, authMode, bootstrapError, configError, loading, router]);
-  useEffect(() => {
     if (!account) return undefined;
     const timer = window.setInterval(async () => {
       if (document.visibilityState !== "visible") return;
@@ -254,12 +250,15 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   const bootstrap = async () => {
     const request = scopeGate.current.begin();
+    let verifiedAccount = null;
     try {
       setLoading(true);
       setBootstrapError(null);
+      setRecoveryError("");
       const publicConfig = await api("/api/platform").catch(() => ({ platform: fallbackPlatform }));
       setPlatform({ ...fallbackPlatform, ...(publicConfig.platform || {}) });
       const me = await api("/api/me");
+      verifiedAccount = me;
       const location = authMode ? { view: "overview", conversationId: "" } : workspaceLocation(pathname);
       const nextState = await api(stateUrl(location.view, { conversationId: location.conversationId || "" }));
       if (!scopeGate.current.current(request)) return;
@@ -271,6 +270,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
       if (!scopeGate.current.current(request)) return;
       setState(null);
       if (isSessionFailure(error)) setAccount(null);
+      else if (verifiedAccount) setAccount(verifiedAccount);
       setBootstrapError(error);
       if (["DB_NOT_CONFIGURED", "AUTH_NOT_CONFIGURED"].includes(error.code)) setConfigError(error.message);
     } finally {
@@ -311,11 +311,16 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   };
 
   const logout = async () => {
-    await postJson("/api/auth/logout", {});
-    scopeGate.current.invalidate();
-    setAccount(null);
-    setState(null);
-    window.location.replace('/login');
+    try {
+      await postJson("/api/auth/logout", {});
+      scopeGate.current.invalidate();
+      setAccount(null);
+      setState(null);
+      window.location.replace('/login');
+    } catch (error) {
+      setRecoveryError(error.message || 'Sign out failed. Try again.');
+      notify(error.message);
+    }
   };
 
   const selectWorkspace = async (event) => {
@@ -347,6 +352,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   if (loading) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
   if (configError) return <SystemSetup message={configError} platform={platform} />;
+  if (!authMode && isSessionFailure(bootstrapError)) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Session could not be verified</p><span>Retry the connection, or sign out to start a new session.</span>{recoveryError && <span role='alert'>{recoveryError}</span>}<div className='authRecoveryActions'><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button><button className='secondaryAction' type='button' onClick={logout}>Sign out</button></div></main>;
   if (account && !state && bootstrapError) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && !authMode && bootstrapError && !isSessionFailure(bootstrapError)) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && authMode) return <AuthScreen onDone={() => window.location.replace('/app/dashboard')} platform={platform} initialMode={authMode} onModeChange={(mode) => router.push(mode === "signup" ? "/signup" : "/login")} />;
