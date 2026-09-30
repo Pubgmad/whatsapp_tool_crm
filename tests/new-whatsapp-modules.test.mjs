@@ -4,7 +4,8 @@ import crypto from 'node:crypto';
 import {validateCallingPolicy,callingAccess} from '../lib/whatsapp-calling.js';
 import {flowCreationButton,flowSendParameter} from '../lib/flow-template-components.js';
 import {validateTemplateParameters} from '../lib/template-send-components.js';
-import {validateRuntimeConfig,validateRuntimePayload} from '../lib/flow-runtime.js';
+import {validateRuntimeConfig,validateRuntimePayload,provisionRuntimeInvite,isManagedRuntimeEndpoint} from '../lib/flow-runtime.js';
+import {editedWhatsAppCreative} from '../lib/whatsapp-ads.js';
 import {connectorSource,verifyProviderSignature,normalizeProviderEvent} from '../lib/provider-connectors.js';
 import {normalizeAdvancedNode,executeAdvancedNode} from '../lib/automation-node-runtime.js';
 
@@ -35,6 +36,39 @@ test('transactional Flow runtime validates explicit assets and bearer-bound acti
  assert.equal(validateRuntimePayload(payload).data.quantity,1);
  assert.throws(()=>validateRuntimePayload({...payload,flow_token:'fake'}));
  assert.throws(()=>validateRuntimePayload({...payload,data:{...payload.data,quantity:1001}}));
+});
+test('a managed Flow invitation provisions its matching runtime token in the same transaction',async()=>{
+ const previous=process.env.APP_URL;
+ process.env.APP_URL='https://crm.example.test';
+ const token='a'.repeat(64),writes=[];
+ const config={enabled:true,mode:'booking',resourceIds:['slot_1'],initialScreen:'CHOOSE',reviewScreen:'REVIEW',allowedActions:['list'],holdMinutes:10};
+ const client={query:async(sql,args)=>{
+   if(sql.includes('FROM flow_runtime_configs c'))return {rows:[{config,revision:3,endpoint_phone_id:'phone_1'}]};
+   if(sql.includes('FROM flow_runtime_configs WHERE'))return {rows:[{config}]};
+   if(sql.includes('INSERT INTO flow_runtime_sessions')){writes.push(args);return {rowCount:1};}
+   throw new Error('Unexpected SQL: '+sql);
+ }};
+ const flow={id:'flow_1',endpoint_uri:'https://crm.example.test/api/whatsapp/flows/runtime/data/flow_1'};
+ assert.equal(isManagedRuntimeEndpoint(flow),true);
+ assert.equal(isManagedRuntimeEndpoint({...flow,endpoint_uri:flow.endpoint_uri+'-other'}),false);
+ assert.equal(isManagedRuntimeEndpoint({...flow,endpoint_uri:'https://elsewhere.test/api/whatsapp/flows/runtime/data/flow_1'}),false);
+ try{
+   const result=await provisionRuntimeInvite(client,{businessId:'business_1',flow,contactId:'contact_1',phoneId:'phone_1',flowToken:token,expiresHours:2});
+   assert.equal(result.flowToken,token);
+   assert.equal(writes[0][5],crypto.createHash('sha256').update(token).digest('hex'));
+   assert.equal(writes[0][8],120);
+   await assert.rejects(provisionRuntimeInvite(client,{businessId:'business_1',flow,contactId:'contact_1',phoneId:'phone_1',flowToken:token,expiresHours:25}),{code:'FLOW_RUNTIME_INVALID'});
+   assert.equal(writes.length,1);
+ }finally{if(previous===undefined)delete process.env.APP_URL;else process.env.APP_URL=previous;}
+});
+test('creative replacements keep only the verified WhatsApp destination and selected account assets',()=>{
+ const body={mediaType:'image',text:'Book a call',headline:'Talk with us',imageHash:'a'.repeat(32),name:'New creative'};
+ const result=editedWhatsAppCreative(body,{page_id:'123'},'15551234567');
+ assert.equal(result.object_story_spec.page_id,'123');
+ assert.equal(result.object_story_spec.link_data.call_to_action.value.whatsapp_number,'15551234567');
+ assert.equal(result.object_story_spec.link_data.image_hash,'a'.repeat(32));
+ assert.throws(()=>editedWhatsAppCreative({...body,imageHash:'https://evil.test'}, {page_id:'123'},'15551234567'),{code:'ADS_PAYLOAD_INVALID'});
+ assert.equal(editedWhatsAppCreative({...body,mediaType:'video',videoId:'321'},{page_id:'123'},'15551234567').object_story_spec.video_data.video_id,'321');
 });
 test('provider connectors verify exact signed payloads and do not infer consent from orders',()=>{
  const raw=Buffer.from(JSON.stringify({id:123,updated_at:'2026-09-29T00:00:00Z',total_price:'5.00',currency:'USD',phone:'+15550001111'}));

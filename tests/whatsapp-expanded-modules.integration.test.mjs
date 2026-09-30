@@ -38,8 +38,10 @@ test('native payments reject cross-company orders and duplicate uncertain checko
     const sql="INSERT INTO whatsapp_native_checkouts (id,business_id,order_id,configuration_name,amount_minor,status) VALUES ($1,$2,$3,'real-config',5000,'unconfirmed')";
     await assert.rejects(query(sql,['wrong_'+suffix,other,order]),{code:'23503'});
     await query(sql,['first_'+suffix,business,order]);await assert.rejects(query(sql,['duplicate_'+suffix,business,order]),{code:'23505'});
-    const tables=(await query("SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname IN ('whatsapp_native_checkouts','whatsapp_ads_connections','whatsapp_ads_operations')")).rows;
-    assert.equal(tables.length,3);assert.ok(tables.every(t=>t.relrowsecurity&&t.relforcerowsecurity));
+    const tables=(await query("SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname IN ('whatsapp_native_checkouts','whatsapp_ads_connections','whatsapp_ads_operations','whatsapp_ads_creative_edits')")).rows;
+    assert.equal(tables.length,4);assert.ok(tables.every(t=>t.relrowsecurity&&t.relforcerowsecurity));
+    await query("INSERT INTO whatsapp_ads_operations (id,business_id,ad_account_id,page_id,phone_number_id,payload,state) VALUES ($1,$2,'123','456','789','{}','paused')",['ad_'+suffix,business]);
+    await assert.rejects(query("INSERT INTO whatsapp_ads_creative_edits (id,business_id,operation_id,payload,previous_creative_id,state) VALUES ($1,$2,$3,'{}','old','creating')",['edit_'+suffix,other,'ad_'+suffix]),{code:'23503'});
     await assert.rejects(query('INSERT INTO whatsapp_ads_connections (business_id,ad_account_id,page_id,phone_number_id,currency,access_token_encrypted) VALUES ($1,\'123\',\'456\',$2,\'INR\',\'encrypted\')',[other,'number_'+suffix]),{code:'23503'});
   }finally{await query('DELETE FROM businesses WHERE id IN ($1,$2)',[business,other]);}
 });
