@@ -24,6 +24,7 @@ import SearchableOptionPicker from './searchable-option-picker';
 import AiSupportSettings from './ai-support-settings';
 import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation';
 import { metaSdkCallback } from '../lib/meta-sdk-callback';
+import { saveConversationDraft, clearSentConversationDraft, canApplySupportSuggestion } from '../lib/inbox-drafts';
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -1128,20 +1129,30 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const currentUserId = state.account?.user?.id || "";
   const [search, setSearch] = useState("");
   const [inboxFilter, setInboxFilter] = useState("all");
-  const [replyDraft, setReplyDraft] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState({});
   const [suggesting, setSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState('');
-  const [suggestionSources, setSuggestionSources] = useState([]);
+  const [suggestionContext, setSuggestionContext] = useState(null);
+  const [sendingConversationId, setSendingConversationId] = useState(null);
   const [aiAvailable, setAiAvailable] = useState(false);
+  const suggestionRevision = useRef(0);
+  const sendingReply = useRef(false);
   const activeSuggestionConversation = useRef(activeConversation?.id);
   activeSuggestionConversation.current = activeConversation?.id;
+  const conversationId = activeConversation?.id;
+  const replyDraft = replyDrafts[conversationId] || '';
+  const latestMessageId = activeConversation?.messages.at(-1)?.id || null;
+  const activeSuggestionMessage = useRef(latestMessageId);
+  activeSuggestionMessage.current = latestMessageId;
+  const activeSuggestion = suggestionContext?.conversationId === conversationId && suggestionContext?.messageId === latestMessageId && suggestionContext?.draft === replyDraft ? suggestionContext : null;
+  const staleSuggestion = suggestionContext?.conversationId === conversationId && suggestionContext.messageId !== latestMessageId && suggestionContext.draft === replyDraft;
   useEffect(() => {
     if (!state.featureFlags?.ai_agent) { setAiAvailable(false); return; }
     let active = true;
     api('/api/ai-agent/availability').then(result => { if (active) setAiAvailable(result.enabled); }).catch(() => { if (active) setAiAvailable(false); });
     return () => { active = false; };
   }, [state.featureFlags?.ai_agent]);
-  useEffect(() => { setReplyDraft(''); setSuggestionError(''); setSuggestionSources([]); }, [activeConversation?.id]);
+  useEffect(() => { setSuggestionError(''); }, [activeConversation?.id]);
   const filteredConversations = state.conversations.filter((conversation) => {
     const contact = state.contacts.find((item) => item.id === conversation.contactId) || {};
     const latest = conversation.messages.at(-1);
@@ -1159,24 +1170,68 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   });
   const assignedUser = teamMembers.find((member) => member.id === activeConversation?.assignedUserId);
   const workflowAction = (action, extra = {}) => { if (!activeConversation) return; mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, { action, ...extra }, "PATCH"), action === "note" ? "Note added" : "Conversation updated"); };
-  const selectConversation = (conversation) => { openConversation(conversation.id); if (conversation.unreadCount > 0) mutate(postJson(`/api/conversations/${conversation.id}/workflow`, { action: "mark_read" }, "PATCH")); };
-  const reply = async (event) => { event.preventDefault(); const body = replyDraft.trim(); if (!activeContact || !body) return; if (await mutate(postJson('/api/messages/reply', { contactId: activeContact.id, body }), 'Message sent')) { setReplyDraft(''); setSuggestionSources([]); } };
+  const selectConversation = (conversation) => { suggestionRevision.current += 1; openConversation(conversation.id); if (conversation.unreadCount > 0) mutate(postJson(`/api/conversations/${conversation.id}/workflow`, { action: "mark_read" }, "PATCH")); };
+  const editReplyDraft = (value) => {
+    if (!conversationId) return;
+    suggestionRevision.current += 1;
+    setReplyDrafts(current => saveConversationDraft(current, conversationId, value));
+    setSuggestionContext(null);
+    setSuggestionError('');
+  };
+  const reply = async (event) => {
+    event.preventDefault();
+    const body = replyDraft.trim();
+    if (!conversationId || !activeContact || !body || sendingReply.current || staleSuggestion) return;
+    const contactId = activeContact.id;
+    const sentDraft = replyDraft;
+    sendingReply.current = true;
+    setSendingConversationId(conversationId);
+    try {
+      await mutate(postJson('/api/messages/reply', { contactId, body }).then(result => {
+        setReplyDrafts(current => clearSentConversationDraft(current, conversationId, sentDraft));
+        setSuggestionContext(current => current?.conversationId === conversationId && current.draft === sentDraft ? null : current);
+        return result;
+      }), 'Message sent');
+    } finally {
+      sendingReply.current = false;
+      setSendingConversationId(null);
+    }
+  };
   const suggestReply = async () => {
     if (!activeConversation || suggesting) return;
     const conversationId = activeConversation.id;
-    setSuggesting(true); setSuggestionError(''); setSuggestionSources([]);
+    if (replyDraft.trim()) { setSuggestionError('Clear this draft before requesting a new suggestion.'); return; }
+    const messageId = latestMessageId;
+    const revision = suggestionRevision.current;
+    setSuggesting(true); setSuggestionError(''); setSuggestionContext(null);
     try {
       const result = await postJson('/api/ai-agent/draft', { conversationId });
-      if (activeSuggestionConversation.current !== conversationId) return;
+      if (!canApplySupportSuggestion({ requestedConversationId: conversationId, activeConversationId: activeSuggestionConversation.current, requestedMessageId: messageId, activeMessageId: activeSuggestionMessage.current, requestedRevision: revision, activeRevision: suggestionRevision.current })) return;
       if (result.handoff) setSuggestionError('No grounded suggestion is available. Continue with a human reply.');
-      else { setReplyDraft(result.suggestion); setSuggestionSources(result.sources || []); }
-    } catch (cause) { if (activeSuggestionConversation.current === conversationId) setSuggestionError(cause.message); }
+      else {
+        setReplyDrafts(current => saveConversationDraft(current, conversationId, result.suggestion));
+        setSuggestionContext({ conversationId, messageId, draft: result.suggestion, sources: result.sources || [] });
+      }
+    } catch (cause) { if (canApplySupportSuggestion({ requestedConversationId: conversationId, activeConversationId: activeSuggestionConversation.current, requestedMessageId: messageId, activeMessageId: activeSuggestionMessage.current, requestedRevision: revision, activeRevision: suggestionRevision.current })) setSuggestionError(cause.message); }
     finally { setSuggesting(false); }
   };
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
   return <><section className="inboxShell">
     <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" /></label><select value={inboxFilter} onChange={(event) => setInboxFilter(event.target.value)}><option value="all">All conversations</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!filteredConversations.length && <EmptyState text="No conversations match this view" />}</aside>
-    <div className="threadPane">{activeConversation && activeContact ? <><header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></header><div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>{activeConversation.status !== "closed" && activeConversation.canReply && <div className="aiReplyComposer"><form className="composer" onSubmit={reply}><textarea name="body" value={replyDraft} onChange={event => setReplyDraft(event.target.value)} placeholder="Write a WhatsApp reply" required /><button className="primaryAction"><Send size={18} /> Send</button></form>{aiAvailable && <button className="secondaryAction" type="button" onClick={suggestReply} disabled={suggesting}><Bot size={16} /> {suggesting ? "Preparing suggestion" : "Suggest reply"}</button>}{suggestionError && <small className="errorLine" role="alert">{suggestionError}</small>}{suggestionSources.length > 0 && <small>Sources: {suggestionSources.map(item => item.title).join(", ")}</small>}</div>}{activeConversation.status !== "closed" && !activeConversation.canReply && <TemplateReplyForm approvedTemplates={approvedTemplates} activeContact={activeContact} mutate={mutate} />}<aside className="conversationNotes"><header><div><StickyNote size={17} /><strong>Internal notes</strong></div><span>{activeConversation.notes?.length || 0}</span></header><div className="noteList">{(activeConversation.notes || []).map((item) => <article key={item.id}><p>{item.body}</p><small>{item.author} | {formatTime(item.createdAt)}</small></article>)}{!activeConversation.notes?.length && <span>No internal notes yet</span>}</div><form onSubmit={note}><input name="note" placeholder="Add a note for your team" required /><button className="iconButton" title="Add note"><Plus size={17} /></button></form></aside></> : <EmptyState text="No conversations" />}</div>
+    <div className="threadPane">{activeConversation && activeContact ? <>
+      <header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></header>
+      <div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div>
+      <div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>
+      {activeConversation.status !== "closed" && activeConversation.canReply && <div className="aiReplyComposer">
+        <form className="composer" onSubmit={reply}><textarea name="body" value={replyDraft} onChange={event => editReplyDraft(event.target.value)} placeholder="Write a WhatsApp reply" required /><button className="primaryAction" disabled={sendingConversationId !== null || staleSuggestion}><Send size={18} /> {sendingConversationId === conversationId ? "Sending" : "Send"}</button></form>
+        {staleSuggestion && <small className="errorLine" role="alert">A new message arrived. Review and edit this suggestion before sending.</small>}
+        {aiAvailable && <button className="secondaryAction" type="button" onClick={suggestReply} disabled={suggesting}><Bot size={16} /> {suggesting ? "Preparing suggestion" : "Suggest reply"}</button>}
+        {suggestionError && <small className="errorLine" role="alert">{suggestionError}</small>}
+        {activeSuggestion?.sources?.length > 0 && <small>Sources: {activeSuggestion.sources.map(item => item.title).join(", ")}</small>}
+      </div>}
+      {activeConversation.status !== "closed" && !activeConversation.canReply && <TemplateReplyForm approvedTemplates={approvedTemplates} activeContact={activeContact} mutate={mutate} />}
+      <aside className="conversationNotes"><header><div><StickyNote size={17} /><strong>Internal notes</strong></div><span>{activeConversation.notes?.length || 0}</span></header><div className="noteList">{(activeConversation.notes || []).map((item) => <article key={item.id}><p>{item.body}</p><small>{item.author} | {formatTime(item.createdAt)}</small></article>)}{!activeConversation.notes?.length && <span>No internal notes yet</span>}</div><form onSubmit={note}><input name="note" placeholder="Add a note for your team" required /><button className="iconButton" title="Add note"><Plus size={17} /></button></form></aside>
+    </> : <EmptyState text="No conversations" />}</div>
   </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>;
 }
 function Team({ state, mutate }) {
