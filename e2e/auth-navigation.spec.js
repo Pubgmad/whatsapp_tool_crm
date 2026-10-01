@@ -53,6 +53,28 @@ test('a verified owner signs in and reaches the dashboard',async({page,context,b
     const session=(await context.cookies()).find(cookie=>cookie.name==='wcrm_session');
     expect(session?.httpOnly).toBe(true);
     await expect.poll(async()=> (await page.request.get('/api/me')).status()).toBe(200);
+    await page.addInitScript(()=>{
+      window.FB={
+        init(){},
+        login(callback){
+          if(callback.constructor.name!=='Function')throw new Error('Expression is of type asyncfunction, not function');
+          callback({status:'not_authorized'});
+        }
+      };
+    });
+    await page.route('**/api/workspace/setup*',async route=>{
+      const response=await route.fetch();
+      const state=await response.json();
+      state.meta.embeddedSignupAvailable=true;
+      await route.fulfill({response,json:state});
+    });
+    await page.route('**/api/meta/embedded-signup/config*',route=>route.fulfill({
+      status:200,contentType:'application/json',body:JSON.stringify({appId:'123',configId:'456',graphVersion:'v26.0'})
+    }));
+    await page.goto('/app/settings/whatsapp');
+    await expect(page.getByRole('button',{name:'Cloud API number'})).toBeVisible();
+    await page.getByRole('button',{name:'Cloud API number'}).click();
+    await expect(page.getByRole('alert').filter({hasText:'Meta did not authorize this app.'})).toBeVisible();
   }finally{
     await client.query('DELETE FROM businesses WHERE id=$1',[businessId]);
     await client.query('DELETE FROM users WHERE id=$1',[userId]);

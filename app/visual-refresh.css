@@ -1,0 +1,37 @@
+/* Neutral surfaces keep long CRM sessions calm; blue marks actions, not data. */
+.sideRail,.superRail{color:#e9ebf0;border-right-color:#3c414d;box-shadow:1px 0 0 rgba(27,34,48,.08)}
+.brandBlock span,.superBrand small,.workspaceSwitcher{color:#b8c1d0}
+.navList button,.superNav a{color:#c5ccd8}
+.navList button:hover,.superNav a:hover{background:#393d47;color:#fff}
+.navList button.active,.superNav a.active{background:var(--brand);border-color:#6d8be0;box-shadow:inset 3px 0 0 #a8bafa}
+.workspaceSwitcher select{background:#343843;border-color:#555c6b}
+.workspaceSwitcher select:focus-visible{outline-color:#a8bafa}
+.heroBar{background:rgba(244,246,249,.96);border-bottom-color:var(--line)}
+.heroBar h1,.superHero h1{font-weight:720}
+.primaryAction{box-shadow:0 3px 10px rgba(49,88,187,.17)}
+.primaryAction:hover{box-shadow:0 5px 14px rgba(49,88,187,.22)}
+.secondaryAction:hover,.rowActions button:hover,.iconButton:hover{border-color:#a5b8e8}
+.heroPanel,.automationHero{background:#30333c;border-color:#4a4f5a;color:#f3f4f7;box-shadow:var(--shadow-sm)}
+.heroPanel p,.automationHero span{color:#cbd1dc}
+.softLabel{background:#e8eeff;border-color:#b9c9f6;color:#244795}
+.heroMetrics .metric,.automationKpis .metric{background:#3c404a;border-color:#545a66}
+.statusPill.good,.badge.good{color:#29604b;background:#e6f4ed;border-color:#b9ddca}
+.toast{background:#292b32}
+.readinessList>div.ready{background:#f0f6f3;border-color:#c6ddcf}
+.authShell::before,.superAuthShell::before{background:linear-gradient(90deg,transparent 31px,rgba(74,97,153,.035) 32px,transparent 33px),linear-gradient(transparent 31px,rgba(74,97,153,.035) 32px,transparent 33px);background-size:32px 32px}
+.authPanel,.superAuthPanel{box-shadow:0 16px 44px rgba(30,38,54,.1)}
+.metaSetupScreen .metaConnectHero{background:#30333c;border-color:#4a4f5a;box-shadow:var(--shadow-sm);color:#f3f4f7}
+.metaSetupScreen .metaConnectHero span{color:#cbd1dc}
+.metaSetupScreen .metaConnectHero .kicker{color:#afc3ff}
+.metaSetupScreen .metaConnectHero .metaConnectActions{display:grid;flex:0 0 250px;width:250px;gap:10px}
+.metaSetupScreen .metaConnectActions button{min-height:46px;white-space:normal;overflow-wrap:normal}
+.metaSetupScreen .metaConnectButton{background:var(--brand);border-color:var(--brand)}
+.metaSetupScreen .metaConnectButton:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
+.metaSetupScreen .metaConnectActions .secondaryAction{border-color:#818b9d;color:#fff}
+.metaSetupScreen .metaConnectActions .secondaryAction:hover{background:#424956;border-color:#b7c1d4}
+.operationsTabs{background:#e9edf4}
+.phoneAsset.selected{background:#f4f7ff;border-color:#a8bbe9}
+.assetIcon,.capabilityIcon{border-color:#c6d3f3}
+.webhookCard code,.envBox code{border-color:#c6d3f3}
+input:not([type=checkbox]):not([type=file]):focus,textarea:focus,select:focus{box-shadow:0 0 0 3px rgba(49,88,187,.13)}
+@media(max-width:760px){.metaSetupScreen .metaConnectHero{gap:18px}.metaSetupScreen .metaConnectHero .metaConnectActions{flex:none;width:100%}}

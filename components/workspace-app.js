@@ -23,6 +23,7 @@ import ApprovedTemplatePicker from './approved-template-picker';
 import SearchableOptionPicker from './searchable-option-picker';
 import AiSupportSettings from './ai-support-settings';
 import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation';
+import { metaSdkCallback } from '../lib/meta-sdk-callback';
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -634,9 +635,14 @@ function Setup({ state, mutate }) {
     try {
       const config = await api(`/api/meta/embedded-signup/config?mode=${mode}`);
       const FB = await loadFacebookSdk(config.appId, config.graphVersion);
-      FB.login(async (response) => {
+      FB.login(metaSdkCallback(async (response) => {
         const code = response?.authResponse?.code;
-        if (!code) { const reason = response?.status === 'not_authorized' ? 'Meta did not authorize this app. Confirm the Embedded Signup configuration and app permissions.' : 'Meta sign-up was cancelled or did not return authorization. Confirm the configuration ID, app domain, and allowed OAuth domain in Meta.'; setConnecting(false); mutate(Promise.reject(new Error(signupData.current.error || reason))); return; }
+        if (!code) {
+          const reason = response?.status === 'not_authorized' ? 'Meta did not authorize this app. Confirm the Embedded Signup configuration and app permissions.' : 'Meta sign-up was cancelled or did not return authorization. Confirm the configuration ID, app domain, and allowed OAuth domain in Meta.';
+          setSignupError(signupData.current.error || reason);
+          setConnecting(false);
+          return;
+        }
         if (mode === 'coexistence' && !signupData.current.sessionEvent) {
           await new Promise((resolve) => {
             signupCompletion.current = resolve;
@@ -646,15 +652,17 @@ function Setup({ state, mutate }) {
         }
         if (mode === 'coexistence' && signupData.current.sessionEvent !== 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
           setConnecting(false);
-          mutate(Promise.reject(new Error(signupData.current.error || 'Meta did not complete Business App coexistence onboarding.')));
+          setSignupError(signupData.current.error || 'Meta did not complete Business App coexistence onboarding.');
           return;
         }
-        mutate(postJson('/api/meta/embedded-signup/complete', { code, mode, sessionEvent: signupData.current.sessionEvent,
+        const completion = await postJson('/api/meta/embedded-signup/complete', { code, mode, sessionEvent: signupData.current.sessionEvent,
           wabaId: signupData.current.waba_id, phoneNumberId: signupData.current.phone_number_id
-        }).finally(() => setConnecting(false)), 'WhatsApp Business connected');
-      }, { config_id: config.configId, response_type: 'code', override_default_response_type: true,
+        });
+        await mutate(Promise.resolve(completion), 'WhatsApp Business connected');
+        setConnecting(false);
+      }, (error) => { setConnecting(false); setSignupError(error.message || 'Meta signup could not be completed.'); }), { config_id: config.configId, response_type: 'code', override_default_response_type: true,
         extras: { setup: {}, sessionInfoVersion: '3', ...(mode === 'coexistence' ? { featureType: 'whatsapp_business_app_onboarding' } : {}) } });
-    } catch (error) { setConnecting(false); mutate(Promise.reject(error)); }
+    } catch (error) { setConnecting(false); setSignupError(error.message || 'Meta signup could not be opened.'); }
   };
   const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}), "Connection check complete");
   const disconnect = () => mutate(postJson("/api/meta/connection/disconnect", {}), "WhatsApp Business disconnected");
