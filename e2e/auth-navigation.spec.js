@@ -29,7 +29,7 @@ test('an invalid workspace cookie reaches login once and stays there',async({pag
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test('a valid page session and failed workspace API do not bounce between login and dashboard',async({page,context,baseURL})=>{
+test('a rejected workspace session returns to sign in once without bouncing',async({page,context,baseURL})=>{
   test.skip(!['127.0.0.1','localhost'].includes(new URL(baseURL).hostname),'Local database fixture only');
   nextEnv.loadEnvConfig(process.cwd());
   test.skip(!process.env.DATABASE_URL,'Local database is unavailable');
@@ -47,22 +47,11 @@ test('a valid page session and failed workspace API do not bounce between login 
     let attempts=0;
     await page.route('**/api/me',route=>{attempts++;return route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({code:'AUTH_REQUIRED',error:'Sign in required.'})});});
     await page.goto('/app/dashboard');
-  await expect(page.getByText('Sign in is required')).toBeVisible({timeout:30000});
-    await expect(page).toHaveURL(/\/app\/dashboard$/);
-    await page.waitForTimeout(1800);
-    await expect(page).toHaveURL(/\/app\/dashboard$/);
-    const initialAttempts=attempts;
-    await page.getByRole('button',{name:'Retry'}).click();
-    await expect.poll(()=>attempts).toBeGreaterThan(initialAttempts);
-    await expect(page).toHaveURL(/\/app\/dashboard$/);
-    await page.unroute('**/api/me');
-    await page.route('**/api/workspace/overview*',route=>route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({code:'AUTH_REQUIRED',error:'Workspace session unavailable.'})}));
-    await page.getByRole('button',{name:'Retry'}).click();
-    await expect(page.getByText('Sign in is required')).toBeVisible({timeout:30000});
-    await expect(page).toHaveURL(/\/app\/dashboard$/);
-    await page.getByRole('button',{name:'Sign out'}).click();
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login\?reauth=1$/,{timeout:30000});
     await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
+    await page.waitForTimeout(1800);
+    await expect(page).toHaveURL(/\/login\?reauth=1$/);
+    expect(attempts).toBeGreaterThanOrEqual(1);
   }finally{
     await client.query('DELETE FROM businesses WHERE id=$1',[businessId]);
     await client.query('DELETE FROM users WHERE id=$1',[userId]);

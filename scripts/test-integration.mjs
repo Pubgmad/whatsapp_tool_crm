@@ -33,7 +33,9 @@ try {
   await admin.query(`CREATE DATABASE "${databaseName}"`);
   created = true;
   await run(["scripts/db-init.mjs"]);
-  const tests = (await readdir("tests")).filter((name) => name.endsWith(".test.mjs")).map((name) => `tests/${name}`);
+  const requested = process.env.TEST_FILE;
+  const tests = (await readdir("tests")).filter((name) => name.endsWith(".test.mjs") && (!requested || name === requested)).map((name) => `tests/${name}`);
+  if (!tests.length) throw new Error('No matching integration test file.');
   await run(["--test", ...tests]);
 } finally {
   if (created) {

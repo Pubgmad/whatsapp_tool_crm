@@ -1,5 +1,5 @@
 ﻿import { createSessionToken, registerAccount, sessionCookie } from "@/lib/auth";
-import { errorJson, json } from "@/lib/db";
+import { enterTenantContext, errorJson, id, json, query } from "@/lib/db";
 import { readJsonBodyLimited } from "@/lib/security";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +16,16 @@ export async function POST(request) {
         const verification = await issueVerification(session.userId);
         return json({ ok: true, verificationRequired: true, developmentUrl: verification.developmentUrl || '' }, 201);
       } catch (deliveryError) {
+        const code = typeof deliveryError?.code === 'string' ? deliveryError.code : 'EMAIL_DELIVERY_FAILED';
+        console.error('Registration verification delivery failed', { businessId: session.businessId, code });
+        try {
+          enterTenantContext(session.businessId);
+          await query('INSERT INTO audit_logs (id,business_id,user_id,action,metadata) VALUES ($1,$2,$3,$4,$5)', [
+            id('a'), session.businessId, session.userId, 'verification_delivery_failed', JSON.stringify({ code })
+          ]);
+        } catch (auditError) {
+          console.error('Verification delivery audit failed', { businessId: session.businessId, code: auditError?.code || 'AUDIT_FAILED' });
+        }
         return json({ ok: true, verificationRequired: true, deliveryFailed: true }, 202);
       }
     }
