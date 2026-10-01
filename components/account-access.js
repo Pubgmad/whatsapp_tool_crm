@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { KeyRound, Loader2, MailCheck, ShieldCheck } from 'lucide-react';
 
@@ -21,6 +21,7 @@ async function submit(path, body) {
 
 export default function AccountAccess({ mode, token = '', brandName = '' }) {
   const [pending, setPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const verify = mode === 'verify';
@@ -28,6 +29,8 @@ export default function AccountAccess({ mode, token = '', brandName = '' }) {
   const resend = mode === 'resend';
   const title = verify ? 'Verify your email' : reset ? 'Choose a new password' : resend ? 'Resend verification email' : 'Reset your password';
   const Icon = verify || resend ? MailCheck : KeyRound;
+
+  useEffect(() => { setHydrated(true); }, []);
 
   const run = async (event) => {
     event.preventDefault();
@@ -45,5 +48,5 @@ export default function AccountAccess({ mode, token = '', brandName = '' }) {
     finally { setPending(false); }
   };
 
-return <main className='authShell'><section className='authPanel authPanelPro'><div className='brandBlock dark authBrand'><div className='brandIcon'><ShieldCheck size={22} /></div><div><strong>Account security</strong><span>{brandName}</span></div></div><div className='authHeader'><p className='kicker'>Secure access</p><h1>{title}</h1></div><form className='formGrid authForm' onSubmit={run}>{!verify && !reset && <label>Email<input name='email' type='email' autoComplete='email' required /></label>}{reset && <><label>New password<input name='password' type='password' minLength='12' autoComplete='new-password' required /></label><label>Confirm password<input name='confirmPassword' type='password' minLength='12' autoComplete='new-password' required /></label></>}{(verify || reset) && !token && <div className='formError'>This security link is incomplete.</div>}{error && <div className='formError'>{error}</div>}{message && <div className='formSuccess'>{message}</div>}<button className='primaryAction authSubmit' disabled={pending || ((verify || reset) && !token)}>{pending ? <Loader2 className='spin' size={18} /> : <Icon size={18} />}{pending ? 'Please wait' : verify ? 'Verify email' : reset ? 'Update password' : resend ? 'Send verification link' : 'Send reset link'}</button></form><div className='authSwitch'><Link href='/login'>Return to sign in</Link></div></section></main>;
+return <main className='authShell'><section className='authPanel authPanelPro'><div className='brandBlock dark authBrand'><div className='brandIcon'><ShieldCheck size={22} /></div><div><strong>Account security</strong><span>{brandName}</span></div></div><div className='authHeader'><p className='kicker'>Secure access</p><h1>{title}</h1></div><form className='formGrid authForm' method='post' onSubmit={run}>{!verify && !reset && <label>Email<input name='email' type='email' autoComplete='email' required /></label>}{reset && <><label>New password<input name='password' type='password' minLength='12' autoComplete='new-password' required /></label><label>Confirm password<input name='confirmPassword' type='password' minLength='12' autoComplete='new-password' required /></label></>}{(verify || reset) && !token && <div className='formError'>This security link is incomplete.</div>}{error && <div className='formError'>{error}</div>}{message && <div className='formSuccess'>{message}</div>}<button className='primaryAction authSubmit' disabled={!hydrated || pending || ((verify || reset) && !token)}>{pending ? <Loader2 className='spin' size={18} /> : <Icon size={18} />}{pending ? 'Please wait' : verify ? 'Verify email' : reset ? 'Update password' : resend ? 'Send verification link' : 'Send reset link'}</button></form><div className='authSwitch'><Link href='/login'>Return to sign in</Link></div></section></main>;
 }

@@ -417,8 +417,11 @@ function MetaDeletionQueue({ notify }) {
 function SuperAdminLogin({ onDone, brandName }) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
+
+  useEffect(() => { setHydrated(true); }, []);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -436,7 +439,7 @@ function SuperAdminLogin({ onDone, brandName }) {
     }
   };
 
-  return <main className="superAuthShell"><section className="superAuthPanel"><div className="superBrand dark"><span><LockKeyhole size={22} /></span><div><strong>{brandName}</strong><small>Super Admin</small></div></div><div><p className="kicker">Platform owner access</p><h1>Sign in</h1><p>Use the secure admin credentials configured on the server.</p></div><form className="formGrid" onSubmit={submit}><label>Email<input name="platformOwnerEmail" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /></label><div className='fieldGroup'><label htmlFor='platformOwnerSecret'>Password</label><span className="passwordWrap"><input id='platformOwnerSecret' name="platformOwnerSecret" type={showPassword ? "text" : "password"} autoComplete="new-password" data-lpignore="true" data-form-type="other" minLength="12" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></div>{mfaRequired && <label>Authenticator or recovery code<input name="mfaCode" autoComplete="one-time-code" required /></label>}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction" type="submit" disabled={pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}<span>{pending ? "Checking" : "Sign in"}</span></button></form></section></main>;
+  return <main className="superAuthShell"><section className="superAuthPanel"><div className="superBrand dark"><span><LockKeyhole size={22} /></span><div><strong>{brandName}</strong><small>Super Admin</small></div></div><div><p className="kicker">Platform owner access</p><h1>Sign in</h1><p>Use the secure admin credentials configured on the server.</p></div><form className="formGrid" method="post" onSubmit={submit}><label>Email<input name="platformOwnerEmail" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /></label><div className='fieldGroup'><label htmlFor='platformOwnerSecret'>Password</label><span className="passwordWrap"><input id='platformOwnerSecret' name="platformOwnerSecret" type={showPassword ? "text" : "password"} autoComplete="new-password" data-lpignore="true" data-form-type="other" minLength="12" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></div>{mfaRequired && <label>Authenticator or recovery code<input name="mfaCode" autoComplete="one-time-code" required /></label>}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction" type="submit" disabled={!hydrated || pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}<span>{pending ? "Checking" : "Sign in"}</span></button></form></section></main>;
 }
 
 function SuperAdminSecurity({ notify }) {
