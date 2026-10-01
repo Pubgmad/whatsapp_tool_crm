@@ -71,6 +71,7 @@ const optionalNumber = (value) => value === "" || value === null || value === un
 const adminSections = [
   { id: "overview", label: "Overview", href: "/super-admin", icon: Activity },
   { id: "plans", label: "Plans", href: "/super-admin/plans", icon: WalletCards },
+  { id: 'features', label: 'Features', href: '/super-admin/features', icon: SlidersHorizontal },
   { id: "content", label: "Content", href: "/super-admin/content", icon: FileText },
   { id: "privacy-policy", label: "Privacy policy", href: "/super-admin/privacy-policy", icon: ShieldCheck },
   { id: "companies", label: "Companies", href: "/super-admin/companies", icon: Building2 },
@@ -81,6 +82,7 @@ const adminSections = [
 const adminHeadings = {
   overview: ["Platform command center", "Monitor companies, subscriptions, WhatsApp readiness, and platform status."],
   plans: ["Subscription plans", "Control pricing, billing periods, features, limits, visibility, and availability."],
+  features: ['Feature controls', 'Enable or disable WhatsApp modules across workspaces.'],
   content: ["Platform content", "Manage customer-facing business content and configurable platform values."],
   "privacy-policy": ["Privacy policy", "Draft, preview, publish, and review the public privacy policy."],
   companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."],
@@ -208,6 +210,13 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
     }
   };
 
+  const updateCompanyFeature = async (companyId, feature, enabled) => {
+    try {
+      setSelected(await postJson(`/api/super-admin/companies/${encodeURIComponent(companyId)}/features`, { feature, enabled }, 'PATCH'));
+      notify('Feature access updated');
+    } catch (error) { notify(error.message); }
+  };
+
   const savePlan = async (payload, planId = "") => {
     try {
       await postJson(planId ? `/api/super-admin/plans/${planId}` : "/api/super-admin/plans", payload, planId ? "PUT" : "POST");
@@ -296,7 +305,8 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       </section>
 
       <PlanManager plans={plans} onSave={savePlan} /></>}
-      {initialSection === "content" && <ContentManager settings={settings} onSave={saveSetting} />}
+      {initialSection === "content" && <ContentManager settings={settings.filter((item) => item.category !== 'feature_controls')} onSave={saveSetting} />}
+      {initialSection === 'features' && <ContentManager settings={settings.filter((item) => item.category === 'feature_controls')} onSave={saveSetting} />}
       {initialSection === "privacy-policy" && <PrivacyPolicyEditor settings={settings} notify={notify} />}
       {initialSection === "data-requests" && <><WorkspaceDeletionQueue notify={notify} /><MetaDeletionQueue notify={notify} /></>}
       {initialSection === 'security' && <SuperAdminSecurity notify={notify} />}
@@ -311,7 +321,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       </Panel>}
     </section>
 
-    {selected && <CompanyDrawer detail={selected} onClose={() => { setSelected(null); router.push("/super-admin/companies"); }} onAction={updateCompany} />}
+    {selected && <CompanyDrawer detail={selected} onClose={() => { setSelected(null); router.push("/super-admin/companies"); }} onAction={updateCompany} onFeatureChange={updateCompanyFeature} />}
   </main>;
 }
 
@@ -624,6 +634,16 @@ function ContentManager({ settings, onSave }) {
 }
 
 function SettingForm({ setting, onSave }) {
+  return setting.valueType === 'boolean' ? <BooleanSettingForm setting={setting} onSave={onSave} /> : <TextSettingForm setting={setting} onSave={onSave} />;
+}
+
+function BooleanSettingForm({ setting, onSave }) {
+  const [value, setValue] = useState(setting.value === true);
+  const [pending, setPending] = useState(false);
+  return <form className='settingRow' onSubmit={async (event) => { event.preventDefault(); setPending(true); try { await onSave({ ...setting, value }); } finally { setPending(false); } }}><label className='checkRow'><input type='checkbox' checked={value} onChange={(event) => setValue(event.target.checked)} /> {setting.label}</label><button className='secondaryAction' type='submit' disabled={pending}><Save size={15} /> Save</button></form>;
+}
+
+function TextSettingForm({ setting, onSave }) {
   const [value, setValue] = useState(setting.value ?? "");
   const [pending, setPending] = useState(false);
   const isLong = setting.valueType === "rich_text" || setting.valueType === "json";
@@ -722,17 +742,34 @@ function CompanyRow({ company, onOpen }) {
   </button>;
 }
 
-function CompanyDrawer({ detail, onClose, onAction }) {
+function CompanyDrawer({ detail, onClose, onAction, onFeatureChange }) {
   const company = detail.company;
   return <aside className="companyDrawer" aria-label="Company details">
     <div className="drawerPanel"><header><div><p className="kicker">Company</p><h2>{company.name}</h2><small>{company.email || "No owner email"}</small></div><button className="iconButton" type="button" onClick={onClose} title="Close"><X size={18} /></button></header>
       <div className="drawerActions"><button className="secondaryAction" type="button" onClick={() => onAction(company.id, "activate")}><BadgeCheck size={17} />Activate</button><button className="secondaryAction dangerSoft" type="button" onClick={() => onAction(company.id, "suspend")}><Ban size={17} />Suspend</button></div>
       <section className="detailGrid"><Info label="Account" value={company.accountStatus} /><Info label="Subscription" value={company.subscriptionStatus} /><Info label="Plan" value={company.planName} /><Info label="Payment" value={company.paymentStatus} /><Info label="Registered" value={formatDate(company.registeredAt)} /><Info label="Renewal" value={formatDate(company.renewalAt)} /><Info label="Trial ends" value={formatDate(company.trialEndsAt)} /><Info label="WhatsApp" value={company.whatsappStatus} /><Info label="Business number" value={company.whatsappNumber || "Not connected"} /><Info label="Users" value={company.userCount} /><Info label="Contacts" value={company.contactCount} /><Info label="Campaigns" value={company.campaignCount} /></section>
       <section><h3>Company users</h3><div className="miniList">{detail.users.map((user) => <div key={user.id}><strong>{user.name}</strong><span>{user.email}</span><small>{user.role}</small></div>)}</div></section>
+      <CompanyFeatureControls detail={detail} onChange={onFeatureChange} />
       <SupportPolicy key={company.id} endpoint={'/api/super-admin/companies/'+encodeURIComponent(company.id)+'/support-policy'} canEdit={true} api={api} postJson={postJson}/>
       <section><h3>Recent platform activity</h3><div className="miniList">{detail.recentActivity.map((item, index) => <div key={`${item.type}-${index}`}><strong>{item.type}</strong><span>{formatTime(item.at)}</span></div>)}{!detail.recentActivity.length && <Empty text="No activity recorded" />}</div></section>
     </div>
   </aside>;
+}
+
+function CompanyFeatureControls({ detail, onChange }) {
+  const [pending, setPending] = useState('');
+  const controls = detail.featureControls;
+  if (!controls) return null;
+  const change = async (feature, enabled) => {
+    setPending(feature);
+    try { await onChange(detail.company.id, feature, enabled); }
+    finally { setPending(''); }
+  };
+  return <section><h3>Workspace features</h3><div className='miniList'>{Object.entries(controls.labels).map(([feature, label]) => {
+    const globallyEnabled = controls.global[feature] !== false;
+    const enabled = globallyEnabled && controls.overrides[feature] !== false;
+    return <label className='checkRow' key={feature}><input type='checkbox' checked={enabled} disabled={!globallyEnabled || Boolean(pending)} onChange={(event) => change(feature, event.target.checked ? null : false)} /><span>{label}{!globallyEnabled && <small>Disabled platform-wide</small>}</span></label>;
+  })}</div></section>;
 }
 
 function Info({ label, value }) {

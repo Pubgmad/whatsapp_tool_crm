@@ -1,5 +1,6 @@
 import {getMerchantPayments,updateMerchantPayments} from '@/lib/merchant-payments';
+import {withWorkspaceFeature} from '@/lib/feature-controls';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
-export async function GET(request){return getMerchantPayments(request);}
-export async function POST(request){return updateMerchantPayments(request);}
+export const GET=withWorkspaceFeature('commerce',getMerchantPayments);
+export const POST=withWorkspaceFeature('commerce',updateMerchantPayments);

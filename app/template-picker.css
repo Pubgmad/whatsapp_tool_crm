@@ -1,0 +1,5 @@
+.templatePicker{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) auto;align-items:start;gap:6px;min-width:0}
+.templatePicker input,.templatePicker select{width:100%;min-width:0}
+.templatePicker .errorLine{grid-column:1/-1}
+.templateLine .templatePicker{grid-column:1/-1}
+@media(max-width:760px){.templatePicker{grid-template-columns:1fr}.templatePicker .secondaryAction{width:100%}}

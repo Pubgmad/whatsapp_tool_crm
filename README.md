@@ -299,6 +299,10 @@ New or seeded subscription plans require an explicit three-letter currency code;
 
 The web process alone does not continuously process queued campaigns and automations. Run `npm run worker` as a second managed process (for example, a separate PM2 app) with the same ignored `.env.local`, `JOB_RUNNER_SECRET`, and `JOB_RUNNER_URL=http://127.0.0.1:3000`. The worker polls every `JOB_POLL_INTERVAL_MS` (default 15000) and runs bounded retention once per day. Run only one worker instance until queue concurrency has been capacity-tested. The Super Admin controls retention days; a zero-day setting means keep data. Workspace deletion requests still require explicit approval and are not automatically purged.
 
+`ecosystem.config.cjs` defines both the web and worker processes. On a VPS already running `whatsapp-crm`, start only the missing worker with `pm2 start ecosystem.config.cjs --only whatsapp-crm-worker`, then `pm2 save`. Do not start a second web process on the same port. Check `pm2 status` and `curl -fsS http://127.0.0.1:3000/api/health` after the worker has completed a cycle.
+
+The OpenAI support assistant requires server-only `OPENAI_API_KEY` and `OPENAI_MODEL`. A Super Admin can disable the feature globally or for a company; a company Owner must then add active knowledge and enable it in Team settings. Suggestions use recent conversation text and matching company knowledge, are requested only by a signed-in agent, and are never sent to WhatsApp automatically. Review your customer privacy notice and data-processing obligations before enabling this for live conversations. No provider key belongs in browser code or company settings.
+
 `GET /api/health` returns HTTP 200 only when PostgreSQL responds and a successful queue-worker cycle has been recorded recently. It returns HTTP 503 if the database is unavailable or the worker is stale. Run `npm run db:init` before restarting the worker to create the heartbeat and Meta deletion-review tables.
 
 An interrupted send may have reached Meta even if its database result was not saved. Stale processing jobs are marked failed with an explicit *delivery unconfirmed* reason and are **not** automatically resent. Check Meta and the recipient before any manual retry. Provider rate-limit responses remain retryable.
@@ -310,6 +314,8 @@ For each VPS deployment: pull the intended branch, run `npm ci`, `npm run db:ini
 This migration requires every WhatsApp Business Account ID and Phone Number ID to belong to only one company. If `db:init` reports duplicate ownership, resolve the affected tenant connections before retrying; do not delete assets blindly. For database integration coverage, set `TEST_DATABASE_URL` to a **separate test database** initialized with `db:init` and run `npm test`. Never point integration tests at the live database.
 
 ### Super Admin Capabilities
+
+Feature controls live at `/super-admin/features` and in each company drawer. A platform-wide disable takes precedence over a company override. Disabling campaigns or automation stops workers from claiming new jobs for that module; queued jobs remain pending and can resume if access is restored. Incoming Meta webhooks and payment reconciliation continue so existing customer state is not lost. Run `npm run db:init` before deploying this release to add the company override column and seed the controls. Plan feature descriptions are marketing copy and do not grant access.
 
 The Super Admin can currently:
 

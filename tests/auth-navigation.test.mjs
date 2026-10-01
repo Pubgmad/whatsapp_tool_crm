@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isSessionFailure, createRequestGate } from '../lib/auth-navigation.js';
+import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation.js';
 import nextConfig from '../next.config.js';
 
 test('session failures remain distinct from infrastructure and access errors', () => {
@@ -12,6 +12,11 @@ test('stale responses cannot replace the current navigation or revoke its sessio
   const gate=createRequestGate(),first=gate.begin(),second=gate.begin();
   assert.equal(gate.current(first),false);assert.equal(gate.current(second),true);
   gate.invalidate();assert.equal(gate.current(second),false);
+});
+test('existing account passwords are checked by the server, not the signup policy', () => {
+  assert.equal(authFormPasswordError('older-pass', 'signin'), '');
+  assert.equal(authFormPasswordError('older-pass', 'signup'), 'Password must be at least 12 characters.');
+  assert.equal(authFormPasswordError('a-longer-password', 'signup'), '');
 });
 test('legacy admin routes resolve one way without changing workspace login',async()=>{
   const routes=await nextConfig.redirects();

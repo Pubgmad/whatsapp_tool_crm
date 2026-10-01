@@ -19,7 +19,9 @@ import ProviderConnectors from './provider-connectors';
 import AutomationAdvancedNodeFields from './automation-advanced-node-fields';
 import AutomationConnections from './automation-connections';
 import AudienceSegmentComposer from './audience-segment-composer';
-import { isSessionFailure, createRequestGate } from '../lib/auth-navigation';
+import ApprovedTemplatePicker from './approved-template-picker';
+import AiSupportSettings from './ai-support-settings';
+import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation';
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -50,6 +52,7 @@ const navItems = [
 ];
 
 const managerViews = new Set(["setup", "templates", "automation", "campaigns", 'commerce', 'conversions','calling','ads']);
+const featureForView = { automation: 'automation', campaigns: 'campaigns', results: 'campaigns', commerce: 'commerce', conversions: 'conversions', calling: 'calling', ads: 'ads' };
 function canOpenWorkspaceView(role, view) {
   if (view === "billing") return role === "Owner";
   return !managerViews.has(view) || role === "Owner" || role === "Manager";
@@ -137,8 +140,8 @@ function mergeWorkspaceState(current, incoming) {
   };
 }
 
-function stateUrl(view, { page = 1, messagePage = 1, conversationId = "" } = {}) {
-  const params = new URLSearchParams({ page: String(page), messagePage: String(messagePage) });
+function stateUrl(view, { page = 1, messagePage = 1, notePage = 1, conversationId = "" } = {}) {
+  const params = new URLSearchParams({ page: String(page), messagePage: String(messagePage), notePage: String(notePage) });
   if (conversationId) params.set("conversationId", conversationId);
   return `/api/workspace/${encodeURIComponent(view)}?${params}`;
 }
@@ -216,6 +219,17 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   useEffect(() => { if (!authMode) bootstrap(); return () => scopeGate.current.invalidate(); }, []);
   useEffect(() => {
+    if (authMode || !isSessionFailure(bootstrapError)) return;
+    let active = true;
+    const goToSignIn = () => { if (active) window.location.replace('/login?reauth=1'); };
+    const fallback = window.setTimeout(goToSignIn, 3000);
+    postJson('/api/auth/logout', {}).catch(() => {}).finally(() => {
+      window.clearTimeout(fallback);
+      goToSignIn();
+    });
+    return () => { active = false; window.clearTimeout(fallback); };
+  }, [authMode, bootstrapError]);
+  useEffect(() => {
     if (!account || authMode) return;
     api("/api/workspaces").then((result) => setWorkspaces(result.workspaces || [])).catch(() => setWorkspaces([]));
   }, [account?.user?.id, account?.business?.id, authMode]);
@@ -228,8 +242,8 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   useEffect(() => {
     if (!account || authMode) return;
     const location = workspaceLocation(pathname);
-    if (location.view === "inbox") setPages((current) => ({ ...current, messages: 1 }));
-    loadScope(location, true, location.view === "inbox" ? { messagePage: 1 } : {})
+    if (location.view === "inbox") setPages((current) => ({ ...current, messages: 1, notes: 1 }));
+    loadScope(location, true, location.view === "inbox" ? { messagePage: 1, notePage: 1 } : {})
       .then(result => { if (result) setBootstrapError(null); })
       .catch((error) => {
         if (isSessionFailure(error)) setAccount(null);
@@ -282,8 +296,9 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     const request = scopeGate.current.begin();
     const page = overrides.page || pages[location.view] || 1;
     const messagePage = overrides.messagePage || pages.messages || 1;
+    const notePage = overrides.notePage || pages.notes || 1;
     let nextState;
-    try { nextState = await api(stateUrl(location.view, { page, messagePage, conversationId: location.conversationId || "" })); }
+    try { nextState = await api(stateUrl(location.view, { page, messagePage, notePage, conversationId: location.conversationId || "" })); }
     catch (error) { if (scopeGate.current.current(request)) throw error; return null; }
     if (!scopeGate.current.current(request)) return null;
     setState((current) => mergeWorkspaceState(current, nextState));
@@ -304,8 +319,8 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const changePage = async (key, page) => {
     const nextPage = Math.max(1, page);
     const location = workspaceLocation(pathname);
-    const overrides = key === "messages" ? { messagePage: nextPage } : { page: nextPage };
-    setPages((current) => ({ ...current, [key]: nextPage, ...(key === "messages" ? {} : { [location.view]: nextPage }) }));
+    const overrides = key === "messages" ? { messagePage: nextPage } : key === "notes" ? { notePage: nextPage } : { page: nextPage };
+    setPages((current) => ({ ...current, [key]: nextPage, ...(["messages", "notes"].includes(key) ? {} : { [location.view]: nextPage }) }));
     try { await loadScope(location, false, overrides); }
     catch (error) { notify(error.message); }
   };
@@ -338,6 +353,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const navigate = (view) => {
     const route = workspaceRoutes[view];
     if (!route) return;
+    if (featureForView[view] && state?.featureFlags?.[featureForView[view]] === false) { notify('This feature is disabled by the platform administrator.'); return; }
     setActiveView(view);
     setMobileNavOpen(false);
     router.push(route);
@@ -345,14 +361,14 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 
   const openConversation = (conversationId) => {
     setActiveConversationId(conversationId);
-    setPages((current) => ({ ...current, messages: 1 }));
+    setPages((current) => ({ ...current, messages: 1, notes: 1 }));
     setMobileNavOpen(false);
     router.push(`/app/inbox/${encodeURIComponent(conversationId)}`);
   };
 
   if (loading) return <main className="loading"><Sparkles size={32} /><p>Loading workspace</p></main>;
   if (configError) return <SystemSetup message={configError} platform={platform} />;
-  if (!authMode && isSessionFailure(bootstrapError)) return <main className='loading errorLoading'><CircleAlert size={32} /><p>{bootstrapError.code==='SESSION_REVOKED'?'Your session has expired':'Sign in is required'}</p><span>{bootstrapError.code==='SESSION_REVOKED'?'Sign out and sign in again to renew your session.':'Your browser did not provide a valid session. Sign out and sign in again.'}</span>{recoveryError && <span role='alert'>{recoveryError}</span>}<div className='authRecoveryActions'><button className='primaryAction' type='button' onClick={logout}>Sign out</button><button className='secondaryAction' type='button' onClick={bootstrap}>Retry</button></div></main>;
+  if (!authMode && isSessionFailure(bootstrapError)) return <main className='loading'><Loader2 className='spin' size={30} /><p>Opening sign in</p></main>;
   if (account && !state && bootstrapError) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && !authMode && bootstrapError && !isSessionFailure(bootstrapError)) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && authMode) return <AuthScreen onDone={() => window.location.replace('/app/dashboard')} platform={platform} initialMode={authMode} onModeChange={(mode) => router.push(mode === "signup" ? "/signup" : "/login")} />;
@@ -374,7 +390,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
         <div className="brandBlock"><div className="brandIcon"><PhoneCall size={22} /></div><div><strong>{platformConfig.brand_name}</strong><span>{account.business.name}</span></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
         {workspaces.length > 1 && <label className="workspaceSwitcher"><span>Workspace</span><select value={account.business.id} onChange={selectWorkspace}>{workspaces.map((item) => <option key={item.id} value={item.id} disabled={item.status === "suspended"}>{item.name}{item.status === "suspended" ? " (suspended)" : ""}</option>)}</select></label>}
         <nav className="navList" aria-label="Product sections">
-          {navItems.filter((item) => canOpenWorkspaceView(account.role, item.id)).map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
+          {navItems.filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false)).map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
         </nav>
         <div className="railNote"><ShieldCheck size={18} /><span>{account.user.email}</span></div>
       </aside>
@@ -386,7 +402,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
         </header>
         {notice && <div className="toast">{notice}</div>}
         {["degraded", "reconnect_required"].includes(state.setup.health?.status) && <div className="connectionAlert" role="alert"><CircleAlert size={19} /><span>{connectionHealthMessage(state.setup.health)}</span>{canOpenWorkspaceView(account.role, "setup") && <button className="secondaryAction" type="button" onClick={() => navigate("setup")}>Open WhatsApp settings</button>}</div>}
-        <Screens activeView={activeView} {...screenProps} />
+        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is disabled by the platform administrator.'><button className='secondaryAction' type='button' onClick={() => navigate('overview')}>Open dashboard</button></Panel></div> : <Screens activeView={activeView} {...screenProps} />}
         {children}
       </section>
     </main>
@@ -424,8 +440,9 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
       return;
     }
 
-    if (String(form.password || '').length < 12) {
-      setError('Password must be at least 12 characters.');
+    const passwordError = authFormPasswordError(form.password, mode);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -476,10 +493,11 @@ function Screens({ activeView, ...props }) {
     return <Panel title="Workspace access"><p>This section is available to workspace owners{activeView === "billing" ? "" : " and managers"}.</p></Panel>;
   }
   const screens = { ads: <WhatsAppAds api={api} postJson={postJson} uploadForm={uploadForm} role={props.role} />, calling: <WhatsAppCalling api={api} postJson={postJson} role={props.role} />, conversions: <WhatsAppConversions api={api} postJson={postJson} role={props.role} />, commerce: <WhatsAppCommerce api={api} postJson={postJson} role={props.role} />, overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, security: <SecuritySettings />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
-  const pageKey = { contacts: "contacts", templates: "templates", campaigns: "campaigns", results: "results", inbox: "inbox", unsubscribes: "unsubscribes" }[activeView];
+  const pageKey = { contacts: "contacts", templates: "templates", automation: "automation", campaigns: "campaigns", results: "results", inbox: "inbox", unsubscribes: "unsubscribes" }[activeView];
   return <>
     {screens[activeView]}
     {activeView === "inbox" && <Pagination label="Message history" meta={props.state.pagination?.messages} onChange={(page) => props.changePage("messages", page)} />}
+    {activeView === "inbox" && <Pagination label="Internal notes" meta={props.state.pagination?.notes} onChange={(page) => props.changePage("notes", page)} />}
     {pageKey && <Pagination label={activeView === "inbox" ? "Conversations" : "Records"} meta={props.state.pagination?.[pageKey]} onChange={(page) => props.changePage(pageKey, page)} />}
   </>;
 }
@@ -769,12 +787,13 @@ function Templates({ state, mutate }) {
   const sync = () => mutate(postJson("/api/templates/sync", {}), "Templates synced");
 return <div className="screenGrid"><section className="actionBand"><div><strong>Meta template library</strong><span>Approval status and components stay synchronized with your WABA.</span></div><button className="secondaryAction" type="button" onClick={sync}><RefreshCcw size={18} /> Sync from Meta</button></section><Panel title="Create WhatsApp template" subtitle="Marketing, utility, authentication, media headers, and action buttons"><form className="templateComposer fullTemplateComposer" onSubmit={create}><Input name="name" label="Template name" required /><label>Category<select name="category"><option value="MARKETING">Marketing</option><option value="UTILITY">Utility</option><option value="AUTHENTICATION">Authentication / OTP</option></select></label><Input name="language" label="Meta language code" defaultValue="en_US" pattern="[a-z]{2,3}(_[A-Z]{2})?" maxLength="9" required /><label>Header format<select name="headerFormat"><option value="NONE">No header</option><option value="TEXT">Text</option><option value="IMAGE">Image</option><option value="VIDEO">Video</option><option value="DOCUMENT">Document</option></select></label><Input name="headerText" label="Text header" maxLength="60" /><Input name="headerMediaHandle" label="Meta media handle" /><label className="templateBodyField">Body<textarea name="body" placeholder="Use variables like {{name}}" required /></label><Input name="footerText" label="Footer" maxLength="60" /><Input name="buttons" label="Quick replies" placeholder="Pricing, Book demo" /><details className="advancedTemplateFields"><summary>Advanced buttons and OTP settings</summary><label>Buttons<textarea name="advancedButtons" rows="4" placeholder={"QUICK_REPLY|Pricing\nURL|Visit website|https://example.com\nPHONE_NUMBER|Call us|+919000000000"} /></label><div className="formSplit"><label>OTP action<select name="otpType"><option value="COPY_CODE">Copy code</option><option value="ONE_TAP">One-tap autofill</option></select></label><Input name="otpButtonText" label="OTP button text" defaultValue="Copy code" maxLength="25" /><Input name="codeExpirationMinutes" label="Code expiry (minutes)" type="number" min="1" max="90" defaultValue="10" /></div><div className="formSplit"><Input name="otpPackageName" label="Android package name (one-tap)" autoComplete="off" /><Input name="otpSignatureHash" label="Android app signature hash (one-tap)" autoComplete="off" /><Input name="otpAutofillText" label="One-tap button text" maxLength="25" /></div></details><button className="primaryAction" type="submit"><MessageSquareText size={18} /> Submit to Meta</button></form></Panel><AdvancedTemplateComposer postJson={postJson} onCreated={()=>mutate(Promise.resolve({ok:true}),"Template submitted")}/><div className="cardGrid">{state.templates.map((template) => <article className="templateCard" key={template.id}><div className="cardHead"><div><h3>{template.name}</h3><small>{template.category} | {template.language} | {template.componentSchema?.headerFormat || "TEXT"}</small></div><Badge kind={template.status === "Approved" ? "good" : template.status === "Pending" ? "warn" : "bad"}>{template.status}</Badge></div>{template.headerText && <strong className="templateHeaderText">{template.headerText}</strong>}<p>{template.body}</p>{template.footerText && <small className="templateFooterText">{template.footerText}</small>}<div className="chipRow">{(template.buttons || []).map((button) => <span key={`${button.type || "button"}-${button.text}`}>{button.type && button.type !== "QUICK_REPLY" ? `${button.type}: ` : ""}{button.text}</span>)}{template.variables.map((variable) => <span key={variable}>{`{{${variable}}}`}</span>)}</div><TemplateInsights template={template} />{template.rejectionReason && <small className="errorLine">{template.rejectionReason}</small>}</article>)}</div>{!state.templates.length && <Panel title="No templates"><EmptyState text="Submit or sync a WhatsApp template to begin" /></Panel>}</div>;
 }
-function AutomationFlows({ state, mutate, approvedTemplates }) {
+function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
   const flows = state.automationFlows || [];
   const teamMembers = state.teamMembers || [];
   const [editingId, setEditingId] = useState("");
   const [flowMeta, setFlowMeta] = useState({ name: "", description: "", status: "draft", triggerMode: "keywords", triggerKeywords: "" });
   const [nodes, setNodes] = useState([]);
+  const [selectedTemplateDetails, setSelectedTemplateDetails] = useState({});
   const [draggedNode, setDraggedNode] = useState("");
   const [formError, setFormError] = useState("");
   const analytics = flows.reduce((totals, flow) => ({
@@ -860,13 +879,14 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
     return { startNodeId: cleanNodes[0]?.id || "", nodes: cleanNodes };
   };
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
     setFormError("");
     const definition = buildDefinition();
     if (!definition.nodes.length) { setFormError("Add at least one node before saving."); return; }
     if (flowMeta.triggerMode === "keywords" && !flowMeta.triggerKeywords.trim()) { setFormError("Add trigger keywords or choose another trigger mode."); return; }
-    mutate(postJson("/api/automation/flows", {
+    const wasEditing = Boolean(editingId);
+    const saved = await mutate(postJson("/api/automation/flows", {
       id: editingId,
       name: flowMeta.name,
       description: flowMeta.description,
@@ -875,6 +895,7 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
       triggerKeywords: flowMeta.triggerKeywords.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
       definition
     }).then((next) => { reset(); return next; }), editingId ? "Automation flow updated" : "Automation flow saved");
+    if (saved && !wasEditing) await changePage("automation", 1);
   };
 
   const updateStatus = (flow, status) => mutate(postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH"), status === "active" ? "Flow activated" : "Flow paused");
@@ -884,7 +905,7 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
   return <div className="screenGrid automationScreen">
     <section className="automationHero">
       <div><p className="kicker">Automation studio</p><h2>Build reply flows without code</h2><span>Each company owns its own triggers, nodes, routes, follow-up templates, delays, and handoff rules.</span></div>
-      <div className="automationKpis"><Metric label="Flows" value={flows.length} /><Metric label="Active sessions" value={analytics.active} /><Metric label="Completed" value={analytics.completed} /><Metric label="Pending jobs" value={analytics.pending} /></div>
+      <div className="automationKpis"><Metric label="Flows" value={state.pagination?.automation?.total ?? flows.length} /><Metric label="Active sessions on page" value={analytics.active} /><Metric label="Completed on page" value={analytics.completed} /><Metric label="Pending jobs on page" value={analytics.pending} /></div>
     </section>
 
     <section className="actionBand automationTopbar">
@@ -914,8 +935,8 @@ function AutomationFlows({ state, mutate, approvedTemplates }) {
             <label>Next node<select value={node.next} onChange={(event) => updateNode(node.id, "next", event.target.value)}><option value="">None</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label>
           </div>
           <AutomationAdvancedNodeFields node={node} nodes={nodes} update={(key,value)=>updateNode(node.id,key,value)} api={api}/>
-          {node.type === "template" && <div className="nodeFields"><label>Approved template<select value={node.templateId} onChange={(event) => updateNode(node.id, "templateId", event.target.value)}><option value="">Select template</option>{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label><label>Delay minutes<input type="number" min="0" value={node.delayMinutes} onChange={(event) => updateNode(node.id, "delayMinutes", event.target.value)} /></label></div>}
-          {node.type === 'template' && <><div className="nodeFields">{(approvedTemplates.find(template=>template.id===node.templateId)?.variables||[]).map(key=><label key={key}>Variable {key}<input required value={node.templateValues?.[key]||''} onChange={event=>updateNode(node.id,'templateValues',{...(node.templateValues||{}),[key]:event.target.value})}/></label>)}</div><TemplateParameterFields template={approvedTemplates.find(template=>template.id===node.templateId)} value={node.templateParameters||{}} onChange={value=>updateNode(node.id,'templateParameters',value)}/></>}
+          {node.type === "template" && <div className="nodeFields"><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates} value={node.templateId} onChange={value => updateNode(node.id, 'templateId', value)} onTemplate={template => setSelectedTemplateDetails(current => current[node.id]?.id === template?.id ? current : { ...current, [node.id]: template })} /></label><label>Delay minutes<input type="number" min="0" value={node.delayMinutes} onChange={(event) => updateNode(node.id, "delayMinutes", event.target.value)} /></label></div>}
+          {node.type === 'template' && <><div className="nodeFields">{(selectedTemplateDetails[node.id]?.id === node.templateId ? selectedTemplateDetails[node.id] : approvedTemplates.find(template=>template.id===node.templateId))?.variables?.map(key=><label key={key}>Variable {key}<input required value={node.templateValues?.[key]||''} onChange={event=>updateNode(node.id,'templateValues',{...(node.templateValues||{}),[key]:event.target.value})}/></label>)}</div><TemplateParameterFields template={selectedTemplateDetails[node.id]?.id === node.templateId ? selectedTemplateDetails[node.id] : approvedTemplates.find(template=>template.id===node.templateId)} value={node.templateParameters||{}} onChange={value=>updateNode(node.id,'templateParameters',value)}/></>}
           {node.type === "handoff" && <label>Assign to<select value={node.assignedUserId} onChange={(event) => updateNode(node.id, "assignedUserId", event.target.value)}><option value="">Keep unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select></label>}
           <label>Message<textarea rows="4" value={node.body} onChange={(event) => updateNode(node.id, "body", event.target.value)} placeholder="Message body. Use variables like {{name}} or captured values."></textarea></label>
           <div className="nodeFields"><label>Fallback<textarea rows="2" value={node.fallback} onChange={(event) => updateNode(node.id, "fallback", event.target.value)} placeholder="Shown when reply does not match"></textarea></label><label>Capture as<input value={node.captureAs} onChange={(event) => updateNode(node.id, "captureAs", event.target.value)} placeholder="Variable name" /></label></div>
@@ -936,6 +957,7 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
   const activeFlows = (state.automationFlows || []).filter((flow) => flow.status === "active");
   const segments = (state.audienceSegments || []).filter((segment) => segment.isActive);
   const [templateId, setTemplateId] = useState(approvedTemplates[0]?.id || "");
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [deliveryMethod, setDeliveryMethod] = useState('cloud_api');
   const [templateParameters, setTemplateParameters] = useState({});
   useEffect(() => { setTemplateParameters({}); }, [templateId]);
@@ -945,8 +967,8 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
   const [recipientSearch, setRecipientSearch] = useState("");
   const [selectedContactIds, setSelectedContactIds] = useState([]);
   const filteredRecipients = marketableContacts.filter((contact) => [contact.name, contact.phone, ...(contact.tags || [])].join(" ").toLowerCase().includes(recipientSearch.toLowerCase()));
-  useEffect(() => { if (!templateId && approvedTemplates[0]?.id) setTemplateId(approvedTemplates[0].id); if (templateId && !approvedTemplates.some((item) => item.id === templateId)) setTemplateId(approvedTemplates[0]?.id || ""); }, [approvedTemplates, templateId]);
-  const template = approvedTemplates.find((item) => item.id === templateId) || approvedTemplates[0];
+  useEffect(() => { if (!templateId && approvedTemplates[0]?.id) setTemplateId(approvedTemplates[0].id); }, [approvedTemplates, templateId]);
+  const template = selectedTemplate?.id === templateId ? selectedTemplate : approvedTemplates.find((item) => item.id === templateId);
   const marketingMessagesReady = state.marketingMessagesStatus === 'ONBOARDED';
   const segment = segments.find((item) => item.id === segmentId);
   const editableVariables = (template?.variables || []).filter((variable) => variable !== "name");
@@ -962,7 +984,7 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
     } catch (error) { mutate(Promise.reject(error)); }
   };
   const targetCount = segment ? segment.contactCount : selectedContactIds.length;
-  return <div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Approved template<select value={template?.id || ""} onChange={(event) => { setTemplateId(event.target.value); setVariables({}); setDeliveryMethod('cloud_api'); }} disabled={!approvedTemplates.length}><option value="">{approvedTemplates.length ? "Choose template" : "No approved templates available"}</option>{approvedTemplates.map((item) => <option value={item.id} key={item.id}>{item.name} ({item.language})</option>)}</select></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {state.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<select value={segmentId} onChange={(event) => { setSegmentId(event.target.value); if (event.target.value) setSelectedContactIds([]); }}><option value="">Select contacts manually</option>{segments.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.contactCount})</option>)}</select></label><label>Schedule<input name="scheduledAt" type="datetime-local" /></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<select value={automationFlowId} onChange={(event) => setAutomationFlowId(event.target.value)}><option value="">No follow-up flow</option>{activeFlows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!template || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div>;
+  return <div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates} value={templateId} onChange={value => { setTemplateId(value); setVariables({}); setDeliveryMethod('cloud_api'); }} onTemplate={setSelectedTemplate} /></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {state.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<select value={segmentId} onChange={(event) => { setSegmentId(event.target.value); if (event.target.value) setSelectedContactIds([]); }}><option value="">Select contacts manually</option>{segments.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.contactCount})</option>)}</select></label><label>Schedule<input name="scheduledAt" type="datetime-local" /></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<select value={automationFlowId} onChange={(event) => setAutomationFlowId(event.target.value)}><option value="">No follow-up flow</option>{activeFlows.map((flow) => <option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!template || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div>;
 }
 function WhatsAppReferralReport() {
   const [days, setDays] = useState(30);
@@ -1021,14 +1043,15 @@ function MessageContent({ message }) {
 
 function TemplateReplyForm({ approvedTemplates, activeContact, mutate }) {
   const [templateId, setTemplateId] = useState(approvedTemplates[0]?.id || "");
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [parameters, setParameters] = useState({});
-  useEffect(() => { if (!approvedTemplates.some((item) => item.id === templateId)) setTemplateId(approvedTemplates[0]?.id || ""); }, [approvedTemplates, templateId]);
-  const template = approvedTemplates.find((item) => item.id === templateId);
+  useEffect(() => { if (!templateId && approvedTemplates[0]?.id) setTemplateId(approvedTemplates[0].id); }, [approvedTemplates, templateId]);
+  const template = selectedTemplate?.id === templateId ? selectedTemplate : approvedTemplates.find((item) => item.id === templateId);
   const flowButtons = template?.componentSchema?.components?.find((component) => String(component.type).toUpperCase() === 'BUTTONS')?.buttons || template?.componentSchema?.buttons || template?.buttons || [];
   const flowTemplate = flowButtons.some((button) => String(button.type).toUpperCase() === 'FLOW');
   const replyVariables = (template?.variables || []).filter((variable) => variable !== "name");
   const submit = async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const variables = Object.fromEntries(replyVariables.map((variable) => [variable, form.get(variable)])); const {flowInvite, ...sendParameters} = parameters; const path = flowTemplate ? '/api/whatsapp/flow-templates' : '/api/messages/template-reply'; const payload = {contactId: activeContact.id, templateId, variables, parameters: flowTemplate ? {...sendParameters, flowInvite: flowInvite || {requestId: crypto.randomUUID(), expiresHours: 24}} : sendParameters}; if(flowTemplate)payload.action='send'; const succeeded = await mutate(postJson(path, payload), 'Template sent'); if(flowTemplate && succeeded)setParameters({...sendParameters, flowInvite: {requestId: crypto.randomUUID(), expiresHours: flowInvite?.expiresHours || 24}}); };
-  return <form className="composer templateLine" onSubmit={submit}><select value={templateId} onChange={(event) => {setTemplateId(event.target.value);setParameters({});}}>{approvedTemplates.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.language})</option>)}</select>{replyVariables.map((variable) => <input key={variable} name={variable} placeholder={`{{${variable}}}`} required />)}<TemplateParameterFields template={template} value={parameters} onChange={setParameters} /><button className="secondaryAction" disabled={!template}><Send size={17} /> Send template</button></form>;
+  return <form className="composer templateLine" onSubmit={submit}><ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates} value={templateId} onChange={value => { setTemplateId(value); setParameters({}); }} onTemplate={setSelectedTemplate} />{replyVariables.map((variable) => <input key={variable} name={variable} placeholder={`{{${variable}}}`} required />)}<TemplateParameterFields template={template} value={parameters} onChange={setParameters} /><button className="secondaryAction" disabled={!template}><Send size={17} /> Send template</button></form>;
 }
 
 function InteractiveReplyForm({ activeContact, mutate }) {
@@ -1059,6 +1082,20 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const currentUserId = state.account?.user?.id || "";
   const [search, setSearch] = useState("");
   const [inboxFilter, setInboxFilter] = useState("all");
+  const [replyDraft, setReplyDraft] = useState('');
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
+  const [suggestionSources, setSuggestionSources] = useState([]);
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const activeSuggestionConversation = useRef(activeConversation?.id);
+  activeSuggestionConversation.current = activeConversation?.id;
+  useEffect(() => {
+    if (!state.featureFlags?.ai_agent) { setAiAvailable(false); return; }
+    let active = true;
+    api('/api/ai-agent/availability').then(result => { if (active) setAiAvailable(result.enabled); }).catch(() => { if (active) setAiAvailable(false); });
+    return () => { active = false; };
+  }, [state.featureFlags?.ai_agent]);
+  useEffect(() => { setReplyDraft(''); setSuggestionError(''); setSuggestionSources([]); }, [activeConversation?.id]);
   const filteredConversations = state.conversations.filter((conversation) => {
     const contact = state.contacts.find((item) => item.id === conversation.contactId) || {};
     const latest = conversation.messages.at(-1);
@@ -1077,15 +1114,27 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const assignedUser = teamMembers.find((member) => member.id === activeConversation?.assignedUserId);
   const workflowAction = (action, extra = {}) => { if (!activeConversation) return; mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, { action, ...extra }, "PATCH"), action === "note" ? "Note added" : "Conversation updated"); };
   const selectConversation = (conversation) => { openConversation(conversation.id); if (conversation.unreadCount > 0) mutate(postJson(`/api/conversations/${conversation.id}/workflow`, { action: "mark_read" }, "PATCH")); };
-  const reply = (event) => { event.preventDefault(); const form = event.currentTarget; const body = new FormData(form).get("body"); if (!activeContact || !body?.trim()) return; mutate(postJson("/api/messages/reply", { contactId: activeContact.id, body }), "Message sent"); form.reset(); };
+  const reply = async (event) => { event.preventDefault(); const body = replyDraft.trim(); if (!activeContact || !body) return; if (await mutate(postJson('/api/messages/reply', { contactId: activeContact.id, body }), 'Message sent')) { setReplyDraft(''); setSuggestionSources([]); } };
+  const suggestReply = async () => {
+    if (!activeConversation || suggesting) return;
+    const conversationId = activeConversation.id;
+    setSuggesting(true); setSuggestionError(''); setSuggestionSources([]);
+    try {
+      const result = await postJson('/api/ai-agent/draft', { conversationId });
+      if (activeSuggestionConversation.current !== conversationId) return;
+      if (result.handoff) setSuggestionError('No grounded suggestion is available. Continue with a human reply.');
+      else { setReplyDraft(result.suggestion); setSuggestionSources(result.sources || []); }
+    } catch (cause) { if (activeSuggestionConversation.current === conversationId) setSuggestionError(cause.message); }
+    finally { setSuggesting(false); }
+  };
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
   return <><section className="inboxShell">
     <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" /></label><select value={inboxFilter} onChange={(event) => setInboxFilter(event.target.value)}><option value="all">All conversations</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!filteredConversations.length && <EmptyState text="No conversations match this view" />}</aside>
-    <div className="threadPane">{activeConversation && activeContact ? <><header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></header><div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>{activeConversation.status !== "closed" && activeConversation.canReply && <form className="composer" onSubmit={reply}><textarea name="body" placeholder="Write a WhatsApp reply" required /><button className="primaryAction"><Send size={18} /> Send</button></form>}{activeConversation.status !== "closed" && !activeConversation.canReply && <TemplateReplyForm approvedTemplates={approvedTemplates} activeContact={activeContact} mutate={mutate} />}<aside className="conversationNotes"><header><div><StickyNote size={17} /><strong>Internal notes</strong></div><span>{activeConversation.notes?.length || 0}</span></header><div className="noteList">{(activeConversation.notes || []).map((item) => <article key={item.id}><p>{item.body}</p><small>{item.author} | {formatTime(item.createdAt)}</small></article>)}{!activeConversation.notes?.length && <span>No internal notes yet</span>}</div><form onSubmit={note}><input name="note" placeholder="Add a note for your team" required /><button className="iconButton" title="Add note"><Plus size={17} /></button></form></aside></> : <EmptyState text="No conversations" />}</div>
+    <div className="threadPane">{activeConversation && activeContact ? <><header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></header><div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div><div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>{activeConversation.status !== "closed" && activeConversation.canReply && <div className="aiReplyComposer"><form className="composer" onSubmit={reply}><textarea name="body" value={replyDraft} onChange={event => setReplyDraft(event.target.value)} placeholder="Write a WhatsApp reply" required /><button className="primaryAction"><Send size={18} /> Send</button></form>{aiAvailable && <button className="secondaryAction" type="button" onClick={suggestReply} disabled={suggesting}><Bot size={16} /> {suggesting ? "Preparing suggestion" : "Suggest reply"}</button>}{suggestionError && <small className="errorLine" role="alert">{suggestionError}</small>}{suggestionSources.length > 0 && <small>Sources: {suggestionSources.map(item => item.title).join(", ")}</small>}</div>}{activeConversation.status !== "closed" && !activeConversation.canReply && <TemplateReplyForm approvedTemplates={approvedTemplates} activeContact={activeContact} mutate={mutate} />}<aside className="conversationNotes"><header><div><StickyNote size={17} /><strong>Internal notes</strong></div><span>{activeConversation.notes?.length || 0}</span></header><div className="noteList">{(activeConversation.notes || []).map((item) => <article key={item.id}><p>{item.body}</p><small>{item.author} | {formatTime(item.createdAt)}</small></article>)}{!activeConversation.notes?.length && <span>No internal notes yet</span>}</div><form onSubmit={note}><input name="note" placeholder="Add a note for your team" required /><button className="iconButton" title="Add note"><Plus size={17} /></button></form></aside></> : <EmptyState text="No conversations" />}</div>
   </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>;
 }
 function Team({ state, mutate }) {
-  return <><TeamMembers state={state} mutate={mutate}/>{['Owner','Manager'].includes(state.account?.role)&&<SupportPolicy endpoint="/api/team/support-policy" canEdit={state.account.role==='Owner'} api={api} postJson={postJson}/>}</>;
+  return <><TeamMembers state={state} mutate={mutate}/>{['Owner','Manager'].includes(state.account?.role)&&<SupportPolicy endpoint="/api/team/support-policy" canEdit={state.account.role==='Owner'} api={api} postJson={postJson}/>} {state.featureFlags?.ai_agent && ['Owner','Manager'].includes(state.account?.role) && <AiSupportSettings api={api} postJson={postJson} role={state.account.role} />}</>;
 }
 
 function TeamMembers({ state, mutate }) {

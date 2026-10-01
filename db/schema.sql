@@ -80,6 +80,7 @@ ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_token_expires_at TIMESTAMPT
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_connected_at TIMESTAMPTZ;
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS webhook_subscribed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS meta_connection_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS feature_overrides JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS workspace_deletion_requests (
   id TEXT PRIMARY KEY,
@@ -645,6 +646,22 @@ CREATE TABLE IF NOT EXISTS conversation_notes (
   body TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS ai_agent_settings (
+  business_id TEXT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+  enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  instructions TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS ai_agent_knowledge (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_agent_knowledge_business ON ai_agent_knowledge(business_id,is_active,updated_at DESC);
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -674,9 +691,11 @@ CREATE INDEX IF NOT EXISTS idx_contacts_business ON contacts(business_id);
 CREATE INDEX IF NOT EXISTS idx_contacts_tags ON contacts USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_audience_segments_business ON audience_segments(business_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_templates_business ON templates(business_id);
+CREATE INDEX IF NOT EXISTS idx_templates_approved_recent ON templates(business_id,created_at DESC,id DESC) WHERE status='Approved';
 CREATE INDEX IF NOT EXISTS idx_campaigns_business_created ON campaigns(business_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_campaigns_schedule ON campaigns(status, scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_recipients_campaign ON campaign_recipients(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_recipients_campaign_page ON campaign_recipients(campaign_id, sent_at DESC NULLS LAST, id);
 CREATE INDEX IF NOT EXISTS idx_automation_flows_business ON automation_flows(business_id, status);
 CREATE INDEX IF NOT EXISTS idx_automation_sessions_contact ON automation_sessions(business_id, contact_id, status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_one_active_session ON automation_sessions(business_id, contact_id) WHERE status = 'active';
@@ -686,6 +705,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_referral_period ON conversations(bu
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_at ON messages(conversation_id, at ASC);
 CREATE INDEX IF NOT EXISTS idx_messages_campaign_recipient ON messages(campaign_recipient_id);
 CREATE INDEX IF NOT EXISTS idx_conversation_notes_conversation ON conversation_notes(conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversation_notes_page ON conversation_notes(business_id, conversation_id, created_at DESC, id DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_meta_message_id ON messages(meta_message_id) WHERE meta_message_id <> '';
 CREATE INDEX IF NOT EXISTS idx_events_business_at ON events(business_id, at DESC);
 CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run_at);
@@ -693,7 +713,7 @@ CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run
 DO $$
 DECLARE tenant_table TEXT;
 BEGIN
-  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_coexistence_sync','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','message_usage_events','events','audit_logs'] LOOP
+  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_coexistence_sync','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','ai_agent_settings','ai_agent_knowledge','message_usage_events','events','audit_logs'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', tenant_table);

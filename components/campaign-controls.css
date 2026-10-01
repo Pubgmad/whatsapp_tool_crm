@@ -10,4 +10,12 @@
 .campaignPolicy h3{margin:0 0 10px;font-size:16px}
 .campaignControlForm .checkboxLabel{display:flex;align-items:center;gap:8px;min-height:40px}
 .campaignControlForm input[type=checkbox]{width:18px;height:18px;flex:0 0 18px}
+.campaignRecipients{min-width:0;border-top:1px solid var(--line);padding-top:10px}
+.campaignRecipients summary{cursor:pointer;font-weight:650;font-size:13px}
+.campaignRecipientsTable{max-width:100%;overflow-x:auto;margin-top:10px}
+.campaignRecipientsTable table{width:100%;min-width:620px;border-collapse:collapse;font-size:12px}
+.campaignRecipientsTable td,.campaignRecipientsTable th{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere;max-width:320px}
+.campaignRecipientsTable td small{display:block;color:var(--muted)}
+.campaignRecipientPages{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding-top:12px;font-size:12px}
+.campaignRecipientPages button{min-height:36px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
 @media(max-width:520px){.campaignControlForm label{flex-basis:100%}.campaignControlForm .primaryAction{flex:1 1 180px}.campaignControlButtons button{flex:1 1 140px}}
