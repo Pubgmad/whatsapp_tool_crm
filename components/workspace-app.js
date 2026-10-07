@@ -17,6 +17,7 @@ import WorkspaceIntegrations from './workspace-integrations';
 import TrackedLinks from './tracked-links';
 import ProviderConnectors from './provider-connectors';
 import WhatsAppWebviews from './whatsapp-webviews';
+import WorkspaceOperationsPanel from './workspace-operations-panel';
 import HubSpotConnection from './hubspot-connection';
 import AutomationAdvancedNodeFields from './automation-advanced-node-fields';
 import AutomationConnections from './automation-connections';
@@ -1119,6 +1120,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
   return (
     <div className="screenGrid">
       <CampaignPolicy role={state.account.role} businessId={state.account.business.id} api={api} postJson={postJson} />
+      <WorkspaceOperationsPanel api={api} />
       <WhatsAppReferralReport />
       <section className="actionBand">
         <div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div>

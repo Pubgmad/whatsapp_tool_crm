@@ -84,8 +84,9 @@ Official benchmark checked 2026-10-07: [platform features](https://aisensy.com/f
 | HIGH | Tenant isolation coverage for new routes/tables and provider callbacks | Exercise cross-company IDs/tokens, public endpoints, RLS, worker system context, webhook ownership. |
 | HIGH | AI auto-send/action operational risk | Verify explicit opt-in, platform/company flags, daily cap, groundedness, prompt injection, unknown-delivery review and human handoff. |
 | MEDIUM | Webhook and job dead-letter/alerting may need operations work | Queue has retry/replay; add external alerting/runbooks, lag thresholds, sustained load tests. |
-| MEDIUM | Public-site CMS is narrower than full marketing-site CMS | `lib/public-site.js` only allows 8 section kinds, 4 block types, 3 layouts, 2 alignments and local CTA links; no arbitrary rich links/images per block, social/footer/nav editor. |
-| MEDIUM | CRM object sync is not full bidirectional business-object parity | Contacts/Leads have write paths; Salesforce Account/Opportunity and HubSpot Company/Deal records are imported/read-only. Verify mapping and conflict policy. |
+| MEDIUM | Public-site CMS is structured, not a full marketing-site builder | Sections, footer/social, link/image blocks via Super Admin; legal copy and brand remain operator-owned. See `lib/public-site.js`. |
+| MEDIUM | CRM object sync is not a full CRM engine | Contacts/leads plus optional outbound update/create for Companies/Deals/Accounts/Opportunities (`lib/crm-object-outbound.js`). Conflict policy and custom objects remain operator-defined. |
+| MEDIUM | Production operations dashboards | Workspace **Results → Production operations** and `GET /api/workspace/operations` expose queue SLO, rate-limit events, SLA, template matrix, MM readiness, integration catalog. |
 | MEDIUM | Browser/accessibility/mobile support is not certified | Test authenticated workflows on desktop/tablet/Android/iOS Chrome/Edge/Safari/Firefox; keyboard, focus, overflow, touch, dialogs, tables and error states. |
 | MEDIUM | Data/ops foundation | Verify backups/restore, key rotation, capacity/load, retention, rate-limit store and log redaction on actual VPS. |
 | LOW | Seed/default copy and fixed nav may not suit brand | Review `lib/platform.js`, `app/page.js`, `db/public-site.sql` with Super Admin; do not mistake seed copy for actual operator approval. |

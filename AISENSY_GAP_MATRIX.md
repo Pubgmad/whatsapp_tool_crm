@@ -10,9 +10,9 @@ Registry: **46** capabilities — **8** strong, **35** partial, **3** gap.
 | Multi-agent assignment & handoff | Core CRM & messaging | partial | aisensy | lib/support-policy.js, components/workspace-app.js |  |
 | Contacts, consent, import/export, segments | Core CRM & messaging | strong | aisensy | lib/segments.js, lib/audience-rules.js |  |
 | Broadcast campaigns, schedule, approval | Campaigns, segments & retargeting | strong | aisensy, meta | lib/actions.js, lib/campaign-controls.js |  |
-| Retry failed campaign recipients | Campaigns, segments & retargeting | partial | aisensy | lib/campaign-controls.js |  |
+| Retry failed campaign recipients | Campaigns, segments & retargeting | partial | aisensy | lib/campaign-controls.js, lib/campaign-retry-policy.js |  |
 | AiSensy-style retarget presets & dynamic audiences | Campaigns, segments & retargeting | strong | aisensy | lib/retargeting.js, lib/campaign-audience-sync.js, lib/retargeting-segment-refresh.js |  |
-| Tracked links & button-click attribution | Campaigns, segments & retargeting | partial | aisensy | lib/click-tracking.js, lib/audience-rules.js | Click presets use tracked URLs and interactive replies, not every raw CTA tap. |
+| Tracked links & button-click attribution | Campaigns, segments & retargeting | partial | aisensy | lib/click-tracking.js, lib/audience-rules.js | Per body/button slot metrics in Integrations → link tracking; raw CTA taps without tracked markers are not counted. |
 | Templates, carousel, catalog, AUTH sends | Campaigns, segments & retargeting | partial | aisensy, meta | lib/advanced-template-components.js, lib/template-send-components.js |  |
 | Marketing Messages API send path | Campaigns, segments & retargeting | partial | meta | lib/actions.js | MM Lite optimizer features (TTL, creative optimization, benchmarks) are Meta-side; this app uses the send/eligibility path. |
 | Rule/API automation flows | Flows & automation | partial | aisensy | lib/automation.js, lib/automation-node-runtime.js |  |
