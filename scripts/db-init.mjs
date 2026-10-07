@@ -185,6 +185,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/product-completion-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/production-p1-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/production-p2-wave.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/production-p3-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/whatsapp-widgets.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/support-policy.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/click-tracking.sql', import.meta.url), 'utf8'));

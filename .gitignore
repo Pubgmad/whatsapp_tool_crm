@@ -10,3 +10,8 @@ npm-debug.log*
 sampleui/
 playwright-report/
 test-results/
+tsconfig.tsbuildinfo
+
+# Markdown: only root README is published to GitHub
+*.md
+!README.md

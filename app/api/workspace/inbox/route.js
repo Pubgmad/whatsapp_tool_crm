@@ -16,7 +16,9 @@ function inboxOptions(request) {
     notePage: positiveInteger('notePage', 1),
     conversationId: clean(params.get('conversationId')),
     q: clean(params.get('q')).slice(0, 120),
-    inboxFilter: clean(params.get('inboxFilter'))
+    inboxFilter: clean(params.get('inboxFilter')),
+    cursorUpdatedAt: clean(params.get('cursorUpdatedAt')),
+    cursorId: clean(params.get('cursorId'))
   };
 }
 
