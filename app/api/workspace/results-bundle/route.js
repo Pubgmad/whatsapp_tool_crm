@@ -1,5 +1,5 @@
 import { workspaceResultsManagerBundle } from '@/lib/workspace-results-bundle.js';
-import { workspaceRoute } from '@/lib/workspace-route.js';
+import { workspaceRoute } from '@/lib/workspace-route.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

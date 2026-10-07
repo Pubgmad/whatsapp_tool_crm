@@ -1,5 +1,5 @@
 import { workspaceProductionCertification } from '@/lib/production-certification.js';
-import { workspaceRoute } from '@/lib/workspace-route.js';
+import { workspaceRoute } from '@/lib/workspace-route.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

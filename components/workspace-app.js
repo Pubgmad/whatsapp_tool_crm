@@ -19,7 +19,7 @@ import ProviderConnectors from './provider-connectors';
 import WhatsAppWebviews from './whatsapp-webviews';
 import InboxSlaWidget from './inbox-sla-widget';
 import WorkspaceResultsManagerShell from './workspace-results-manager-shell';
-import { isWorkspaceManager } from '../lib/workspace-roles.js';
+import { isWorkspaceManager } from '../lib/workspace-roles.ts';
 import WhatsAppGroups from './whatsapp-groups';
 import IntegrationMarketplace from './integration-marketplace';
 import MmLiteOptimizerPanel from './mm-lite-optimizer-panel';
@@ -34,6 +34,7 @@ import AiSupportSettings from './ai-support-settings';
 import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation';
 import { metaSdkCallback } from '../lib/meta-sdk-callback';
 import { saveConversationDraft, clearSentConversationDraft, canApplySupportSuggestion } from '../lib/inbox-drafts';
+import { canOpenWorkspaceView, featureForView, managerViews, workspaceRoutes } from './workspace/nav-config.js';
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -62,42 +63,6 @@ const navItems = [
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "unsubscribes", label: "Suppression", icon: Ban }
 ];
-
-const managerViews = new Set(["setup", "templates", "automation", "campaigns", 'commerce', 'conversions','calling','ads']);
-const featureForView = {
-  inbox: 'inbox',
-  templates: 'templates',
-  contacts: 'segments',
-  automation: 'automation',
-  campaigns: 'campaigns',
-  commerce: 'commerce',
-  conversions: 'conversions',
-  calling: 'calling',
-  ads: 'ads'
-};
-function canOpenWorkspaceView(role, view) {
-  if (view === "billing") return role === "Owner";
-  return !managerViews.has(view) || role === "Owner" || role === "Manager";
-}
-
-const workspaceRoutes = {
-  overview: "/app/dashboard",
-  setup: "/app/settings/whatsapp",
-  contacts: "/app/contacts",
-  team: "/app/team",
-  billing: "/app/settings/billing",
-  security: '/app/settings/security',
-  templates: "/app/templates",
-  automation: "/app/automations",
-  campaigns: "/app/campaigns",
-  commerce: '/app/commerce',
-  conversions: '/app/conversions',
-  calling: '/app/calling',
-  ads: '/app/ads',
-  results: "/app/analytics",
-  inbox: "/app/inbox",
-  unsubscribes: "/app/suppression"
-};
 
 function workspaceLocation(pathname) {
   if (pathname?.startsWith("/app/inbox/")) {

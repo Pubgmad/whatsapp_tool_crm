@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inboxSlaDashboard } from '../lib/inbox-sla-snapshot.js';
 import { workspaceProductionCertification } from '../lib/production-certification.js';
-import { isWorkspaceManager } from '../lib/workspace-roles.js';
+import { isWorkspaceManager } from '../lib/workspace-roles.ts';
 
 test('workspace role helper identifies managers', () => {
   assert.equal(isWorkspaceManager('Owner'), true);
