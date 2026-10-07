@@ -29,6 +29,7 @@ export default function MerchantPayments({api,postJson,role,orders}) {
     if(saved)setSendId('');
   };
   return <section>
+    <p className='wa-module-note'>Hosted Razorpay checkout opens outside WhatsApp. Native in-chat payments require Meta eligibility and a separate configuration path.</p>
     <header className='commerceToolbar'><h3>Razorpay customer payments</h3><button type='button' className='iconButton' title='Refresh payments' aria-label='Refresh payments' disabled={pending} onClick={()=>load().catch(cause=>setError(cause.message))}><RefreshCcw size={18}/></button></header>
     {error&&<p className='formError' role='alert'>{error}</p>}{result&&<p role='status'>{result}</p>}
     {role==='Owner'&&<form className='formGrid' onSubmit={configure} key={String(data.settings?.updated_at||'new')}>

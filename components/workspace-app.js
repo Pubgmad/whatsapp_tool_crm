@@ -21,6 +21,7 @@ import HubSpotConnection from './hubspot-connection';
 import AutomationAdvancedNodeFields from './automation-advanced-node-fields';
 import AutomationConnections from './automation-connections';
 import AudienceSegmentComposer from './audience-segment-composer';
+import WhatsAppRetargetingPanel from './whatsapp-retargeting-panel';
 import ApprovedTemplatePicker from './approved-template-picker';
 import SearchableOptionPicker from './searchable-option-picker';
 import AiSupportSettings from './ai-support-settings';
@@ -224,6 +225,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [notice, setNotice] = useState("");
   const [platform, setPlatform] = useState({ ...fallbackPlatform, ...(initialPlatform || {}) });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [campaignRetarget, setCampaignRetarget] = useState(null);
   const [pages, setPages] = useState({});
   const [workspaces, setWorkspaces] = useState([]);
   const scopeGate = useRef(null);
@@ -398,7 +400,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
   const latestCampaign = state.campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const screenProps = { state, mutate, changePage, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role };
+  const screenProps = { state, mutate, changePage, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget };
 
   return (
     <main className="shell">
@@ -1020,7 +1022,7 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
     </div>
   </div>;
 }
-function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setActiveView }) {
+function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setActiveView, campaignRetarget, setCampaignRetarget }) {
   const phones = (state.whatsappOperations?.phoneNumbers || []).filter((phone) => state.whatsappOperations?.accounts?.some((account) => account.id === phone.accountId && account.status === "connected"));
   const [phoneNumberId, setPhoneNumberId] = useState(phones.find((phone) => phone.isDefault)?.phoneNumberId || phones[0]?.phoneNumberId || "");
   const selectedPhone = phones.find((phone) => phone.phoneNumberId === phoneNumberId);
@@ -1034,8 +1036,14 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
   const [templateParameters, setTemplateParameters] = useState({});
   useEffect(() => { setTemplateParameters({}); }, [templateId]);
   const [automationFlowId, setAutomationFlowId] = useState("");
-  const [segmentId, setSegmentId] = useState("");
+  const [segmentId, setSegmentId] = useState(campaignRetarget?.segmentId || "");
   const [selectedSegment, setSelectedSegment] = useState(null);
+  useEffect(() => {
+    if (!campaignRetarget?.segmentId) return;
+    setSegmentId(campaignRetarget.segmentId);
+    const match = segments.find((item) => item.id === campaignRetarget.segmentId);
+    if (match) setSelectedSegment(match);
+  }, [campaignRetarget?.segmentId, segments]);
   const [variables, setVariables] = useState({});
   const [recipientSearch, setRecipientSearch] = useState("");
   const [selectedContactIds, setSelectedContactIds] = useState([]);
@@ -1052,8 +1060,9 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
-      const created = await postJson("/api/campaigns", { name: form.get("name"), phoneNumberId, templateId, deliveryMethod, parameters: templateParameters, automationFlowId, segmentId, variables, contactIds: selectedContactIds, scheduledAt: form.get("scheduledAt") ? new Date(form.get("scheduledAt")).toISOString() : "", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, frequencyHours: form.get('frequencyHours'), recurringIntervalDays: form.get('recurringIntervalDays') || 0, requireApproval: form.get('requireApproval')==='on' });
+      const created = await postJson("/api/campaigns", { name: form.get("name"), phoneNumberId, templateId, deliveryMethod, parameters: templateParameters, automationFlowId, segmentId, variables, contactIds: selectedContactIds, scheduledAt: form.get("scheduledAt") ? new Date(form.get("scheduledAt")).toISOString() : "", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, frequencyHours: form.get('frequencyHours'), recurringIntervalDays: form.get('recurringIntervalDays') || 0, requireApproval: form.get('requireApproval')==='on', dynamicAudience: Boolean(segmentId), retargetSourceCampaignId: campaignRetarget?.sourceCampaignId || "" });
       await mutate(postJson("/api/campaigns/process", { limit: 25 }), created.approvalStatus==='pending' ? 'Campaign awaiting owner review' : "Campaign queued");
+      setCampaignRetarget?.(null);
       setActiveView("results");
     } catch (error) { mutate(Promise.reject(error)); }
   };
@@ -1095,12 +1104,72 @@ function WhatsAppReferralReport() {
     {report && !report.sources.length && <EmptyState text="No WhatsApp ad or post referrals in this period" />}
   </Panel>;
 }
-function Results({ state, mutate }) {
+function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
   const processQueue = () => mutate(postJson("/api/campaigns/process", { limit: 25 }), "Queue processed");
   const canManage = ["Owner", "Manager"].includes(state.account.role);
+  const segmentsEnabled = state.featureFlags?.segments !== false;
   const lifecycle = (campaign, action) => mutate(postJson(`/api/campaigns/${campaign.id}`, { action }, "PATCH"), `Campaign ${action}d`);
-  const control = async (campaign,action,values) => { await postJson(`/api/campaigns/${campaign.id}`,{action,...values},'PATCH');await mutate(Promise.resolve({ok:true}),'Campaign updated'); };
-return <div className="screenGrid"><CampaignPolicy role={state.account.role} businessId={state.account.business.id} api={api} postJson={postJson}/><WhatsAppReferralReport /><section className="actionBand"><div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div>{canManage && <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button>}</section>{state.campaigns.map((campaign) => <Panel key={campaign.id} title={campaign.name} subtitle={campaign.scheduledAt ? `Scheduled ${formatTime(campaign.scheduledAt)} | ${campaign.timezone}` : formatTime(campaign.createdAt)}><div className="resultHeader campaignResultActions"><Badge kind={campaign.status === "failed" || campaign.status === "cancelled" ? "bad" : ["scheduled", "processing", "paused", "queued", "draft", "pending_approval"].includes(campaign.status) ? "warn" : "good"}>{campaign.status}</Badge><Badge kind="neutral">{campaign.deliveryMethod === "marketing_messages_api" ? "Marketing Messages API" : "Cloud API"}</Badge>{campaign.recurringIntervalDays > 0 && <Badge kind="neutral">Repeats every {campaign.recurringIntervalDays}d</Badge>}{canManage && ["queued", "scheduled", "processing"].includes(campaign.status) && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "pause")}><Pause size={15} /> Pause</button>}{canManage && campaign.status === "paused" && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "resume")}><Play size={15} /> Resume</button>}{canManage && ["queued", "scheduled", "processing", "paused"].includes(campaign.status) && <button className="secondaryAction compactAction dangerSoft" onClick={() => lifecycle(campaign, "cancel")}><X size={15} /> Cancel</button>}</div><CampaignControls campaign={campaign} role={state.account.role} submit={control} /><ResultMeters stats={campaign.stats} /><DataTable headers={["Customer", "Status", "Message"]}>{campaign.recipients.map((recipient) => { const contact = state.contacts.find((item) => item.id === recipient.contactId) || {}; return <tr key={recipient.id || recipient.metaMessageId}><td><strong>{recipient.contactName || contact.name || "Unknown"}</strong></td><td><Badge kind={recipient.status === "failed" ? "bad" : recipient.status === "queued" ? "warn" : "good"}>{recipient.status}</Badge></td><td><span>{recipient.message}</span>{recipient.jobStatus&&<small>{recipient.jobStatus} | Attempts {recipient.attempts} / {recipient.maxAttempts}</small>}{recipient.nextRunAt&&<small>Next attempt: {formatTime(recipient.nextRunAt)}</small>}{recipient.jobError&&recipient.jobError!==recipient.errorMessage&&<small>{recipient.jobError}</small>}{recipient.errorMessage && <small className="errorLine">{recipient.errorMessage}</small>}</td></tr>; })}</DataTable></Panel>)}{!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}</div>;
+  const control = async (campaign, action, values) => { await postJson(`/api/campaigns/${campaign.id}`, { action, ...values }, 'PATCH'); await mutate(Promise.resolve({ ok: true }), 'Campaign updated'); };
+  const launchRetargetCampaign = async (campaign, presetId) => {
+    const seg = await postJson(`/api/campaigns/${campaign.id}/retarget`, { presetId });
+    await mutate(Promise.resolve({ ok: true }), 'Retarget audience saved');
+    setCampaignRetarget?.({ segmentId: seg.segmentId, sourceCampaignId: campaign.id });
+    setActiveView('campaigns');
+  };
+  return (
+    <div className="screenGrid">
+      <CampaignPolicy role={state.account.role} businessId={state.account.business.id} api={api} postJson={postJson} />
+      <WhatsAppReferralReport />
+      <section className="actionBand">
+        <div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div>
+        {canManage && <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button>}
+      </section>
+      {state.campaigns.map((campaign) => (
+        <Panel key={campaign.id} title={campaign.name} subtitle={campaign.scheduledAt ? `Scheduled ${formatTime(campaign.scheduledAt)} | ${campaign.timezone}` : formatTime(campaign.createdAt)}>
+          <div className="resultHeader campaignResultActions">
+            <Badge kind={campaign.status === "failed" || campaign.status === "cancelled" ? "bad" : ["scheduled", "processing", "paused", "queued", "draft", "pending_approval"].includes(campaign.status) ? "warn" : "good"}>{campaign.status}</Badge>
+            <Badge kind="neutral">{campaign.deliveryMethod === "marketing_messages_api" ? "Marketing Messages API" : "Cloud API"}</Badge>
+            {campaign.dynamicAudience && <Badge kind="neutral">Dynamic audience</Badge>}
+            {campaign.recurringIntervalDays > 0 && <Badge kind="neutral">Repeats every {campaign.recurringIntervalDays}d</Badge>}
+            {canManage && ["queued", "scheduled", "processing"].includes(campaign.status) && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "pause")}><Pause size={15} /> Pause</button>}
+            {canManage && campaign.status === "paused" && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "resume")}><Play size={15} /> Resume</button>}
+            {canManage && ["queued", "scheduled", "processing", "paused"].includes(campaign.status) && <button className="secondaryAction compactAction dangerSoft" onClick={() => lifecycle(campaign, "cancel")}><X size={15} /> Cancel</button>}
+          </div>
+          <CampaignControls campaign={campaign} role={state.account.role} submit={control} />
+          <ResultMeters stats={campaign.stats} />
+          {segmentsEnabled && canManage && (campaign.stats?.total || 0) > 0 && (
+            <WhatsAppRetargetingPanel
+              api={api}
+              postJson={postJson}
+              campaign={campaign}
+              canManage={canManage}
+              onSegmentCreated={() => mutate(Promise.resolve({ ok: true }), 'Retarget audience saved')}
+              onLaunchCampaign={(presetId) => launchRetargetCampaign(campaign, presetId)}
+            />
+          )}
+          <DataTable headers={["Customer", "Status", "Message"]}>
+            {campaign.recipients.map((recipient) => {
+              const contact = state.contacts.find((item) => item.id === recipient.contactId) || {};
+              return (
+                <tr key={recipient.id || recipient.metaMessageId}>
+                  <td><strong>{recipient.contactName || contact.name || "Unknown"}</strong></td>
+                  <td><Badge kind={recipient.status === "failed" ? "bad" : recipient.status === "queued" ? "warn" : "good"}>{recipient.status}</Badge></td>
+                  <td>
+                    <span>{recipient.message}</span>
+                    {recipient.jobStatus && <small>{recipient.jobStatus} | Attempts {recipient.attempts} / {recipient.maxAttempts}</small>}
+                    {recipient.nextRunAt && <small>Next attempt: {formatTime(recipient.nextRunAt)}</small>}
+                    {recipient.jobError && recipient.jobError !== recipient.errorMessage && <small>{recipient.jobError}</small>}
+                    {recipient.errorMessage && <small className="errorLine">{recipient.errorMessage}</small>}
+                  </td>
+                </tr>
+              );
+            })}
+          </DataTable>
+        </Panel>
+      ))}
+      {!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}
+    </div>
+  );
 }
 function MessageContent({ message }) {
   const mediaUrl = `/api/media/${message.id}`;

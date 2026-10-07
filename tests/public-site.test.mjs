@@ -5,6 +5,12 @@ import {saveBrandAsset,validateSiteDocument} from '../lib/public-site.js';
 
 const section={id:'about',kind:'about',title:'About the product',eyebrow:'Our team',visible:true,layout:'plain',align:'left',blocks:[{type:'paragraph',text:'Customer support with WhatsApp.',emphasis:'none'}],ctaLabel:'Learn more',ctaHref:'/signup'};
 
+test('public site footer and social links validate',()=>{
+  const doc=validateSiteDocument({sections:[section],footerLinks:[{label:'About',href:'/about'}],socialLinks:[{label:'LinkedIn',href:'https://linkedin.com/company/example'}]});
+  assert.equal(doc.footerLinks[0].href,'/about');
+  assert.equal(doc.socialLinks[0].label,'LinkedIn');
+});
+
 test('public sections remain structured text and reject active links',()=>{
   assert.deepEqual(validateSiteDocument({sections:[section]}).sections[0],section);
   assert.throws(()=>validateSiteDocument({sections:[{...section,ctaHref:'javascript:alert(1)'}]}),{code:'SITE_INVALID'});
