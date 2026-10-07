@@ -92,7 +92,10 @@ export default function WorkspaceProductionHub({ api, hub: hubProp = null }) {
             </div>
           )}
           {key === 'flowsAutomation' && (
-            <p>Active automation flows: <strong>{section.automationFlows ?? 0}</strong> · Flow drop-off rows: {section.flowDropOff?.length ?? 0}</p>
+            <div>
+              <p>Active automation flows: <strong>{section.automationFlows ?? 0}</strong> · Flow drop-off rows: {section.flowDropOff?.length ?? 0}</p>
+              <p className="wa-module-note">Managed runtime: {section.runtimeUrlReady ? section.managedRuntimeUrl : 'Configure APP_URL for per-screen funnel events.'}</p>
+            </div>
           )}
           {key === 'aiBots' && (
             <div className="productionHubGrid">
@@ -134,10 +137,19 @@ export default function WorkspaceProductionHub({ api, hub: hubProp = null }) {
             </div>
           )}
           {key === 'platformSaas' && (
-            <div className="productionHubGrid">
-              <Metric label="Subscription" value={section.subscriptionStatus} />
-              <Metric label="A11y E2E certified" value={section.a11y?.certified ? 'Yes' : 'Run test:e2e + record:a11y'} />
-              <Metric label="Partial capabilities" value={section.partialCapabilities} detail={`${section.improvementBacklogCount} tracked in registry`} />
+            <div>
+              <div className="productionHubGrid">
+                <Metric label="Subscription" value={section.subscriptionStatus} />
+                <Metric label="A11y E2E certified" value={section.a11y?.certified ? 'Yes' : 'Run test:e2e + record:a11y'} />
+                <Metric label="Open production tasks" value={section.productionPending?.open ?? 0} detail={`${section.productionPending?.blockedExternal ?? 0} blocked by Meta/providers`} />
+              </div>
+              {section.productionPendingItems?.length > 0 && (
+                <ul className="productionHubList">
+                  {section.productionPendingItems.map((item) => (
+                    <li key={item.id}><strong>{item.title}</strong> ({item.status}) — {item.detail}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
           {key === 'productBoundaries' && (

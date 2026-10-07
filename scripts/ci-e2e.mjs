@@ -41,7 +41,8 @@ let exitCode = 1;
 try {
   await waitForServer();
   await run('node', ['--import', './tests/preload.mjs', '--test', 'tests/production.integration.test.mjs']);
-  await run('npx', ['playwright', 'test', '--project=chromium-desktop']);
+  await run('npx', ['playwright', 'test', 'e2e/a11y-public.spec.js', '--project=chromium-desktop']);
+  await run('npx', ['playwright', 'test', 'e2e/workspace-mobile.spec.js', '--project=android']);
   exitCode = 0;
 } catch (error) {
   console.error(error.message || error);
