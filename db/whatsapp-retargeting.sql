@@ -4,3 +4,5 @@ ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS dynamic_audience BOOLEAN NOT NULL
 
 ALTER TABLE audience_segments ADD COLUMN IF NOT EXISTS retarget_source_campaign_id TEXT REFERENCES campaigns(id) ON DELETE SET NULL;
 ALTER TABLE audience_segments ADD COLUMN IF NOT EXISTS retarget_preset_id TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS audience_synced_at TIMESTAMPTZ;

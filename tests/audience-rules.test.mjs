@@ -20,6 +20,14 @@ test('purchase filters and custom-field values are parameters, never executable 
   assert.match(statement.text,/COUNT\(\*\)::int/);assert.match(statement.text,/NOT EXISTS/);assert.match(statement.text,/o.business_id=ct.business_id/);assert.match(statement.text,/payment_status IN \('captured','partially_refunded'\)/);
   assert.ok(statement.params.includes(value));assert.equal(statement.text.includes(value),false);assert.equal(statement.text.includes('ORDER BY'),false);
 });
+test('clicked engagement includes tracked links and template button replies', () => {
+  const statement = audienceContactQuery('tenant', {
+    engagement: [{ campaignId: 'camp_1', event: 'clicked', match: 'matched' }]
+  });
+  assert.match(statement.text, /tracked_link_tokens/);
+  assert.match(statement.text, /message_type IN \('button','interactive'\)/);
+});
+
 test('malformed rules fail closed rather than becoming broader audiences',()=>{
   for(const value of [{permission:'anything'},{purchase:'estimated'},{lastActiveDays:-1},{engagementMode:'xor'},{engagement:[{campaignId:'x',event:'click',match:'matched'}]},{attributes:[{key:'x',operator:'sql',value:'anything'}]},{engagement:Array(11).fill({campaignId:'x',event:'read',match:'matched'})}])assert.throws(()=>normalizeAudienceRules(value),{code:'SEGMENT_RULES_INVALID'});
 });

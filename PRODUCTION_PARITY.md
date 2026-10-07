@@ -14,7 +14,8 @@ This document states what is **implemented in this repository** for a Meta-enabl
 | Area | In code | Live verification still required |
 |------|---------|----------------------------------|
 | Embedded Signup / WABA / numbers / templates sync | Yes (`lib/meta-onboarding.js`, `lib/template-meta-sync.js`, `lib/whatsapp-operations.js`) | Token health, template approval in Meta |
-| Campaigns + segments + MM API gate | Yes (`lib/actions.js`, `marketing_messages` feature) | MM API entitlement on WABA |
+| Campaigns + segments + **AiSensy-style retargeting** | Yes (`lib/retargeting*.js`, dynamic audience sync on approve + queue, preset catalog in Super Admin) | Tracked links and/or template button replies for “clicked” presets |
+| Campaigns + MM API gate | Yes (`marketing_messages` feature) | MM API entitlement on WABA |
 | Recurring campaigns | Yes (API + UI `recurringIntervalDays`, worker spawn) | Schedule timezone expectations |
 | Automation / chatbot flows | Yes + **dry-run simulate** (`/api/automation/simulate`) | End-to-end on real handset |
 | AI support + knowledge import + owner-approved actions | Yes | OpenAI quota and policy |
