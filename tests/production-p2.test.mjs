@@ -22,13 +22,13 @@ test('a11y certification tracks multi-browser matrix', () => {
   assert.equal(A11Y_E2E_PROJECTS.length, 5);
 });
 
-test('improvement backlog lists partial capabilities', async () => {
+test('improvement backlog is empty when all capabilities are strong', async () => {
   const { capabilityImprovementBacklog, improvementBacklogSummary } = await import('../lib/improvement-backlog.js');
   const backlog = capabilityImprovementBacklog();
   const summary = improvementBacklogSummary(backlog);
-  assert.ok(summary.total >= 40);
-  assert.ok(summary.byStatus.partial > 0);
-  assert.ok(backlog.some((item) => item.id === 'multi_agent'));
+  assert.equal(summary.byStatus.partial, 0);
+  assert.equal(summary.byStatus.gap, 0);
+  assert.equal(summary.total, 0);
 });
 
 test('honest limits registry documents six boundaries', async () => {
