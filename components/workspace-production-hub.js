@@ -27,8 +27,8 @@ function Metric({ label, value, detail }) {
   );
 }
 
-export default function WorkspaceProductionHub({ api }) {
-  const [hub, setHub] = useState(null);
+export default function WorkspaceProductionHub({ api, hub: hubProp = null }) {
+  const [hub, setHub] = useState(hubProp);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -45,8 +45,13 @@ export default function WorkspaceProductionHub({ api }) {
   };
 
   useEffect(() => {
+    setHub(hubProp);
+  }, [hubProp]);
+
+  useEffect(() => {
+    if (hubProp) return;
     load();
-  }, [api]);
+  }, [api, hubProp]);
 
   if (!hub && !error) return <section className="productionHub"><p>Loading production dashboard…</p></section>;
 

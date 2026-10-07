@@ -17,11 +17,9 @@ import WorkspaceIntegrations from './workspace-integrations';
 import TrackedLinks from './tracked-links';
 import ProviderConnectors from './provider-connectors';
 import WhatsAppWebviews from './whatsapp-webviews';
-import WorkspaceOperationsPanel from './workspace-operations-panel';
-import WorkspaceProductionHub from './workspace-production-hub';
 import InboxSlaWidget from './inbox-sla-widget';
-import WorkspaceQualityPanel from './workspace-quality-panel';
-import CampaignFailedWorkbench from './campaign-failed-workbench';
+import WorkspaceResultsManagerShell from './workspace-results-manager-shell';
+import { isWorkspaceManager } from '../lib/workspace-roles.js';
 import WhatsAppGroups from './whatsapp-groups';
 import IntegrationMarketplace from './integration-marketplace';
 import MmLiteOptimizerPanel from './mm-lite-optimizer-panel';
@@ -72,7 +70,6 @@ const featureForView = {
   contacts: 'segments',
   automation: 'automation',
   campaigns: 'campaigns',
-  results: 'campaigns',
   commerce: 'commerce',
   conversions: 'conversions',
   calling: 'calling',
@@ -595,8 +592,8 @@ function Billing({ state, role }) {
   </div>;
 }
 
-function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView, platform, role }) {
-  const canManage = ["Owner", "Manager"].includes(role);
+function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView, platform, role, openConversation }) {
+  const canManage = isWorkspaceManager(role);
   const overview = state.overview || {};
   const delivered = overview.delivered || 0;
   const read = overview.read || 0;
@@ -616,7 +613,7 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   return <div className="screenGrid">
     <section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>{platform.workspace_intro}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
     <section className="actionBand">{canManage && <button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform.primary_cta_label} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button>{canManage && <button className="secondaryAction" onClick={() => setActiveView("results")}><BarChart3 size={18} /> Results</button>}</section>
-    <Panel title="Support queue" subtitle="Live SLA and waiting conversations for every role"><InboxSlaWidget api={api} role={role} onOpenInbox={() => setActiveView("inbox")} /></Panel>
+    <Panel title="Support queue" subtitle="Live SLA and waiting conversations for every role"><InboxSlaWidget api={api} role={role} onOpenInbox={() => setActiveView("inbox")} onOpenConversation={(conversationId) => { openConversation?.(conversationId); setActiveView("inbox"); }} /></Panel>
     <div className="overviewGrid"><Panel title="Delivery pulse" subtitle="All WhatsApp campaign recipients"><div className="statusGrid"><Metric label="Delivered" value={delivered} /><Metric label="Read" value={read} /><Metric label="Failed" value={failed} /><Metric label="Open chats" value={openConversations} /></div></Panel><Panel title="Workspace readiness" subtitle="Complete these before scaling sends"><div className="readinessList">{setupItems.map((item) => <div key={item.label} className={item.ready ? "ready" : ""}><span>{item.label}</span><Badge kind={item.ready ? "good" : "warn"}>{item.ready ? "Ready" : "Action needed"}</Badge></div>)}</div></Panel></div>
     <Panel title="Subscription usage" subtitle={state.subscription?.plan?.name || "No plan assigned"}><div className="meterGrid usageGrid"><Metric label="Contacts" value={limits.contacts == null ? usage.contacts || 0 : (usage.contacts || 0) + " / " + limits.contacts} /><Metric label="Campaigns" value={limits.campaigns == null ? usage.campaigns || 0 : (usage.campaigns || 0) + " / " + limits.campaigns} /><Metric label="Messages" value={limits.messages == null ? usage.messages || 0 : (usage.messages || 0) + " / " + limits.messages} /><Metric label="Flows" value={limits.automationFlows == null ? usage.automationFlows || 0 : (usage.automationFlows || 0) + " / " + limits.automationFlows} /></div></Panel>
     <Panel title="Latest campaign" subtitle={currentCampaign ? formatTime(currentCampaign.createdAt) : "No campaigns"}>{currentCampaign ? <ResultMeters stats={currentCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel>
@@ -724,7 +721,7 @@ function Setup({ state, mutate }) {
     {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={state.account.role}/>}
     {section === 'journeys' && <WhatsAppJourneyAnalytics api={api}/>}
     {section === 'groups' && <WhatsAppGroups api={api} postJson={postJson} enabled={state.featureFlags?.whatsapp_groups} />}
-    {section === 'integrations' && ["Owner", "Manager"].includes(state.account.role) && <><IntegrationMarketplace api={api} /><WorkspaceIntegrations api={api} postJson={postJson}/><ProviderConnectors api={api} postJson={postJson} role={state.account.role}/><TrackedLinks api={api} postJson={postJson} role={state.account.role}/>{state.featureFlags?.webviews&&<WhatsAppWebviews api={api} postJson={postJson}/>} {state.featureFlags?.crm_sync&&<><HubSpotConnection api={api} postJson={postJson} role={state.account.role}/><HubSpotConnection provider="salesforce" api={api} postJson={postJson} role={state.account.role}/></>}</>}
+    {section === 'integrations' && isWorkspaceManager(state.account.role) && <><IntegrationMarketplace api={api} /><WorkspaceIntegrations api={api} postJson={postJson}/><ProviderConnectors api={api} postJson={postJson} canEdit={state.account.role === 'Owner'} /><TrackedLinks api={api} postJson={postJson} role={state.account.role}/>{state.featureFlags?.webviews&&<WhatsAppWebviews api={api} postJson={postJson}/>} {state.featureFlags?.crm_sync&&<><HubSpotConnection api={api} postJson={postJson} role={state.account.role}/><HubSpotConnection provider="salesforce" api={api} postJson={postJson} role={state.account.role}/></>}</>}
     {section === "connection" && <>
 <div className="contentGrid twoColumns"><Panel title="Connection health" subtitle="Live values verified against this company workspace"><div className="connectionSummary"><div><span>Connection</span><Badge kind={state.setup.status === "Connected" ? "good" : "warn"}>{state.setup.status}</Badge></div><div><span>Onboarding</span><strong>{state.setup.onboardingMethod === 'coexistence' ? 'Business App coexistence' : state.setup.onboardingMethod === 'embedded_signup' ? 'Embedded Signup' : 'Manual'}</strong></div><div><span>Webhook subscription</span><Badge kind={state.setup.webhookSubscribed ? "good" : "warn"}>{state.setup.webhookSubscribed ? "Subscribed" : "Not verified"}</Badge></div><div><span>Business number</span><strong>{state.setup.whatsappNumber || "Not connected"}</strong></div><div><span>WABA ID</span><strong>{state.setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{state.setup.phoneNumberId || "Not connected"}</strong></div><div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div><div><span>Quality rating</span><strong>{metadata.qualityRating || activePhone?.qualityRating || "Unavailable"}</strong></div><div><span>Token health</span><Badge kind={activeAccount?.token.status === "healthy" ? "good" : "warn"}>{activeAccount?.token.status || "Unknown"}</Badge></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Meta health</span><Badge kind={activeAccount?.health?.status === "healthy" ? "good" : "warn"}>{activeAccount?.health?.status === "healthy" ? "Healthy" : activeAccount?.health?.status === "reconnect_required" ? "Reconnect needed" : activeAccount?.health?.status === "degraded" ? "Needs attention" : "Awaiting check"}</Badge></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div><div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={state.setup.status !== "Connected"}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "WhatsApp assets synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={state.setup.status !== "Connected"}><Unplug size={17} /> Disconnect</button></div></Panel><Panel title="Webhook endpoint" subtitle="Subscribe this HTTPS callback to WhatsApp webhook fields"><div className="webhookCard"><code>{state.setup.webhookUrl || state.meta.webhookUrl || "Configure APP_URL on the server"}</code><div><span>Signature verification</span><Badge kind="good">Server-side</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></Panel></div>
       <details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Embedded Signup is recommended for customer workspaces"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>
@@ -787,7 +784,7 @@ function Contacts({ state, mutate }) {
   const [pagination, setPagination] = useState(state.pagination?.contacts || { page: 1, pages: 1, total: contacts.length });
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [editContact, setEditContact] = useState(null);
-  const canManage = ["Owner", "Manager"].includes(state.account.role);
+  const canManage = isWorkspaceManager(state.account.role);
   const modeParam = permissionFilter === "allowed" ? "marketable" : permissionFilter === "blocked" ? "suppressed" : "all";
   useEffect(() => {
     let active = true;
@@ -1137,7 +1134,7 @@ function WhatsAppReferralReport() {
 }
 function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
   const processQueue = () => mutate(postJson("/api/campaigns/process", { limit: 25 }), "Queue processed");
-  const canManage = ["Owner", "Manager"].includes(state.account.role);
+  const canManage = isWorkspaceManager(state.account.role);
   const segmentsEnabled = state.featureFlags?.segments !== false;
   const lifecycle = (campaign, action) => mutate(postJson(`/api/campaigns/${campaign.id}`, { action }, "PATCH"), `Campaign ${action}d`);
   const control = async (campaign, action, values) => { await postJson(`/api/campaigns/${campaign.id}`, { action, ...values }, 'PATCH'); await mutate(Promise.resolve({ ok: true }), 'Campaign updated'); };
@@ -1157,11 +1154,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
           </div>
         </section>
       )}
-      {canManage && <CampaignPolicy role={state.account.role} businessId={state.account.business.id} api={api} postJson={postJson} />}
-      {canManage && <WorkspaceProductionHub api={api} />}
-      {canManage && <WorkspaceOperationsPanel api={api} />}
-      {canManage && <CampaignFailedWorkbench api={api} />}
-      {canManage && <WorkspaceQualityPanel api={api} />}
+      {canManage && <WorkspaceResultsManagerShell api={api} postJson={postJson} />}
       {canManage && <WhatsAppReferralReport />}
       <section className="actionBand">
         <div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div>
@@ -1180,6 +1173,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
           </div>
           <CampaignControls campaign={campaign} role={state.account.role} submit={control} />
           <ResultMeters stats={campaign.stats} />
+          {campaign.statsOnly && <p className="wa-module-note">Delivery summary for agents. Per-recipient rows are available to owners and managers.</p>}
           {segmentsEnabled && canManage && (campaign.stats?.total || 0) > 0 && (
             <WhatsAppRetargetingPanel
               api={api}
@@ -1190,7 +1184,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
               onLaunchCampaign={(presetId) => launchRetargetCampaign(campaign, presetId)}
             />
           )}
-          <DataTable headers={["Customer", "Status", "Message"]}>
+          {!campaign.statsOnly && <DataTable headers={["Customer", "Status", "Message"]}>
             {campaign.recipients.map((recipient) => {
               const contact = state.contacts.find((item) => item.id === recipient.contactId) || {};
               return (
@@ -1207,7 +1201,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
                 </tr>
               );
             })}
-          </DataTable>
+          </DataTable>}
         </Panel>
       ))}
       {!state.campaigns.length && <Panel title="No results"><EmptyState text="No campaigns yet" /></Panel>}
@@ -1393,7 +1387,7 @@ function TeamMembers({ state, mutate }) {
 
 function Unsubscribes({ state, suppressedContacts, mutate }) {
   const [restoreContact, setRestoreContact] = useState(null);
-  const canManage = ["Owner", "Manager"].includes(state.account.role);
+  const canManage = isWorkspaceManager(state.account.role);
   const restore = (event) => {
     event.preventDefault();
     const values = new FormData(event.currentTarget);

@@ -1,15 +1,7 @@
-import { requireSession } from '@/lib/auth.js';
-import { errorJson, json } from '@/lib/db.js';
 import { honestLimitsPayload } from '@/lib/honest-product-limits.js';
+import { workspaceRoute } from '@/lib/workspace-route.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request) {
-  try {
-    await requireSession(request);
-    return json(honestLimitsPayload());
-  } catch (error) {
-    return errorJson(error);
-  }
-}
+export const GET = workspaceRoute(async () => honestLimitsPayload(), { cacheSeconds: 120 });

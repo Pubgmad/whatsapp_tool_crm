@@ -12,7 +12,7 @@ function formatTime(value) {
   }
 }
 
-export default function InboxSlaWidget({ api, role, onOpenInbox }) {
+export default function InboxSlaWidget({ api, role, onOpenInbox, onOpenConversation }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
@@ -79,7 +79,13 @@ export default function InboxSlaWidget({ api, role, onOpenInbox }) {
         <ul className="inboxSlaWaitingList">
           {data.waiting.map((item) => (
             <li key={item.conversationId} className={item.breached ? 'breached' : ''}>
-              <strong>{item.contactName || 'Contact'}</strong>
+              <button
+                type="button"
+                className="inboxSlaConversationLink"
+                onClick={() => (onOpenConversation ? onOpenConversation(item.conversationId) : onOpenInbox?.())}
+              >
+                <strong>{item.contactName || 'Contact'}</strong>
+              </button>
               <span>{item.breached ? 'SLA breached' : 'Waiting'}</span>
               <small>{formatTime(item.waitingSince)}</small>
               {isAgent && item.assignedToMe && <small>Assigned to you</small>}

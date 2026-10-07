@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from 'react';
 
-export default function WorkspaceOperationsPanel({ api }) {
-  const [report, setReport] = useState(null);
+export default function WorkspaceOperationsPanel({ api, report: reportProp = null }) {
+  const [report, setReport] = useState(reportProp);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    setReport(reportProp);
+  }, [reportProp]);
+
+  useEffect(() => {
+    if (reportProp) return undefined;
     let active = true;
     api('/api/workspace/operations')
       .then((value) => {
@@ -18,7 +23,7 @@ export default function WorkspaceOperationsPanel({ api }) {
     return () => {
       active = false;
     };
-  }, [api]);
+  }, [api, reportProp]);
 
   if (error) return <section className="opsPanel"><p role="alert">{error}</p></section>;
   if (!report) return <section className="opsPanel"><p>Loading production operations…</p></section>;

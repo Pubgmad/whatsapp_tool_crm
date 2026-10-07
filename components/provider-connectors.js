@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import {Plus,RefreshCcw,Copy,KeyRound,Download,Save} from 'lucide-react';
 import './whatsapp-modules.css';
 
-export default function ProviderConnectors({api,postJson}){
+export default function ProviderConnectors({ api, postJson, canEdit = true }) {
   const [data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const [name,setName]=useState(''),[provider,setProvider]=useState('shopify'),[source,setSource]=useState(''),[secret,setSecret]=useState(''),[flowId,setFlowId]=useState('');
   const load=async()=>setData(await api('/api/connectors'));
@@ -12,22 +12,23 @@ export default function ProviderConnectors({api,postJson}){
   const endpoint=connector=>typeof window==='undefined'?'':window.location.origin+'/api/connectors/events/'+connector.id;
   return <section className="wa-module"><header className="wa-module-heading"><h2>Provider connectors</h2><button type="button" title="Refresh connectors" aria-label="Refresh connectors" disabled={busy} onClick={()=>run(load)}><RefreshCcw size={18}/></button></header>
     {error&&<p role="alert" className="wa-module-error">{error}</p>}
-    <form onSubmit={event=>{event.preventDefault();run(async()=>{await postJson('/api/connectors',{action:'create',name,provider,source,secret,flowId});setName('');setSource('');setSecret('');setFlowId('');});}}>
+    {canEdit && <form onSubmit={event=>{event.preventDefault();run(async()=>{await postJson('/api/connectors',{action:'create',name,provider,source,secret,flowId});setName('');setSource('');setSecret('');setFlowId('');});}}>
       <div className="wa-module-controls"><label>Name<input required maxLength={120} value={name} onChange={event=>setName(event.target.value)}/></label>
         <label>Provider<select value={provider} onChange={event=>{setProvider(event.target.value);setSource('');}}><option value="shopify">Shopify</option><option value="woocommerce">WooCommerce</option></select></label>
         <label>{provider==='shopify'?'Shop hostname':'Store HTTPS URL'}<input required maxLength={1000} type={provider==='shopify'?'text':'url'} value={source} onChange={event=>setSource(event.target.value)}/></label>
         <label>Webhook signing secret<input required type="password" autoComplete="new-password" minLength={16} maxLength={512} value={secret} onChange={event=>setSecret(event.target.value)}/></label>
         <label>Order confirmation workflow<select value={flowId} onChange={event=>setFlowId(event.target.value)}><option value="">Store events only</option>{data?.flows.map(flow=><option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>
         <button disabled={busy}><Plus size={16}/>Add connector</button></div>
-    </form>
+    </form>}
+    {!canEdit && <p className="wa-module-note">Connector changes are limited to the workspace owner. Managers can review status and delivery URLs.</p>}
     {!data&&!error&&<p role="status">Loading connectors...</p>}
     {data&&!data.connectors.length&&<p>No connectors configured.</p>}
     <div className="wa-module-table"><table><thead><tr><th>Name</th><th>Provider</th><th>Source</th><th>Delivery URL</th><th>Status</th><th>Checkout recovery</th><th>Credentials</th></tr></thead><tbody>{data?.connectors.map(connector=><tr key={connector.id}>
       <td>{connector.name}</td><td>{connector.provider}</td><td style={{overflowWrap:'anywhere'}}>{connector.source}</td>
       <td><input readOnly aria-label={'Delivery URL for '+connector.name} value={endpoint(connector)}/><button type="button" title="Copy delivery URL" aria-label="Copy delivery URL" onClick={()=>navigator.clipboard.writeText(endpoint(connector)).catch(cause=>setError(cause.message))}><Copy size={16}/></button></td>
-      <td><label><input type="checkbox" checked={connector.enabled} disabled={busy} onChange={event=>run(()=>postJson('/api/connectors',{action:'toggle',id:connector.id,enabled:event.target.checked}))}/>Enabled</label></td>
-      <td>{connector.provider==='shopify'?<RecoverySettings connector={connector} flows={data.flows} disabled={busy} onSave={settings=>run(()=>postJson('/api/connectors',{action:'recovery_settings',id:connector.id,...settings}))}/>:null}</td>
-      <td><RotateCredential disabled={busy} onSave={value=>run(()=>postJson('/api/connectors',{action:'rotate',id:connector.id,secret:value}))}/></td>
+      <td><label><input type="checkbox" checked={connector.enabled} disabled={busy||!canEdit} onChange={event=>run(()=>postJson('/api/connectors',{action:'toggle',id:connector.id,enabled:event.target.checked}))}/>Enabled</label></td>
+      <td>{connector.provider==='shopify'?<RecoverySettings connector={connector} flows={data.flows} disabled={busy||!canEdit} onSave={settings=>run(()=>postJson('/api/connectors',{action:'recovery_settings',id:connector.id,...settings}))}/>:null}</td>
+      <td>{canEdit ? <RotateCredential disabled={busy} onSave={value=>run(()=>postJson('/api/connectors',{action:'rotate',id:connector.id,secret:value}))}/> : '—'}</td>
     </tr>)}</tbody></table></div>
     <h3>Checkout recovery</h3>
     <div className="wa-module-table"><table><thead><tr><th>Store</th><th>Checkout</th><th>Customer phone</th><th>Value</th><th>Last update</th><th>Status</th><th>Action</th></tr></thead><tbody>{data?.recoveryCandidates?.map(candidate=><tr key={candidate.connector_id+':'+candidate.external_id}><td>{data.connectors.find(item=>item.id===candidate.connector_id)?.name||candidate.connector_id}</td><td>{candidate.external_id}</td><td>{candidate.data.phone||'Unavailable'}</td><td>{candidate.data.amount} {candidate.data.currency}</td><td>{new Date(candidate.occurred_at).toLocaleString()}</td><td>{candidate.recovery_reason||candidate.session_status||candidate.recovery_status}</td><td>{candidate.recovery_status==='skipped'&&<button type="button" disabled={busy} onClick={()=>run(()=>postJson('/api/connectors',{action:'retry_recovery',id:candidate.connector_id,checkoutId:candidate.external_id}))}>Retry</button>}</td></tr>)}</tbody></table></div>

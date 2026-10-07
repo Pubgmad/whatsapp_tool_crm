@@ -197,6 +197,20 @@
   border-color: rgba(220, 38, 38, 0.4);
 }
 
+.inboxSlaConversationLink {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.inboxSlaConversationLink:hover {
+  text-decoration: underline;
+}
+
 .workspaceQualityStack {
   display: grid;
   gap: 1rem;

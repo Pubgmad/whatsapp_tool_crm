@@ -12,8 +12,8 @@ function formatTime(value) {
   }
 }
 
-export default function CampaignFailedWorkbench({ api }) {
-  const [data, setData] = useState(null);
+export default function CampaignFailedWorkbench({ api, data: dataProp = null, postJson, onReload }) {
+  const [data, setData] = useState(dataProp);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -30,8 +30,28 @@ export default function CampaignFailedWorkbench({ api }) {
   };
 
   useEffect(() => {
+    setData(dataProp);
+  }, [dataProp]);
+
+  useEffect(() => {
+    if (dataProp) return;
     load();
-  }, [api]);
+  }, [api, dataProp]);
+
+  const retryCampaign = async (campaignId) => {
+    if (!postJson || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await postJson(`/api/campaigns/${campaignId}`, { action: 'retry_failed' }, 'PATCH');
+      if (onReload) await onReload();
+      else await load();
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (!data && !error) {
     return <section className="parityPanel"><p>Loading failed delivery workbench…</p></section>;
@@ -41,7 +61,7 @@ export default function CampaignFailedWorkbench({ api }) {
     <section className="parityPanel" aria-label="Failed campaign deliveries">
       <header className="wa-module-heading">
         <h2>Failed delivery workbench</h2>
-        <button type="button" title="Refresh" aria-label="Refresh failed deliveries" disabled={busy} onClick={load}>
+        <button type="button" title="Refresh" aria-label="Refresh failed deliveries" disabled={busy} onClick={onReload || load}>
           <RefreshCcw size={18} />
         </button>
       </header>
@@ -59,6 +79,7 @@ export default function CampaignFailedWorkbench({ api }) {
                     <th>Error</th>
                     <th>Attempts</th>
                     <th>Updated</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -73,8 +94,15 @@ export default function CampaignFailedWorkbench({ api }) {
                         <small>{row.contactPhone}</small>
                       </td>
                       <td>{row.errorMessage || '—'}</td>
-                      <td>{row.attempts} / {row.maxAttempts}</td>
+                      <td>{row.attempts ?? '—'} / {row.maxAttempts ?? '—'}</td>
                       <td>{formatTime(row.updatedAt)}</td>
+                      <td>
+                        {postJson && (
+                          <button type="button" className="secondaryAction compactAction" disabled={busy} onClick={() => retryCampaign(row.campaignId)}>
+                            Retry campaign
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

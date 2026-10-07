@@ -3,16 +3,17 @@
 import { useEffect, useState } from 'react';
 import { BadgeCheck, RefreshCcw } from 'lucide-react';
 
-export default function WorkspaceProductionCertPanel({ api }) {
-  const [cert, setCert] = useState(null);
+export default function WorkspaceProductionCertPanel({ api, certification: certificationProp = null }) {
+  const [cert, setCert] = useState(certificationProp);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
+  const load = async (deepProbe = false) => {
     setBusy(true);
     setError('');
     try {
-      setCert(await api('/api/workspace/production-certification'));
+      const path = `/api/workspace/production-certification${deepProbe ? '?probe=1' : ''}`;
+      setCert(await api(path));
     } catch (cause) {
       setError(cause.message);
     } finally {
@@ -21,8 +22,13 @@ export default function WorkspaceProductionCertPanel({ api }) {
   };
 
   useEffect(() => {
+    setCert(certificationProp);
+  }, [certificationProp]);
+
+  useEffect(() => {
+    if (certificationProp) return;
     load();
-  }, [api]);
+  }, [api, certificationProp]);
 
   if (!cert && !error) {
     return (
