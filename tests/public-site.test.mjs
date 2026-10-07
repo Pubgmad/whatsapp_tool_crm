@@ -11,6 +11,12 @@ test('public site footer and social links validate',()=>{
   assert.equal(doc.socialLinks[0].label,'LinkedIn');
 });
 
+test('public site link and image blocks validate',()=>{
+  const doc=validateSiteDocument({sections:[{...section,blocks:[{type:'link',label:'Sign up',href:'/signup'},{type:'image',asset:'hero',alt:'Product screenshot'}]}]});
+  assert.equal(doc.sections[0].blocks[0].href,'/signup');
+  assert.equal(doc.sections[0].blocks[1].asset,'hero');
+});
+
 test('public sections remain structured text and reject active links',()=>{
   assert.deepEqual(validateSiteDocument({sections:[section]}).sections[0],section);
   assert.throws(()=>validateSiteDocument({sections:[{...section,ctaHref:'javascript:alert(1)'}]}),{code:'SITE_INVALID'});

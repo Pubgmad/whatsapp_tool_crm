@@ -10,7 +10,13 @@ import styles from './public-site.module.css';
 
 export const dynamic='force-dynamic';
 
-function TextBlock({block}){
+function TextBlock({block,assets}){
+  if(block.type==='link')return <p><Link className={styles.textAction} href={block.href}>{block.label}</Link></p>;
+  if(block.type==='image'){
+    const src=block.asset==='logo'?assets.logo?.url:block.asset==='hero'?assets.hero?.url:block.href;
+    if(!src)return null;
+    return <figure className={styles.blockImage}><img src={src} alt={block.alt||''} width={assets[block.asset]?.width} height={assets[block.asset]?.height}/></figure>;
+  }
   const content=block.emphasis==='bold'?<strong>{block.text}</strong>:block.emphasis==='italic'?<em>{block.text}</em>:block.text;
   if(block.type==='heading')return <h3>{content}</h3>;
   if(block.type==='quote')return <blockquote>{content}</blockquote>;
@@ -35,7 +41,7 @@ export default async function HomePage(){
   return <main className={styles.site}>
     <header className={styles.header}><Link href='/' className={styles.brand}>{assets.logo?<img src={assets.logo.url} alt={platform.brand_name} width={assets.logo.width} height={assets.logo.height}/>:<span>{platform.brand_name}</span>}</Link><nav aria-label='Public navigation'>{sections.map(section=><a href={'#'+section.id} key={section.id}>{section.title}</a>)}{plans.length>0&&<a href='#pricing'>{platform.public_pricing_heading}</a>}<Link href='/login'>Sign in</Link></nav><Link className={styles.headerAction} href='/signup'>{platform.public_signup_label}</Link></header>
     <div className={styles.intro} style={assets.hero?{backgroundImage:`linear-gradient(90deg,rgba(10,27,29,.92),rgba(10,27,29,.42)),url("${assets.hero.url}")`}:undefined}><div className={styles.inner}><p className={styles.eyebrow}>{platform.product_tagline}</p><h1>{platform.brand_name}</h1><p>{platform.workspace_intro}</p><div className={styles.actions}><Link className={styles.primary} href='/signup'>{platform.public_signup_label}</Link><Link className={styles.secondary} href='/login'>Sign in</Link></div></div></div>
-    {sections.map(section=><section className={`${styles.section} ${styles[section.layout]} ${styles[section.align]}`} id={section.id} key={section.id}><div className={styles.inner}><p className={styles.eyebrow}>{section.eyebrow||section.kind.replaceAll('-',' ')}</p><h2>{section.title}</h2><div className={styles.blocks}>{section.blocks.map((block,index)=><TextBlock block={block} key={index}/>)}</div>{section.ctaLabel&&<Link className={styles.textAction} href={section.ctaHref}>{section.ctaLabel} <span aria-hidden>&rarr;</span></Link>}</div></section>)}
+    {sections.map(section=><section className={`${styles.section} ${styles[section.layout]} ${styles[section.align]}`} id={section.id} key={section.id}><div className={styles.inner}><p className={styles.eyebrow}>{section.eyebrow||section.kind.replaceAll('-',' ')}</p><h2>{section.title}</h2><div className={styles.blocks}>{section.blocks.map((block,index)=><TextBlock block={block} assets={assets} key={index}/>)}</div>{section.ctaLabel&&<Link className={styles.textAction} href={section.ctaHref}>{section.ctaLabel} <span aria-hidden>&rarr;</span></Link>}</div></section>)}
     {plans.length>0&&<section className={styles.pricing} id='pricing'><div className={styles.inner}><h2>{platform.public_pricing_heading}</h2><div className={styles.planGrid}>{plans.map(plan=><article className={styles.plan} key={plan.id}><h3>{plan.name}</h3>{plan.description&&<p>{plan.description}</p>}<strong>{new Intl.NumberFormat(undefined,{style:'currency',currency:plan.currency}).format(plan.monthly_price_cents/100)} <small>/ month</small></strong>{Array.isArray(plan.features)&&plan.features.length>0&&<ul>{plan.features.map((feature,index)=><li key={index}>{feature}</li>)}</ul>}<Link href='/signup'>{platform.public_signup_label} <span aria-hidden>&rarr;</span></Link></article>)}</div></div></section>}
     <footer className={styles.footer}><div className={styles.inner}><strong>{platform.brand_name}</strong><div>{footerLinks.map(link=><Link href={link.href} key={link.href+link.label}>{link.label}</Link>)}<Link href='/about'>About</Link><Link href='/privacy-policy'>Privacy</Link>{termsPublished&&<Link href='/terms'>Terms</Link>}<Link href='/login'>Sign in</Link>{platform.support_email&&<a href={'mailto:'+platform.support_email}>Contact</a>}</div>{socialLinks.length>0&&<div className={styles.social}>{socialLinks.map(link=><a href={link.href} key={link.href} rel='noopener noreferrer'>{link.label}</a>)}</div>}<small>{platform.company_name}</small></div></footer>
   </main>;
