@@ -275,19 +275,19 @@ DEFAULT_SUBSCRIPTION_PLAN_CODE=your-default-plan-code
 SUBSCRIPTION_PLANS_JSON=[{"code":"your-plan-code","name":"Your Plan","billingInterval":"monthly","priceCents":0,"currency":"INR","trialDays":0}]
 ```
 
-If no default plan is configured, new companies begin with a pending subscription. A visible, active plan with a positive monthly or yearly price can be purchased through Stripe Checkout.
+If no default plan is configured, new companies begin with a pending subscription. A visible, active plan with a positive monthly or yearly price can be purchased through Razorpay subscriptions.
 
-### Stripe billing
+### Razorpay SaaS billing
 
-Configure `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in the server's ignored `.env.local`. Set `APP_URL` to the public HTTPS origin. In Stripe, add a webhook endpoint at `https://your-domain.example/api/webhooks/stripe` and subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed`. Copy the endpoint's **signing secret**, not its API key, into `STRIPE_WEBHOOK_SECRET`.
+Configure `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` in the server's ignored `.env.local`. Set `APP_URL` to the public HTTPS origin. In the Razorpay dashboard, subscribe platform billing webhooks to `https://your-domain.example/api/webhooks/razorpay`.
 
-Run `npm run db:init` before enabling the webhook. The checkout price is read from the Super Admin-managed plan at purchase time. Existing Stripe subscriptions retain their agreed Stripe price when a plan's displayed price changes; new checkouts use the new price. The Billing screen opens Stripe-hosted Checkout or Customer Portal. Only signed Stripe webhooks update local subscription state. Configure the Customer Portal in Stripe before exposing its button to customers.
+In Super Admin settings, set **Razorpay subscription billing cycles** (`razorpay_subscription_total_count`) to a value between 1 and 1000 before enabling checkout. Run `npm run db:init` before enabling the webhook. Checkout prices are read from Super Admin-managed plans at purchase time. The Billing screen opens Razorpay-hosted subscription checkout; owners manage renewals through Razorpay subscription actions in the workspace.
 
-Workspace owners can switch active Stripe subscriptions between visible paid plans and monthly/yearly intervals. Stripe invoices prorations immediately; if the required payment cannot be completed, the switch is rejected and the old plan stays in effect. Some payment methods may require the owner to update payment details in the Stripe Customer Portal first. The CRM does not change the local plan until Stripe's signed webhook confirms it.
+Workspace owners can switch active Razorpay subscriptions between visible paid plans; changes are scheduled at cycle end and confirmed through signed Razorpay webhooks. The CRM does not change the local plan until reconciliation succeeds.
 
 Monthly message and WhatsApp-conversation limits reset at 00:00 UTC on the first of each calendar month. One confirmed outgoing Meta message consumes one message unit; a conversation unit is one distinct contacted customer in that month. A body-free usage ledger preserves these counts when chat history is deleted. The Super Admin controls usage-record retention separately from message retention; the active monthly window is always retained.
 
-`SUBSCRIPTION_ENFORCEMENT_ENABLED` defaults to enabled. Before deploying this version, assign active subscriptions or trials to existing workspaces and verify Stripe webhooks; otherwise write operations will be blocked. Set `SUBSCRIPTION_ENFORCEMENT_ENABLED=false` only as a temporary, explicit migration override and remove it after the access audit. Expired or unpaid subscriptions cannot create contacts, send messages, start campaigns, create automations, or process queued sends. Existing data remains readable. Reviewer access remains exempt.
+`SUBSCRIPTION_ENFORCEMENT_ENABLED` defaults to enabled. Before deploying this version, assign active subscriptions or trials to existing workspaces and verify Razorpay webhooks; otherwise write operations will be blocked. Set `SUBSCRIPTION_ENFORCEMENT_ENABLED=false` only as a temporary, explicit migration override and remove it after the access audit. Expired or unpaid subscriptions cannot create contacts, send messages, start campaigns, create automations, or process queued sends. Existing data remains readable. Reviewer access remains exempt.
 
 CSV contact import columns are `name,phone,permission,tags,opt_in_source,consent_evidence`. New rows without explicit permission are suppressed. A `yes` permission requires a source and specific evidence (at least 10 characters); importing an opted-out contact cannot silently restore marketing permission. Owners and managers can edit contacts and record fresh consent in Suppression. Run `npm run db:init` before using this feature to create the consent audit table.
 
@@ -309,7 +309,7 @@ An interrupted send may have reached Meta even if its database result was not sa
 
 Authentication rate limits are shared through PostgreSQL and applied both per account and per client IP. On the VPS, keep the Next.js port private and configure Nginx to overwrite `X-Real-IP` with `$remote_addr` and `X-Forwarded-For` with `$remote_addr`; do not pass client-supplied forwarding headers through unchanged. Password reset revokes earlier company-user sessions. New production registrations require email verification even when `EMAIL_VERIFICATION_REQUIRED=false`; configure `RESEND_API_KEY`, `EMAIL_FROM`, and an HTTPS `APP_URL` or registration returns 503. Existing accounts are not retroactively locked out by this migration. Run `npm run db:init` before restarting the application after updating. Enable MFA for the Super Admin. Once the initial Super Admin account exists, remove `SUPER_ADMIN_PASSWORD` from the runtime environment; the database retains only its password hash.
 
-For each VPS deployment: pull the intended branch, run `npm ci`, `npm run db:init`, `npm test`, `npm run build`, then restart the web and worker PM2 processes. Back up PostgreSQL before schema changes. Test a Stripe test-mode checkout and its webhook before entering live keys. Do not commit `.env.local` or paste payment keys into commands, tickets, or logs.
+For each VPS deployment: pull the intended branch, run `npm ci`, `npm run db:init`, `npm test`, `npm run build`, then restart the web and worker PM2 processes. Back up PostgreSQL before schema changes. Test a Razorpay test-mode subscription checkout and its webhook before entering live keys. Do not commit `.env.local` or paste payment keys into commands, tickets, or logs.
 
 This migration requires every WhatsApp Business Account ID and Phone Number ID to belong to only one company. If `db:init` reports duplicate ownership, resolve the affected tenant connections before retrying; do not delete assets blindly. For database integration coverage, set `TEST_DATABASE_URL` to a **separate test database** initialized with `db:init` and run `npm test`. Never point integration tests at the live database.
 
@@ -330,7 +330,7 @@ Suspension is enforced server-side through the normal company account loader, so
 
 ### Remaining launch checks
 
-Stripe Checkout, plan switching, billing webhooks, Customer Portal, email verification, password reset, invitations, RLS, and a queue worker are implemented. A public launch still needs live Stripe/Meta account configuration and successful end-to-end payment/webhook tests, a database backup/restore drill, uptime and error monitoring, legal review of retention/privacy terms, and a deployment-specific security review.
+Razorpay subscription checkout, plan switching, billing webhooks, email verification, password reset, invitations, RLS, and a queue worker are implemented. A public launch still needs live Razorpay/Meta account configuration and successful end-to-end payment/webhook tests, a database backup/restore drill, uptime and error monitoring, legal review of retention/privacy terms, and a deployment-specific security review.
 
 ## WhatsApp Operations
 

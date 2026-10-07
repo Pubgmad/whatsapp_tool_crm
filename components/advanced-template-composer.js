@@ -4,7 +4,7 @@ import {Plus,Trash2,Send} from 'lucide-react';
 import './whatsapp-modules.css';
 const emptyCard=()=>({id:crypto.randomUUID(),format:'IMAGE',mediaHandle:'',body:'',buttons:[{type:'URL',text:'',url:'',example:''}]});
 const slots=text=>[...new Set([...String(text||'').matchAll(/{{\s*(\d+)\s*}}/g)].map(match=>match[1]))].sort((a,b)=>Number(a)-Number(b));
-export default function AdvancedTemplateComposer({postJson,onCreated,api}){
+export default function AdvancedTemplateComposer({postJson,onCreated,api,accountId}){
   const [kind,setKind]=useState('CAROUSEL'),[cards,setCards]=useState([]),[body,setBody]=useState(''),[pending,setPending]=useState(false),[error,setError]=useState('');
   const [flows,setFlows]=useState([]),[flowId,setFlowId]=useState(''),[flowScreen,setFlowScreen]=useState(''),[flowAction,setFlowAction]=useState('navigate'),[flowLoading,setFlowLoading]=useState(false),[flowError,setFlowError]=useState('');
   const selectedFlow=flows.find(flow=>flow.id===flowId);
@@ -24,7 +24,7 @@ export default function AdvancedTemplateComposer({postJson,onCreated,api}){
         await postJson('/api/whatsapp/flow-templates',{action:'create',name:values.get('name'),language:values.get('language'),category:values.get('flowCategory'),body,flowId,flowAction,flowScreen:flowAction==='navigate'?flowScreen:undefined,flowButtonText:values.get('flowButtonText'),bodyExamples:slots(body).map(slot=>values.get('body_example_'+slot))});
         setBody('');form.reset();await onCreated();return;
       }
-      await postJson('/api/templates',{name:values.get('name'),language:values.get('language'),category:'MARKETING',kind,body,catalogButtonText:values.get('catalogButtonText'),couponExample:values.get('couponExample'),offerText:values.get('offerText'),hasExpiration:values.get('hasExpiration')==='on',offerUrl:values.get('offerUrl'),offerButtonText:values.get('offerButtonText'),offerUrlExample:values.get('offerUrlExample'),bodyExamples:slots(body).map(slot=>values.get('body_example_'+slot)),cards:cards.map(card=>({...card,examples:slots(card.body).map(slot=>values.get(card.id+'_example_'+slot))})),submitToMeta:true});
+      await postJson('/api/templates',{accountId,name:values.get('name'),language:values.get('language'),category:'MARKETING',kind,body,catalogButtonText:values.get('catalogButtonText'),couponExample:values.get('couponExample'),offerText:values.get('offerText'),hasExpiration:values.get('hasExpiration')==='on',offerUrl:values.get('offerUrl'),offerButtonText:values.get('offerButtonText'),offerUrlExample:values.get('offerUrlExample'),bodyExamples:slots(body).map(slot=>values.get('body_example_'+slot)),cards:cards.map(card=>({...card,examples:slots(card.body).map(slot=>values.get(card.id+'_example_'+slot))})),submitToMeta:true});
       setCards([]);setBody('');form.reset();await onCreated();
     }catch(cause){setError(cause.message);}finally{setPending(false);}
   }

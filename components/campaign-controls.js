@@ -54,6 +54,7 @@ export default function CampaignControls({campaign,role,submit}) {
         <button type='button' className='secondaryAction compactAction' disabled={busy} onClick={()=>execute('approve')}><ShieldCheck size={15}/>Approve</button>
         <button type='button' className='secondaryAction compactAction dangerSoft' disabled={busy} onClick={()=>setMode('reject')}><X size={15}/>Reject</button>
       </>}
+      {(campaign.stats?.failed||0)>0&&<button type='button' className='secondaryAction compactAction' disabled={busy} onClick={()=>execute('retry_failed')} title='Re-queue failed recipients that are still eligible'>Retry failed ({campaign.stats.failed})</button>}
       {campaign.frequencyHours>0&&<span className='muted'>Marketing interval: {campaign.frequencyHours}h</span>}
     </div>
     {campaign.reviewNote&&<p className='muted'>{campaign.reviewNote}</p>}

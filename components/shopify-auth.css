@@ -1,0 +1,4 @@
+.wa-module .wa-button{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 14px;border:1px solid #294b63;border-radius:6px;background:#294b63;color:#fff;text-decoration:none;font-weight:600}
+.wa-module .wa-button:hover{background:#1d394c}
+.wa-module .wa-button[aria-disabled=true]{opacity:.5;cursor:not-allowed}
+.wa-module .wa-button:focus-visible{outline:2px solid #294b63;outline-offset:2px}

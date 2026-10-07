@@ -25,8 +25,8 @@ test('template updates are scoped to the resolved company and Meta template ID',
     query: async (sql, params) => { calls.push({ sql, params }); return { rows: [{ id: 'account' }] }; }
   });
   assert.deepEqual(calls[0].params, ['company', '123']);
-  assert.deepEqual(calls[1].params.slice(2), ['company', '456']);
-  assert.match(calls[1].sql, /business_id=\$3 AND meta_template_id=\$4/);
+  assert.deepEqual(calls[1].params.slice(2), ['company', '123', '456']);
+  assert.match(calls[1].sql, /business_id=\$3 AND waba_id=\$4 AND meta_template_id=\$5/);
 });
 
 test('an unknown WABA cannot update another company', async () => {

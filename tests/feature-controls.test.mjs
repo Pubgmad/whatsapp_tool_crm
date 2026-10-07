@@ -2,10 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertWorkspaceFeature, featureSettingKey, workspaceFeatureFlags, WORKSPACE_FEATURES } from '../lib/feature-controls.js';
 
-test('feature controls default to available before settings are seeded', async () => {
+test('checkout recovery defaults off before settings are seeded', async () => {
   const flags = await workspaceFeatureFlags(null, async () => ({ rows: [] }));
   assert.deepEqual(Object.keys(flags).sort(), Object.keys(WORKSPACE_FEATURES).sort());
-  assert.ok(Object.values(flags).every(Boolean));
+  assert.equal(flags.checkout_recovery, false);
+  assert.ok(Object.entries(flags).filter(([name]) => name !== 'checkout_recovery').every(([,enabled]) => enabled));
+});
+
+test('checkout recovery requires a global enable and respects tenant disable', async () => {
+  const enabled = async sql => sql.includes('FROM businesses')
+    ? { rows: [{ feature_overrides: { checkout_recovery: false } }] }
+    : { rows: [{ key: featureSettingKey('checkout_recovery'), value: true }] };
+  assert.equal((await workspaceFeatureFlags(null, enabled)).checkout_recovery, true);
+  assert.equal((await workspaceFeatureFlags('company', enabled)).checkout_recovery, false);
 });
 
 test('disabled feature is not available to workspace or route guard', async () => {

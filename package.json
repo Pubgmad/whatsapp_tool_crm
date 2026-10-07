@@ -19,14 +19,17 @@
     "security:rotate-secrets": "node scripts/rotate-secrets.mjs"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
     "facebook-nodejs-business-sdk": "24.0.1",
     "lucide-react": "1.38.0",
-    "next": "16.3.3",
+    "mammoth": "^1.13.0",
+    "next": "16.3.8",
+    "pdf-parse": "^2.4.5",
     "pg": "8.23.0",
     "razorpay": "^2.9.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "stripe": "22.6.2"
+    "sharp": "0.35.4"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

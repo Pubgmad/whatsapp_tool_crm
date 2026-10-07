@@ -12,6 +12,7 @@ import {
 import PolicyText from "./policy-text";
 import SupportPolicy from './support-policy';
 import MetaCreditOperations from "./meta-credit-operations";
+import PublicSiteEditor from './public-site-editor';
 import { isSessionFailure } from '../lib/auth-navigation';
 
 const emptyPlan = {
@@ -72,6 +73,7 @@ const adminSections = [
   { id: "overview", label: "Overview", href: "/super-admin", icon: Activity },
   { id: "plans", label: "Plans", href: "/super-admin/plans", icon: WalletCards },
   { id: 'features', label: 'Features', href: '/super-admin/features', icon: SlidersHorizontal },
+  { id: 'meta-webhooks', label: 'Meta webhooks', href: '/super-admin/meta-webhooks', icon: Wifi },
   { id: "content", label: "Content", href: "/super-admin/content", icon: FileText },
   { id: "privacy-policy", label: "Privacy policy", href: "/super-admin/privacy-policy", icon: ShieldCheck },
   { id: "companies", label: "Companies", href: "/super-admin/companies", icon: Building2 },
@@ -83,6 +85,7 @@ const adminHeadings = {
   overview: ["Platform command center", "Monitor companies, subscriptions, WhatsApp readiness, and platform status."],
   plans: ["Subscription plans", "Control pricing, billing periods, features, limits, visibility, and availability."],
   features: ['Feature controls', 'Enable or disable WhatsApp modules across workspaces.'],
+  'meta-webhooks': ['Meta webhook operations', 'Review delivery failures and replay individual events.'],
   content: ["Platform content", "Manage customer-facing business content and configurable platform values."],
   "privacy-policy": ["Privacy policy", "Draft, preview, publish, and review the public privacy policy."],
   companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."],
@@ -99,6 +102,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [companySort, setCompanySort] = useState("recent");
   const [companyPage, setCompanyPage] = useState(1);
   const [companyList, setCompanyList] = useState([]);
   const [companyTotal, setCompanyTotal] = useState(0);
@@ -109,9 +113,10 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   const [notice, setNotice] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [platformBrand, setPlatformBrand] = useState("Platform");
+  const [platformLogo,setPlatformLogo]=useState('');
 
   useEffect(() => { bootstrap(); }, []);
-  useEffect(() => { api("/api/platform").then((result) => setPlatformBrand(result.platform?.company_name || result.platform?.brand_name || "Platform")).catch(() => {}); }, []);
+  useEffect(() => { api("/api/platform").then((result) => {setPlatformBrand(result.platform?.company_name || result.platform?.brand_name || "Platform");setPlatformLogo(result.platform?.logo_url||'');}).catch(() => {}); }, []);
   useEffect(() => {
     if (loading) return;
     if (authOnly && admin) window.location.replace('/super-admin');
@@ -127,14 +132,14 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
     const timer = window.setTimeout(async () => {
       setCompanyLoading(true);
       try {
-        const params = new URLSearchParams({ page: String(companyPage), search: query, status: statusFilter });
+        const params = new URLSearchParams({ page: String(companyPage), search: query, status: statusFilter, sort: companySort });
         const result = await api(`/api/super-admin/companies?${params}`);
         if (active) { setCompanyList(result.companies || []); setCompanyTotal(result.pagination?.total || 0); }
       } catch (error) { if (active) notify(error.message); }
       finally { if (active) setCompanyLoading(false); }
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [admin?.id, initialSection, companyPage, query, statusFilter, companyRefresh]);
+  }, [admin?.id, initialSection, companyPage, query, statusFilter, companySort, companyRefresh]);
 
   const notify = (message) => { setNotice(message); window.setTimeout(() => setNotice(""), 2600); };
 
@@ -260,7 +265,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
   return <main className="superShell">
     <aside className={`superRail ${mobileNavOpen ? "open" : ""}`}>
-      <div className="superBrand"><span><ShieldCheck size={22} /></span><div><strong>{platformBrand}</strong><small>Super Admin</small></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
+      <div className="superBrand"><span>{platformLogo?<img className="platformLogo" src={platformLogo} alt=""/>:<ShieldCheck size={22} />}</span><div><strong>{platformBrand}</strong><small>Super Admin</small></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
       <nav className="superNav" aria-label="Super Admin sections">
         {adminSections.map((section) => { const Icon = section.icon; return <Link key={section.id} className={initialSection === section.id ? "active" : ""} href={section.href} onClick={() => setMobileNavOpen(false)}><Icon size={17} />{section.label}</Link>; })}
       </nav>
@@ -293,8 +298,14 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
         <Panel title="Subscription mix" subtitle="Live counts by billing state">
           <div className="statusStack">{dashboard.subscriptionStats.map((item) => <div key={item.status}><span>{item.status}</span><strong>{item.count}</strong></div>)}{!dashboard.subscriptionStats.length && <Empty text="No subscription records yet" />}</div>
         </Panel>
-        <Panel title="Platform readiness" subtitle="Current operational state">
-          <div className="statusStack"><div><span>Connected workspaces</span><strong>{dashboard.summary.whatsappConnected}</strong></div><div><span>Pending companies</span><strong>{dashboard.summary.pendingCompanies}</strong></div></div>
+        <Panel title="Platform operations" subtitle="Worker, billing, webhooks, and database posture">
+          {dashboard.operations ? <div className="statusStack">
+            <div><span>Queue worker</span><strong>{dashboard.operations.worker?.status || 'unknown'}</strong></div>
+            <div><span>Razorpay SaaS billing</span><strong>{dashboard.operations.razorpayConfigured ? 'configured' : 'incomplete'}</strong></div>
+            <div><span>Meta webhook queue</span><strong>{dashboard.operations.metaWebhooks?.lagOk ? 'healthy' : 'attention'} ({dashboard.operations.metaWebhooks?.queued || 0} queued)</strong></div>
+            <div><span>Database RLS role</span><strong>{dashboard.operations.database?.isolationReady ? 'isolated' : 'privileged'}</strong></div>
+            <div><span>Calendar fulfillments</span><strong>{dashboard.operations.calendarFulfillment?.needsAttention || 0} need attention</strong></div>
+          </div> : <Empty text="Operations snapshot unavailable" />}
         </Panel>
       </section><MetaCreditLines /></>}
 
@@ -305,8 +316,9 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       </section>
 
       <PlanManager plans={plans} onSave={savePlan} /></>}
-      {initialSection === "content" && <ContentManager settings={settings.filter((item) => item.category !== 'feature_controls')} onSave={saveSetting} />}
+      {initialSection === "content" && <><PublicSiteEditor api={api} notify={notify}/><ContentManager settings={settings.filter((item) => item.category !== 'feature_controls')} onSave={saveSetting} /></>}
       {initialSection === 'features' && <ContentManager settings={settings.filter((item) => item.category === 'feature_controls')} onSave={saveSetting} />}
+      {initialSection === 'meta-webhooks' && <MetaWebhookOperations notify={notify} />}
       {initialSection === "privacy-policy" && <PrivacyPolicyEditor settings={settings} notify={notify} />}
       {initialSection === "data-requests" && <><WorkspaceDeletionQueue notify={notify} /><MetaDeletionQueue notify={notify} /></>}
       {initialSection === 'security' && <SuperAdminSecurity notify={notify} />}
@@ -315,6 +327,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
         <div className="companyToolbar">
           <label className="searchBox"><Search size={17} /><input value={query} onChange={(event) => { setQuery(event.target.value); setCompanyPage(1); }} placeholder="Search company, email, plan" /></label>
           <label className="filterBox"><SlidersHorizontal size={17} /><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setCompanyPage(1); }}><option value="all">All statuses</option><option value="active">Active</option><option value="pending">Pending</option><option value="suspended">Suspended</option></select></label>
+          <label className="filterBox"><SlidersHorizontal size={17} /><select value={companySort} onChange={(event) => { setCompanySort(event.target.value); setCompanyPage(1); }} aria-label="Company sort"><option value="recent">Newest first</option><option value="attention">Needs attention</option></select></label>
         </div>
         <div className="companyList">{companyList.map((company) => <CompanyRow key={company.id} company={company} onOpen={() => openCompany(company)} />)}{!companyList.length && !companyLoading && <Empty text="No companies match this view" />}</div>
         <div className="companyPagination"><span>{companyLoading ? "Loading" : `${companyTotal} companies`}</span><div><button className="secondaryAction" type="button" disabled={companyPage <= 1 || companyLoading} onClick={() => setCompanyPage((page) => page - 1)}>Previous</button><span>Page {companyPage}</span><button className="secondaryAction" type="button" disabled={companyPage * 25 >= companyTotal || companyLoading} onClick={() => setCompanyPage((page) => page + 1)}>Next</button></div></div>
@@ -327,6 +340,40 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
 function MetaCreditLines() {
   return <Panel title="Meta credit lines"><MetaCreditOperations api={api}/></Panel>;
+}
+
+function MetaWebhookOperations({ notify }) {
+  const [state, setState] = useState({ counts: {}, failures: [] });
+  const [loading, setLoading] = useState(true);
+  const [pendingId, setPendingId] = useState('');
+  const [error, setError] = useState('');
+  const load = async () => {
+    try {
+      setLoading(true);
+      setState(await api('/api/super-admin/meta-webhooks'));
+      setError('');
+    } catch (reason) { setError(reason.message); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+  const replay = async id => {
+    setPendingId(id);
+    try {
+      await postJson('/api/super-admin/meta-webhooks', { id });
+      notify('Webhook event queued again');
+      await load();
+    } catch (reason) { setError(reason.message); }
+    finally { setPendingId(''); }
+  };
+  return <Panel title="WhatsApp event processing" subtitle="Verified events are stored before Meta receives an acknowledgment">
+    <div className="metaWebhookToolbar"><button className="secondaryAction" type="button" onClick={load} disabled={loading} title="Refresh webhook status"><RefreshCcw size={16} /> Refresh</button></div>
+    {error && <p role="alert" className="errorLine">{error}</p>}
+    <div className="statusStack">{['queued', 'processing', 'completed', 'failed'].map(status => <div key={status}><span>{status}</span><strong>{state.counts?.[status] || 0}</strong></div>)}</div>
+    <div className="metaWebhookList">{state.failures?.map(event => <div className="metaWebhookEvent" key={event.id}>
+      <div><strong>{event.company_name}</strong><small>{event.field} | {event.error_code} | {event.attempts} attempts | {formatTime(event.received_at)}</small></div>
+      <button className="secondaryAction" type="button" onClick={() => replay(event.id)} disabled={Boolean(pendingId)} title="Replay this failed Meta event"><RefreshCcw size={16} /> Retry</button>
+    </div>)}{!loading && !state.failures?.length && <Empty text="No failed Meta events" />}</div>
+  </Panel>;
 }
 
 function WorkspaceDeletionQueue({ notify }) {
@@ -356,12 +403,12 @@ function WorkspaceDeletionQueue({ notify }) {
     } catch (reason) { setError(reason.message); }
     finally { setPendingId(""); }
   };
-  return <Panel title="Workspace deletion" subtitle="Requests become reviewable after the company’s configured grace period. Active Stripe subscriptions must be cancelled first.">
+  return <Panel title="Workspace deletion" subtitle="Requests become reviewable after the company’s configured grace period. Active Razorpay subscriptions must be cancelled first.">
     <div className="assetToolbar"><span>{requests.filter((item) => item.status === "pending_approval").length} awaiting review</span><button className="secondaryAction" type="button" onClick={load}><RefreshCcw size={16} /> Refresh</button></div>
     {error && <div className="formError" role="alert">{error}</div>}
     <div className="deletionRequestList">{requests.map((item) => <article className="deletionRequestRow" key={item.id}>
       <div><strong>{item.companyName}</strong><span className={`badge ${item.status === "pending_approval" ? "warn" : "neutral"}`}>{item.status.replaceAll("_", " ")}</span></div>
-      <small>Requested {formatTime(item.requestedAt)} | Eligible {formatTime(item.executeAfter)} | Subscription {item.subscriptionStatus}{item.billedByStripe ? " (Stripe)" : ""} | WhatsApp {item.metaConnected ? "connected" : "disconnected"}</small>
+      <small>Requested {formatTime(item.requestedAt)} | Eligible {formatTime(item.executeAfter)} | Subscription {item.subscriptionStatus}{item.billingProvider && item.billingProvider !== "none" ? ` (${item.billingProvider})` : ""} | WhatsApp {item.metaConnected ? "connected" : "disconnected"}</small>
       {item.status === "pending_approval" && <>
         <label>Type DELETE_WORKSPACE to permanently remove this company and its CRM data<input value={confirmations[item.id] || ""} onChange={(event) => setConfirmations((current) => ({ ...current, [item.id]: event.target.value }))} autoComplete="off" /></label>
         <div className="actionCluster">
@@ -735,7 +782,7 @@ function Panel({ title, subtitle, children, id }) {
 
 function CompanyRow({ company, onOpen }) {
   return <button className="companyRow" type="button" onClick={onOpen}>
-    <div className="companyMain"><span className="companyAvatar">{company.name.slice(0, 1).toUpperCase()}</span><div><strong>{company.name}</strong><small>{company.email || "No owner email"}</small></div></div>
+    <div className="companyMain"><span className="companyAvatar">{company.name.slice(0, 1).toUpperCase()}</span><div><strong>{company.name}</strong><small>{company.email || "No owner email"}{company.attentionScore > 0 ? ` · attention ${company.attentionScore}` : ""}</small></div></div>
     <Badge kind={company.accountStatus}>{company.accountStatus}</Badge>
     <div><strong>{company.planName}</strong><small>{company.subscriptionStatus}</small></div>
     <div><strong>{company.userCount}</strong><small>users</small></div>
@@ -751,6 +798,8 @@ function CompanyDrawer({ detail, onClose, onAction, onFeatureChange }) {
     <div className="drawerPanel"><header><div><p className="kicker">Company</p><h2>{company.name}</h2><small>{company.email || "No owner email"}</small></div><button className="iconButton" type="button" onClick={onClose} title="Close"><X size={18} /></button></header>
       <div className="drawerActions"><button className="secondaryAction" type="button" onClick={() => onAction(company.id, "activate")}><BadgeCheck size={17} />Activate</button><button className="secondaryAction dangerSoft" type="button" onClick={() => onAction(company.id, "suspend")}><Ban size={17} />Suspend</button></div>
       <section className="detailGrid"><Info label="Account" value={company.accountStatus} /><Info label="Subscription" value={company.subscriptionStatus} /><Info label="Plan" value={company.planName} /><Info label="Payment" value={company.paymentStatus} /><Info label="Registered" value={formatDate(company.registeredAt)} /><Info label="Renewal" value={formatDate(company.renewalAt)} /><Info label="Trial ends" value={formatDate(company.trialEndsAt)} /><Info label="WhatsApp" value={company.whatsappStatus} /><Info label="Business number" value={company.whatsappNumber || "Not connected"} /><Info label="Users" value={company.userCount} /><Info label="Contacts" value={company.contactCount} /><Info label="Campaigns" value={company.campaignCount} /></section>
+      {detail.operations && <section><h3>Tenant operations</h3><div className="detailGrid"><Info label="Meta webhook failures" value={detail.operations.metaWebhooks?.failed ?? 0} /><Info label="Campaign job backlog" value={detail.operations.campaigns?.jobBacklog ?? 0} /><Info label="Retryable failed sends" value={detail.operations.campaigns?.retryableFailedRecipients ?? 0} /><Info label="AI replies to review" value={detail.operations.aiAutoReply?.needsReview ?? 0} /><Info label="Automation jobs" value={detail.operations.automation?.pendingJobs ?? 0} /><Info label="Billing provider" value={detail.operations.billing?.provider || "none"} /></div></section>}
+      {detail.metaCapabilities?.missing?.length > 0 && <section><h3>Meta / WhatsApp gaps</h3><p className="muted">Capabilities not yet available for this tenant (setup or Meta entitlement required).</p><div className="miniList">{detail.metaCapabilities.missing.map((item) => <div key={item.key}><strong>{item.name}</strong><span>{item.prerequisite}</span>{item.detail && <small>{item.detail}</small>}</div>)}</div></section>}
       <section><h3>Company users</h3><div className="miniList">{detail.users.map((user) => <div key={user.id}><strong>{user.name}</strong><span>{user.email}</span><small>{user.role}</small></div>)}</div></section>
       <CompanyFeatureControls detail={detail} onChange={onFeatureChange} />
       <SupportPolicy key={company.id} endpoint={'/api/super-admin/companies/'+encodeURIComponent(company.id)+'/support-policy'} canEdit={true} api={api} postJson={postJson}/>

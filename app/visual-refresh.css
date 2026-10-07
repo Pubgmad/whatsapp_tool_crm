@@ -33,5 +33,14 @@
 .phoneAsset.selected{background:#f4f7ff;border-color:#a8bbe9}
 .assetIcon,.capabilityIcon{border-color:#c6d3f3}
 .webhookCard code,.envBox code{border-color:#c6d3f3}
+.metaWebhookToolbar{display:flex;justify-content:flex-end;margin-bottom:14px}
+.metaWebhookList{margin-top:18px;border-top:1px solid var(--line)}
+.metaWebhookEvent{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.metaWebhookEvent>div{display:grid;min-width:0;gap:4px}
+.metaWebhookEvent strong,.metaWebhookEvent small{overflow-wrap:anywhere}
+.metaWebhookEvent small{color:var(--muted);line-height:1.5}
+.metaWebhookEvent button{flex:none}
 input:not([type=checkbox]):not([type=file]):focus,textarea:focus,select:focus{box-shadow:0 0 0 3px rgba(49,88,187,.13)}
 @media(max-width:760px){.metaSetupScreen .metaConnectHero{gap:18px}.metaSetupScreen .metaConnectHero .metaConnectActions{flex:none;width:100%}}
+@media(max-width:520px){.metaWebhookEvent{align-items:stretch;flex-direction:column}.metaWebhookEvent button{align-self:flex-start}}
+.platformLogo{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}

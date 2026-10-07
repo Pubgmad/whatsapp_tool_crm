@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSupportSuggestion, parseSupportResponse } from '../lib/ai-support.js';
+import { createSupportSuggestion, parseSupportResponse, parseAiDailyLimit, verifiedSupportFacts } from '../lib/ai-support.js';
 
 const response = value => ({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(value) }] }] });
 
@@ -26,4 +26,33 @@ test('assistant sends configured knowledge and recent conversation only with sto
   assert.equal(request.text.format.strict, true);
   assert.equal(request.input.includes('Returns take seven days.'), true);
   assert.equal(suggestion.suggestion, 'Returns take seven days.');
+});
+
+test('verified CRM facts are scoped to the selected tenant and contact', async () => {
+  const statements=[];
+  const facts=await verifiedSupportFacts('tenant_1','contact_1',async(sql,params)=>{
+    statements.push({sql,params});
+    return {rows:sql.includes('FROM whatsapp_orders')
+      ?[{id:'wo_1',fulfillment_status:'processing',payment_status:'unpaid',created_at:'2026-10-01T00:00:00.000Z'}]
+      :[{id:'frv_1',status:'pending_external',external_status:'pending',title:'Consultation',starts_at:'2026-10-08T10:00:00Z'}]};
+  });
+  assert.equal(statements.length,2);
+  for(const statement of statements){
+    assert.deepEqual(statement.params,['tenant_1','contact_1']);
+    assert.match(statement.sql,/business_id=\$1/);
+    assert.match(statement.sql,/id=\$2|contact_id=\$2/);
+  }
+  assert.equal(facts[0].kind,'crm_order');
+  assert.match(facts[0].content,/unpaid/);
+  assert.equal(facts[1].kind,'crm_booking');
+  assert.match(facts[1].content,/pending_external/);
+});
+
+test('AI daily limits reject disabled and malformed platform values',()=>{
+  assert.equal(parseAiDailyLimit(25),25);
+  assert.equal(parseAiDailyLimit(0),0);
+  assert.throws(()=>parseAiDailyLimit(-1),{code:'AI_LIMIT_NOT_CONFIGURED'});
+  assert.throws(()=>parseAiDailyLimit(1.5),{code:'AI_LIMIT_NOT_CONFIGURED'});
+  assert.throws(()=>parseAiDailyLimit('not a number'),{code:'AI_LIMIT_NOT_CONFIGURED'});
+  assert.throws(()=>parseAiDailyLimit(null),{code:'AI_LIMIT_NOT_CONFIGURED'});
 });

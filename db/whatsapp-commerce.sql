@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_orders (
   reference_id TEXT,
   checkout_message_id TEXT,
   fulfillment_status TEXT NOT NULL DEFAULT 'pending' CHECK (fulfillment_status IN ('pending','processing','shipped','completed','cancelled')),
-  payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid','pending','captured','failed')),
+  payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid','pending','captured','partially_refunded','refunded','failed')),
   payment_event_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_orders (
   FOREIGN KEY (phone_id,business_id) REFERENCES whatsapp_phone_numbers(id,business_id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_whatsapp_orders_business ON whatsapp_orders(business_id,created_at DESC,id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_orders_contact_recent ON whatsapp_orders(business_id,customer_phone,created_at DESC,id DESC);
 CREATE TABLE IF NOT EXISTS whatsapp_payment_events (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,

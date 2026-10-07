@@ -5,8 +5,8 @@ export default defineConfig({
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
-  use: { baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:3100', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
-  webServer: process.env.E2E_BASE_URL ? undefined : { command: 'npm run start -- -p 3100', url: 'http://127.0.0.1:3100/login', env: { ...process.env, APP_URL: 'http://127.0.0.1:3100' }, reuseExistingServer: true, timeout: 120000 },
+  use: { baseURL: process.env.E2E_BASE_URL || 'http://localhost:3100', trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  webServer: process.env.E2E_BASE_URL ? undefined : { command: 'npm run start -- -p 3100', url: 'http://localhost:3100/login', env: { ...process.env, APP_URL: 'http://localhost:3100', LOGIN_RATE_LIMIT: '1000' }, reuseExistingServer: true, timeout: 120000 },
   projects: [
     { name: 'chromium-desktop', use: { ...devices['Desktop Chrome'] } },
     { name: 'firefox-desktop', use: { ...devices['Desktop Firefox'] } },

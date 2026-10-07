@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test';
 
+test('public product site stays readable and admin publishing is protected',async({page,request})=>{
+  await page.goto('/');
+  await expect(page.getByRole('heading',{level:1})).toBeVisible();
+  await expect(page.locator('header a[href="/signup"]')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1)).toBeFalsy();
+  const editor=await request.get('/api/super-admin/site');
+  expect(editor.status()).toBe(401);
+});
+
 for (const path of ['/login', '/signup', '/forgot-password', '/privacy-policy']) {
   test(`${path} is usable without horizontal overflow`, async ({ page }) => {
     await page.goto(path);

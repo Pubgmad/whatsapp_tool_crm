@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-export default function ApprovedTemplatePicker({ api, initialTemplates = [], value, onChange, onTemplate, className = '' }) {
+export default function ApprovedTemplatePicker({ api, initialTemplates = [], value, onChange, onTemplate, className = '', wabaId = '', category = '', requiresVariables = false, noneLabel = 'Select approved template' }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [options, setOptions] = useState(initialTemplates);
@@ -12,23 +12,25 @@ export default function ApprovedTemplatePicker({ api, initialTemplates = [], val
   const onTemplateRef = useRef(onTemplate);
   onTemplateRef.current = onTemplate;
 
+  useEffect(() => { setOptions([]); setSelected(null); setPage(1); }, [wabaId, category, requiresVariables]);
+
   useEffect(() => {
     if (!value) { setSelected(null); return; }
     const known = options.find(item => item.id === value) || initialTemplates.find(item => item.id === value);
     if (known) { setSelected(known); onTemplateRef.current?.(known); return; }
     let active = true;
-    api(`/api/templates/options?id=${encodeURIComponent(value)}`).then(result => {
+    api(`/api/templates/options?id=${encodeURIComponent(value)}&wabaId=${encodeURIComponent(wabaId)}&category=${encodeURIComponent(category)}&requiresVariables=${requiresVariables ? '1' : '0'}`).then(result => {
       if (!active) return;
       setSelected(result.template);
       onTemplateRef.current?.(result.template);
     }).catch(reason => { if (active) setError(reason.message); });
     return () => { active = false; };
-  }, [value, initialTemplates, api]);
+  }, [value, initialTemplates, api, wabaId, category, requiresVariables]);
 
   useEffect(() => {
     let active = true;
     const timer = setTimeout(() => {
-      api(`/api/templates/options?q=${encodeURIComponent(search)}&page=${page}`).then(result => {
+      api(`/api/templates/options?q=${encodeURIComponent(search)}&page=${page}&wabaId=${encodeURIComponent(wabaId)}&category=${encodeURIComponent(category)}&requiresVariables=${requiresVariables ? '1' : '0'}`).then(result => {
         if (!active) return;
         setOptions(current => page === 1 ? result.templates : [...current, ...result.templates.filter(item => !current.some(existing => existing.id === item.id))]);
         setHasMore(result.hasMore);
@@ -36,7 +38,7 @@ export default function ApprovedTemplatePicker({ api, initialTemplates = [], val
       }).catch(reason => { if (active) setError(reason.message); });
     }, search ? 250 : 0);
     return () => { active = false; clearTimeout(timer); };
-  }, [api, search, page]);
+  }, [api, search, page, wabaId, category, requiresVariables]);
 
   const choices = selected && !options.some(item => item.id === selected.id) ? [selected, ...options] : options;
   return <div className={`templatePicker ${className}`}>
@@ -47,7 +49,7 @@ export default function ApprovedTemplatePicker({ api, initialTemplates = [], val
       onChange(event.target.value);
       onTemplateRef.current?.(template);
     }} aria-label="Approved template">
-      <option value="">Select approved template</option>
+      <option value="">{noneLabel}</option>
       {choices.map(item => <option key={item.id} value={item.id}>{item.name} ({item.language})</option>)}
     </select>
     {hasMore && <button className="secondaryAction" type="button" onClick={() => setPage(current => current + 1)}>More templates</button>}

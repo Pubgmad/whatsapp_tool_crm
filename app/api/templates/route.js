@@ -1,6 +1,6 @@
 ﻿import { createTemplate } from "@/lib/actions";
+import { withWorkspaceFeature } from '@/lib/feature-controls';
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export async function POST(request) { return createTemplate(request); }
-
-
+export async function POST(request) { return withWorkspaceFeature('templates', createTemplate)(request); }

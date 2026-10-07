@@ -1,0 +1,112 @@
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import test from 'node:test';
+import {enterSystemContext,query} from '../lib/db.js';
+import {encryptSecret} from '../lib/meta.js';
+import {createShopifyDraftForOrder,reconcileShopifyDraftForOrder,reconcileShopifyOrderForDraft,runDueShopifyOrderCheck} from '../lib/shopify-drafts.js';
+
+test('Shopify draft intent prevents duplicate creation after an unknown outcome and reconciles by tag',{skip:!process.env.TEST_DATABASE_URL},async()=>{
+  process.env.DATABASE_URL=process.env.TEST_DATABASE_URL;
+  enterSystemContext();
+  const suffix=crypto.randomBytes(8).toString('hex');
+  const ids={business:'sdb_'+suffix,account:'sda_'+suffix,phone:'sdp_'+suffix,contact:'sdc_'+suffix,flow:'sdf_'+suffix,resource:'frr_'+suffix,session:'frs_'+suffix,reservation:'frv_'+suffix,order:'wo_'+suffix,connection:'avc_'+suffix};
+  const variant='gid://shopify/ProductVariant/12345',draft='gid://shopify/DraftOrder/67890',tag=`wcrm_${ids.order}`;
+  const oldFetch=global.fetch,oldVersion=process.env.SHOPIFY_ADMIN_API_VERSION;
+  let creates=0,searches=0,stockChecks=0,orderChecks=0,stockQuantity=1,shopifyTotal='40.00',refund='0.00',financialStatus='PAID',failOrderCheck=false;
+  process.env.SHOPIFY_ADMIN_API_VERSION='2026-07';
+  global.fetch=async(url,options)=>{
+    assert.match(String(url),/store\.myshopify\.com\/admin\/api\/2026-07\/graphql\.json$/);
+    const body=JSON.parse(options.body);
+    if(body.query.includes('CheckDraftStock')){stockChecks++;assert.equal(body.variables.id,variant);return Response.json({data:{productVariant:{id:variant,inventoryQuantity:stockQuantity,inventoryItem:{tracked:true}}}});}
+    if(body.query.includes('draftOrderCreate')){creates++;assert.deepEqual(body.variables.input.tags,[tag]);throw new Error('Lost response');}
+    if(body.query.includes('CheckCrmShopifyOrder')){
+      orderChecks++;
+      if(failOrderCheck)throw new Error('Shopify unavailable');
+      assert.equal(body.variables.id,draft);
+      const money=amount=>({presentmentMoney:{amount,currencyCode:'USD'}});
+      const payment=(id,kind,amount)=>({id:'gid://shopify/OrderTransaction/'+id,kind,status:'SUCCESS',test:false,manualPaymentGateway:false,processedAt:'2026-10-02T00:00:00Z',amountSet:money(amount)});
+      return Response.json({data:{draftOrder:{id:draft,status:'COMPLETED',order:{id:'gid://shopify/Order/98765',test:false,displayFinancialStatus:financialStatus,totalPriceSet:money(shopifyTotal),currentTotalPriceSet:money(refund==='10.00'?'30.00':shopifyTotal),totalReceivedSet:money('40.00'),totalRefundedSet:money(refund),transactions:[payment('111','SALE','40.00'),...(refund==='0.00'?[]:[payment('222','REFUND','10.00')]),...(refund==='40.00'?[payment('333','REFUND','30.00')]:[])]}}}});
+    }
+    searches++;
+    assert.equal(body.variables.query,`tag:${tag}`);
+    return Response.json({data:{draftOrders:{nodes:[{id:draft,tags:[tag],lineItems:{nodes:[{variant:{id:variant},quantity:2}]}}]}}});
+  };
+  try{
+    await query('INSERT INTO businesses(id,name,slug) VALUES($1,$2,$1)',[ids.business,'Shopify draft test']);
+    await query('INSERT INTO whatsapp_accounts(id,business_id,waba_id) VALUES($1,$2,$3)',[ids.account,ids.business,'waba_'+suffix]);
+    await query('INSERT INTO whatsapp_phone_numbers(id,business_id,whatsapp_account_id,phone_number_id) VALUES($1,$2,$3,$4)',[ids.phone,ids.business,ids.account,'phone_'+suffix]);
+    await query('INSERT INTO contacts(id,business_id,name,phone) VALUES($1,$2,$3,$4)',[ids.contact,ids.business,'Draft customer','1555'+suffix.replace(/[a-f]/g,'1').slice(0,7)]);
+    await query('INSERT INTO whatsapp_native_flows(id,business_id,whatsapp_account_id,name,endpoint_phone_id) VALUES($1,$2,$3,$4,$5)',[ids.flow,ids.business,ids.account,'Draft flow '+suffix,ids.phone]);
+    await query('INSERT INTO flow_runtime_configs(flow_id,business_id,config) VALUES($1,$2,$3)',[ids.flow,ids.business,JSON.stringify({enabled:true,mode:'order',resourceIds:[ids.resource],initialScreen:'CHOOSE',reviewScreen:'REVIEW',allowedActions:['list','reserve','confirm'],holdMinutes:10})]);
+    await query("INSERT INTO flow_runtime_resources(id,business_id,kind,title,capacity,catalog_id,retailer_id,unit_price,currency) VALUES($1,$2,'product','Product',10,'12345','sku-12345',20,'USD')",[ids.resource,ids.business]);
+    await query("INSERT INTO flow_runtime_sessions(id,business_id,flow_id,phone_id,contact_id,token_hash,revision,screen,expires_at) VALUES($1,$2,$3,$4,$5,$6,1,'DONE',NOW()+INTERVAL '1 day')",[ids.session,ids.business,ids.flow,ids.phone,ids.contact,crypto.createHash('sha256').update(suffix).digest('hex')]);
+    await query("INSERT INTO whatsapp_orders(id,business_id,phone_id,source_message_id,customer_phone,catalog_id,items,currency,total_amount) VALUES($1,$2,$3,$4,'15551234567','catalog', '[]','USD',40)",[ids.order,ids.business,ids.phone,'flow:'+ids.session]);
+    await query("INSERT INTO flow_runtime_reservations(id,business_id,session_id,resource_id,quantity,snapshot,status,expires_at,order_id) VALUES($1,$2,$3,$4,2,'{}','confirmed',NOW()+INTERVAL '1 day',$5)",[ids.reservation,ids.business,ids.session,ids.resource,ids.order]);
+    await query("INSERT INTO availability_connections(id,business_id,provider,source,credential_encrypted,granted_scopes) VALUES($1,$2,'shopify','store.myshopify.com',$3,$4)",[ids.connection,ids.business,encryptSecret('test-token'),['read_draft_orders','write_draft_orders']]);
+    await query('INSERT INTO availability_mappings(resource_id,business_id,connection_id,external_id,write_enabled) VALUES($1,$2,$3,$4,TRUE)',[ids.resource,ids.business,ids.connection,variant]);
+    await assert.rejects(()=>createShopifyDraftForOrder(ids.business,ids.order),{code:'SHOPIFY_OUT_OF_STOCK'});
+    assert.equal((await query('SELECT COUNT(*)::integer AS count FROM shopify_draft_intents WHERE business_id=$1',[ids.business])).rows[0].count,0);
+    assert.equal(creates,0);
+    stockQuantity=5;
+    const first=await createShopifyDraftForOrder(ids.business,ids.order);
+    assert.equal(first.status,'unknown');
+    assert.equal(creates,1);
+    assert.equal(stockChecks,2);
+    const second=await createShopifyDraftForOrder(ids.business,ids.order);
+    assert.equal(second.status,'unknown');
+    assert.equal(creates,1);
+    assert.equal(stockChecks,2);
+    const reconciled=await reconcileShopifyDraftForOrder(ids.business,ids.order);
+    assert.equal(reconciled.status,'drafted');
+    assert.equal(reconciled.draft_id,draft);
+    assert.equal(searches,1);
+    assert.equal((await query('SELECT COUNT(*)::integer AS count FROM shopify_draft_intents WHERE business_id=$1',[ids.business])).rows[0].count,1);
+    await assert.rejects(()=>reconcileShopifyOrderForDraft('wrong_business',ids.order),{code:'NOT_FOUND'});
+    await assert.rejects(()=>reconcileShopifyOrderForDraft(ids.business,ids.order),{code:'AVAILABILITY_REAUTHORIZE'});
+    await query("UPDATE availability_connections SET granted_scopes=array_append(granted_scopes,'read_orders') WHERE id=$1 AND business_id=$2",[ids.connection,ids.business]);
+    const paid=await reconcileShopifyOrderForDraft(ids.business,ids.order);
+    assert.equal(paid.shopify_order_id,'gid://shopify/Order/98765');
+    assert.equal(paid.shopify_financial_status,'PAID');
+    assert.equal(paid.last_error,null);
+    assert.equal((await query('SELECT payment_status FROM whatsapp_orders WHERE id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].payment_status,'captured');
+    assert.equal((await query('SELECT COUNT(*)::int AS count FROM shopify_payment_transactions WHERE order_id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].count,1);
+    refund='10.00';financialStatus='PARTIALLY_REFUNDED';
+    const partial=await reconcileShopifyOrderForDraft(ids.business,ids.order);
+    assert.equal(partial.last_error,null);
+    assert.equal((await query('SELECT payment_status FROM whatsapp_orders WHERE id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].payment_status,'partially_refunded');
+    assert.equal((await query('SELECT refunded_amount FROM shopify_order_settlements WHERE order_id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].refunded_amount,'10.000000');
+    refund='40.00';financialStatus='REFUNDED';
+    const fullyRefunded=await reconcileShopifyOrderForDraft(ids.business,ids.order);
+    assert.equal(fullyRefunded.last_error,null);
+    assert.equal((await query('SELECT payment_status FROM whatsapp_orders WHERE id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].payment_status,'refunded');
+    const recorded=(await query('SELECT COUNT(*)::int AS count FROM shopify_payment_transactions WHERE order_id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].count;
+    await reconcileShopifyOrderForDraft(ids.business,ids.order);
+    assert.equal((await query('SELECT COUNT(*)::int AS count FROM shopify_payment_transactions WHERE order_id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].count,recorded);
+    shopifyTotal='41.00';
+    const mismatch=await reconcileShopifyOrderForDraft(ids.business,ids.order);
+    assert.equal(mismatch.last_error,'SHOPIFY_ORDER_AMOUNT_MISMATCH');
+    assert.equal(orderChecks,5);
+    assert.equal((await query('SELECT payment_status FROM whatsapp_orders WHERE id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].payment_status,'refunded');
+    assert.deepEqual(await runDueShopifyOrderCheck(),{attempted:0,failed:0});
+    await query('UPDATE availability_connections SET order_sync_enabled=TRUE WHERE id=$1 AND business_id=$2',[ids.connection,ids.business]);
+    await query('UPDATE shopify_draft_intents SET shopify_next_check_at=NOW()-INTERVAL \'1 minute\' WHERE order_id=$1 AND business_id=$2',[ids.order,ids.business]);
+    const checked=await runDueShopifyOrderCheck();
+    assert.deepEqual(checked,{attempted:1,failed:0});
+    assert.deepEqual(await runDueShopifyOrderCheck(),{attempted:0,failed:0});
+    failOrderCheck=true;
+    await query('UPDATE shopify_draft_intents SET shopify_next_check_at=NOW()-INTERVAL \'1 minute\' WHERE order_id=$1 AND business_id=$2',[ids.order,ids.business]);
+    const failed=await runDueShopifyOrderCheck();
+    assert.equal(failed.failed,1);
+    const retry=(await query('SELECT shopify_check_attempts,shopify_check_claimed_at,shopify_next_check_at,shopify_financial_status FROM shopify_draft_intents WHERE order_id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0];
+    assert.equal(retry.shopify_check_attempts,1);
+    assert.equal(retry.shopify_check_claimed_at,null);
+    assert.ok(new Date(retry.shopify_next_check_at).getTime()>Date.now());
+    assert.equal(retry.shopify_financial_status,'REFUNDED');
+    assert.equal((await query('SELECT payment_status FROM whatsapp_orders WHERE id=$1 AND business_id=$2',[ids.order,ids.business])).rows[0].payment_status,'refunded');
+  }finally{
+    enterSystemContext();
+    await query('DELETE FROM businesses WHERE id=$1',[ids.business]);
+    global.fetch=oldFetch;
+    if(oldVersion===undefined)delete process.env.SHOPIFY_ADMIN_API_VERSION;else process.env.SHOPIFY_ADMIN_API_VERSION=oldVersion;
+  }
+});

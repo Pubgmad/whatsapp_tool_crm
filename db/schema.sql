@@ -104,8 +104,10 @@ CREATE TABLE IF NOT EXISTS retention_job_runs (
 CREATE TABLE IF NOT EXISTS worker_heartbeats (
   worker_name TEXT PRIMARY KEY,
   last_success_at TIMESTAMPTZ NOT NULL,
+  last_cycle_errors JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE worker_heartbeats ADD COLUMN IF NOT EXISTS last_cycle_errors JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS meta_connection_events (
   id TEXT PRIMARY KEY,
@@ -652,6 +654,47 @@ CREATE TABLE IF NOT EXISTS ai_agent_settings (
   instructions TEXT NOT NULL DEFAULT '',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE ai_agent_settings ADD COLUMN IF NOT EXISTS allow_crm_context BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE ai_agent_settings ADD COLUMN IF NOT EXISTS auto_reply_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE ai_agent_settings ADD COLUMN IF NOT EXISTS auto_reply_daily_limit INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE ai_agent_settings ADD COLUMN IF NOT EXISTS action_proposals_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE ai_agent_settings ADD COLUMN IF NOT EXISTS booking_flow_id TEXT;
+ALTER TABLE ai_agent_settings ADD COLUMN IF NOT EXISTS action_attribute_keys TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE ai_agent_settings ADD COLUMN IF NOT EXISTS booking_invite_text TEXT NOT NULL DEFAULT '';
+ALTER TABLE ai_agent_settings ADD COLUMN IF NOT EXISTS booking_invite_cta TEXT NOT NULL DEFAULT '';
+ALTER TABLE ai_agent_settings DROP CONSTRAINT IF EXISTS ai_agent_auto_reply_limit_check;
+ALTER TABLE ai_agent_settings ADD CONSTRAINT ai_agent_auto_reply_limit_check CHECK(auto_reply_daily_limit BETWEEN 0 AND 10000);
+CREATE UNIQUE INDEX IF NOT EXISTS conversations_tenant_identity ON conversations(id,business_id);
+CREATE TABLE IF NOT EXISTS ai_auto_reply_jobs (
+  inbound_message_id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  conversation_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','sending','sent','skipped','failed','unknown')),
+  run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  claimed_at TIMESTAMPTZ,
+  meta_message_id TEXT,
+  source_ids TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  last_error TEXT,
+  resolved_at TIMESTAMPTZ,
+  resolution TEXT CHECK(resolution IN ('sent','not_sent')),
+  resolved_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  FOREIGN KEY(conversation_id,business_id) REFERENCES conversations(id,business_id) ON DELETE CASCADE
+);
+ALTER TABLE ai_auto_reply_jobs ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+ALTER TABLE ai_auto_reply_jobs ADD COLUMN IF NOT EXISTS resolution TEXT;
+ALTER TABLE ai_auto_reply_jobs ADD COLUMN IF NOT EXISTS resolved_by TEXT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE ai_auto_reply_jobs DROP CONSTRAINT IF EXISTS ai_auto_reply_resolution_check;
+ALTER TABLE ai_auto_reply_jobs ADD CONSTRAINT ai_auto_reply_resolution_check CHECK(resolution IN ('sent','not_sent'));
+CREATE INDEX IF NOT EXISTS ai_auto_reply_due ON ai_auto_reply_jobs(run_at) WHERE status='queued';
+CREATE INDEX IF NOT EXISTS ai_auto_reply_daily ON ai_auto_reply_jobs(business_id,created_at) WHERE status IN ('sending','sent','unknown');
+CREATE TABLE IF NOT EXISTS ai_agent_daily_usage (
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  usage_date DATE NOT NULL,
+  requests INTEGER NOT NULL DEFAULT 0 CHECK (requests >= 0),
+  PRIMARY KEY (business_id,usage_date)
+);
 CREATE TABLE IF NOT EXISTS ai_agent_knowledge (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -662,6 +705,31 @@ CREATE TABLE IF NOT EXISTS ai_agent_knowledge (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_ai_agent_knowledge_business ON ai_agent_knowledge(business_id,is_active,updated_at DESC);
+ALTER TABLE ai_agent_knowledge ADD COLUMN IF NOT EXISTS source_kind TEXT NOT NULL DEFAULT 'manual' CHECK(source_kind IN ('manual','website','document'));
+ALTER TABLE ai_agent_knowledge ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE ai_agent_knowledge ADD COLUMN IF NOT EXISTS source_hash TEXT;
+ALTER TABLE ai_agent_knowledge ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS contacts_tenant_identity ON contacts(id,business_id);
+CREATE TABLE IF NOT EXISTS ai_action_proposals (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  conversation_id TEXT NOT NULL,
+  inbound_message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  contact_id TEXT NOT NULL,
+  action_type TEXT NOT NULL CHECK(action_type IN ('set_contact_attribute','set_order_status','send_booking_flow')),
+  arguments JSONB NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','executing','completed','rejected','failed','unknown')),
+  reviewed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ,
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(business_id,inbound_message_id),
+  FOREIGN KEY(conversation_id,business_id) REFERENCES conversations(id,business_id) ON DELETE CASCADE,
+  FOREIGN KEY(contact_id,business_id) REFERENCES contacts(id,business_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS ai_action_pending ON ai_action_proposals(business_id,created_at DESC) WHERE status IN ('pending','unknown');
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -713,7 +781,7 @@ CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run
 DO $$
 DECLARE tenant_table TEXT;
 BEGIN
-  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_coexistence_sync','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','ai_agent_settings','ai_agent_knowledge','message_usage_events','events','audit_logs'] LOOP
+  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_coexistence_sync','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','ai_agent_settings','ai_agent_daily_usage','ai_agent_knowledge','ai_auto_reply_jobs','ai_action_proposals','message_usage_events','events','audit_logs'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', tenant_table);

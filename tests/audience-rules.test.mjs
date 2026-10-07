@@ -17,7 +17,7 @@ test('engagement supports AND/OR, verified incoming replies and recipient-bound 
 test('purchase filters and custom-field values are parameters, never executable SQL',()=>{
   const value="x' OR TRUE --";
   const statement=audienceContactQuery('tenant',{purchase:'not_purchased',purchaseWithinDays:30,attributes:[{key:'interest',operator:'contains',value}]},{count:true});
-  assert.match(statement.text,/COUNT\(\*\)::int/);assert.match(statement.text,/NOT EXISTS/);assert.match(statement.text,/o.business_id=ct.business_id/);assert.match(statement.text,/payment_status='captured'/);
+  assert.match(statement.text,/COUNT\(\*\)::int/);assert.match(statement.text,/NOT EXISTS/);assert.match(statement.text,/o.business_id=ct.business_id/);assert.match(statement.text,/payment_status IN \('captured','partially_refunded'\)/);
   assert.ok(statement.params.includes(value));assert.equal(statement.text.includes(value),false);assert.equal(statement.text.includes('ORDER BY'),false);
 });
 test('malformed rules fail closed rather than becoming broader audiences',()=>{

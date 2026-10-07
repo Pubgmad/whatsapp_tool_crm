@@ -23,6 +23,7 @@ export async function generateMetadata() {
     metadataBase: getMetadataBase(),
     title,
     description,
+    icons: platform.favicon_url ? { icon: platform.favicon_url } : undefined,
     openGraph: {
       title,
       description,

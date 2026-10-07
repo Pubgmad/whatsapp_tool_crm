@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import {validateCallingPolicy,callingAccess} from '../lib/whatsapp-calling.js';
 import {flowCreationButton,flowSendParameter} from '../lib/flow-template-components.js';
 import {validateTemplateParameters} from '../lib/template-send-components.js';
-import {validateRuntimeConfig,validateRuntimePayload,provisionRuntimeInvite,isManagedRuntimeEndpoint} from '../lib/flow-runtime.js';
+import {validateRuntimeConfig,validateRuntimePayload,provisionRuntimeInvite,isManagedRuntimeEndpoint,selectReviewScreen} from '../lib/flow-runtime.js';
 import {editedWhatsAppCreative} from '../lib/whatsapp-ads.js';
 import {connectorSource,verifyProviderSignature,normalizeProviderEvent} from '../lib/provider-connectors.js';
 import {normalizeAdvancedNode,executeAdvancedNode} from '../lib/automation-node-runtime.js';
@@ -36,6 +36,18 @@ test('transactional Flow runtime validates explicit assets and bearer-bound acti
  assert.equal(validateRuntimePayload(payload).data.quantity,1);
  assert.throws(()=>validateRuntimePayload({...payload,flow_token:'fake'}));
  assert.throws(()=>validateRuntimePayload({...payload,data:{...payload.data,quantity:1001}}));
+});
+test('conditional native Flow routes use published edges and ordered quantity thresholds',()=>{
+ const config={enabled:true,mode:'order',resourceIds:['product_a','product_b'],initialScreen:'CHOOSE',reviewScreen:'REVIEW',allowedActions:['list','reserve','confirm'],holdMinutes:10,
+  reviewRoutes:[{resourceId:'product_a',minQuantity:2,targetScreen:'BULK'},{resourceId:'product_a',minQuantity:5,targetScreen:'WHOLESALE'}]};
+ const flow={data_api_version:'3.0',routing_model:{CHOOSE:['REVIEW','BULK','WHOLESALE'],BULK:['CHOOSE'],WHOLESALE:['CHOOSE']},screens:[{id:'CHOOSE'},{id:'REVIEW'},{id:'BULK'},{id:'WHOLESALE'}]};
+ assert.equal(validateRuntimeConfig(config,flow).reviewRoutes.length,2);
+ assert.equal(selectReviewScreen(config,'product_a',1),'REVIEW');
+ assert.equal(selectReviewScreen(config,'product_a',3),'BULK');
+ assert.equal(selectReviewScreen(config,'product_a',5),'WHOLESALE');
+ assert.equal(selectReviewScreen(config,'product_b',7),'REVIEW');
+ assert.throws(()=>validateRuntimeConfig({...config,reviewRoutes:[config.reviewRoutes[0],config.reviewRoutes[0]]},flow),{code:'FLOW_RUNTIME_INVALID'});
+ assert.throws(()=>validateRuntimeConfig(config,{...flow,routing_model:{CHOOSE:['REVIEW']}}),{code:'FLOW_RUNTIME_INVALID'});
 });
 test('a managed Flow invitation provisions its matching runtime token in the same transaction',async()=>{
  const previous=process.env.APP_URL;
@@ -79,6 +91,14 @@ test('provider connectors verify exact signed payloads and do not infer consent 
  assert.equal(connectorSource('shopify','shop.myshopify.com'),'shop.myshopify.com');
  assert.throws(()=>connectorSource('woocommerce','http://localhost'));
  assert.equal(normalizeProviderEvent('shopify','orders/create',JSON.parse(raw.toString())).phone,'15550001111');
+ const checkout=normalizeProviderEvent('shopify','checkouts/update',{token:'checkout_123',updated_at:'2026-09-29T00:00:00Z',total_price:'5.00',currency:'USD'});
+ const order=normalizeProviderEvent('shopify','orders/create',{id:124,checkout_id:987,checkout_token:'checkout_123',updated_at:'2026-09-29T00:01:00Z',total_price:'5.00',currency:'USD'});
+ assert.equal(checkout.externalId,order.checkoutId);
+ assert.equal(order.externalId,'124');
+ assert.equal(checkout.terminal,false);
+ const linked=normalizeProviderEvent('shopify','checkouts/update',{token:'checkout_124',updated_at:'2026-09-29T00:00:00Z',total_price:'5.00',currency:'USD',abandoned_checkout_url:'https://shop.example/checkouts/abc/recover?key=signed'});
+ assert.equal(linked.checkoutUrl,'https://shop.example/checkouts/abc/recover?key=signed');
+ assert.equal(normalizeProviderEvent('shopify','checkouts/update',{token:'checkout_125',updated_at:'2026-09-29T00:00:00Z',total_price:'5.00',currency:'USD',abandoned_checkout_url:'http://localhost/recover'}).checkoutUrl,'');
 });
 test('advanced chatbot branches use data only and route failed effects to explicit error nodes',async()=>{
  const condition=normalizeAdvancedNode({type:'attribute_condition',next:'yes',falseNext:'no',errorNext:'error',attribute:'tier',operator:'equals',compareValue:'gold'});

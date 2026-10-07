@@ -1,0 +1,80 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import {enterSystemContext,query} from '../lib/db.js';
+import {encryptSecret} from '../lib/meta.js';
+import {publicWebviewExchange,sendTransactionalWebview} from '../lib/whatsapp-webview-transactions.js';
+import {sendNativeFlowInvite} from '../lib/whatsapp-experiences.js';
+import {handleRuntimeExchange} from '../lib/flow-runtime.js';
+
+test('hosted CTA and native WhatsApp Flow each create contact-bound unpaid orders',{skip:!process.env.TEST_DATABASE_URL},async()=>{
+  process.env.DATABASE_URL=process.env.TEST_DATABASE_URL;enterSystemContext();
+  const suffix=crypto.randomBytes(8).toString('hex'),business='wb_'+suffix,other='wb2_'+suffix,account='wa_'+suffix,phone='wap_'+suffix,contact='c_'+suffix,conversation='cv_'+suffix,flow='waf_'+suffix,resource='frr_'+suffix,view='wv_'+suffix;
+  const saved={app:process.env.APP_URL,encryption:process.env.ENCRYPTION_KEY,fetch:global.fetch};
+  let sentUrl='',metaCalls=0;
+  try{
+    process.env.APP_URL='https://crm.example.test';process.env.ENCRYPTION_KEY='test-encryption-key-for-webview';
+    await query('INSERT INTO businesses(id,name,slug,review_access) VALUES($1,$1,$1,TRUE),($2,$2,$2,TRUE)',[business,other]);
+    await query("INSERT INTO whatsapp_accounts(id,business_id,waba_id,status,access_token_encrypted) VALUES($1,$2,$3,'connected',$4)",[account,business,'1'+BigInt('0x'+suffix).toString(),encryptSecret('meta-test-token')]);
+    const metaPhone='2'+BigInt('0x'+suffix).toString();
+    await query("INSERT INTO whatsapp_phone_numbers(id,business_id,whatsapp_account_id,phone_number_id,display_phone_number,registration_state) VALUES($1,$2,$3,$4,'+1 555 000 1234','registered')",[phone,business,account,metaPhone]);
+    await query('INSERT INTO contacts(id,business_id,name,phone,last_message_at) VALUES($1,$2,$3,$4,NOW())',[contact,business,'Customer','15550001111']);
+    await query('INSERT INTO conversations(id,business_id,contact_id,whatsapp_phone_number_id) VALUES($1,$2,$3,$4)',[conversation,business,contact,metaPhone]);
+    await query("INSERT INTO whatsapp_native_flows(id,business_id,whatsapp_account_id,name,status,endpoint_phone_id,endpoint_uri,meta_flow_id,flow_json) VALUES($1,$2,$3,'Order flow','published',$4,$5,$6,$7)",[flow,business,account,phone,`https://crm.example.test/api/whatsapp/flows/runtime/data/${flow}`,'123456789',JSON.stringify({data_api_version:'3.0',screens:[{id:'CHOOSE'},{id:'REVIEW'},{id:'SUCCESS'}]})]);
+    await query("INSERT INTO flow_runtime_resources(id,business_id,kind,title,capacity,catalog_id,retailer_id,unit_price,currency) VALUES($1,$2,'product','Test product',5,'12345','sku-1',12.50,'USD')",[resource,business]);
+    const config={enabled:true,mode:'order',resourceIds:[resource],initialScreen:'CHOOSE',reviewScreen:'REVIEW',allowedActions:['list','reserve','confirm','cancel'],holdMinutes:10,reviewRoutes:[]};
+    await query('INSERT INTO flow_runtime_configs(flow_id,business_id,config) VALUES($1,$2,$3)',[flow,business,JSON.stringify(config)]);
+    await query("INSERT INTO whatsapp_webviews(id,business_id,phone_id,flow_id,title,description,button_label,prefilled_message,expires_hours,enabled) VALUES($1,$2,$3,$4,'Order page','Choose a product','Open order','Choose your product',1,TRUE)",[view,business,phone,flow]);
+    global.fetch=async(url,options)=>{metaCalls++;assert.match(String(url),new RegExp(metaPhone+'/messages$'));const body=JSON.parse(options.body);assert.equal(body.interactive.type,'cta_url');sentUrl=body.interactive.action.parameters.url;return Response.json({messages:[{id:'wamid.webview_'+suffix}]});};
+    const operationId='send_'+suffix;
+    const sent=await sendTransactionalWebview({businessId:business,userId:null,viewId:view,contactId:contact,operationId});
+    assert.equal(sent.status,'sent');assert.equal(metaCalls,1);
+    await assert.rejects(()=>sendTransactionalWebview({businessId:business,userId:null,viewId:view,contactId:contact,operationId}),{code:'WEBVIEW_ALREADY_ATTEMPTED'});
+    await assert.rejects(()=>sendTransactionalWebview({businessId:business,userId:null,viewId:view,contactId:contact,operationId:'another_'+suffix}),{code:'WEBVIEW_INVITE_EXISTS'});
+    await assert.rejects(()=>sendTransactionalWebview({businessId:other,userId:null,viewId:view,contactId:contact,operationId:'other_'+suffix}));
+    assert.equal(metaCalls,1);
+    const token=new URL(sentUrl).searchParams.get('session');
+    const rejected=await publicWebviewExchange(new Request(`https://crm.example.test/api/public/webviews/${view}`,{method:'POST',headers:{origin:'https://crm.example.test','content-type':'application/json'},body:JSON.stringify({session:'0'.repeat(64),action:'load'})}),{viewId:view});
+    assert.equal(rejected.status,404);
+    const action=async(payload,selectedView=view)=>{
+      const response=await publicWebviewExchange(new Request(`https://crm.example.test/api/public/webviews/${selectedView}`,{method:'POST',headers:{origin:'https://crm.example.test','content-type':'application/json'},body:JSON.stringify({session:token,...payload})}),{viewId:selectedView});
+      return {status:response.status,body:await response.json()};
+    };
+    assert.equal((await action({action:'load'},'wv_0000000000000000')).status,404);
+    const listed=await action({action:'load'});assert.equal(listed.status,200,JSON.stringify(listed.body));assert.equal(listed.body.resources[0].id,resource);
+    const reserved=await action({action:'reserve',resourceId:resource,quantity:2,requestId:'reserve_'+suffix});assert.equal(reserved.status,200,JSON.stringify(reserved.body));assert.equal(reserved.body.state,'review');
+    const confirmed=await action({action:'confirm',requestId:'confirm_'+suffix});assert.equal(confirmed.status,200,JSON.stringify(confirmed.body));assert.equal(confirmed.body.state,'complete');
+    const order=(await query('SELECT payment_status,total_amount FROM whatsapp_orders WHERE id=$1 AND business_id=$2',[confirmed.body.outcome.orderId,business])).rows[0];
+    assert.equal(order.payment_status,'unpaid');assert.equal(Number(order.total_amount),25);
+    assert.equal((await action({action:'load'})).body.state,'complete');
+    assert.equal((await query('SELECT COUNT(*)::int AS count FROM whatsapp_orders WHERE business_id=$1',[business])).rows[0].count,1);
+    let nativeToken='';
+    global.fetch=async(url,options)=>{
+      const message=JSON.parse(options.body);
+      assert.equal(message.interactive.type,'flow');
+      assert.equal(message.interactive.action.parameters.flow_id,'123456789');
+      nativeToken=message.interactive.action.parameters.flow_token;
+      return Response.json({messages:[{id:'wamid.native_'+suffix}]});
+    };
+    const nativeFlow=(await query('SELECT * FROM whatsapp_native_flows WHERE id=$1',[flow])).rows[0];
+    const native=await sendNativeFlowInvite({businessId:business,userId:null},{requestId:'native_'+suffix,contactId:contact,phoneId:phone,text:'Choose your product',cta:'Open order',expiresHours:1},nativeFlow);
+    assert.equal(native.status,'sent');
+    assert.match(nativeToken,/^[a-f0-9]{64}$/);
+    const exchange=async(screen,operation,extra={})=>handleRuntimeExchange({businessId:business,flowId:flow,payload:{version:'3.0',action:operation==='list'?'INIT':'data_exchange',screen,flow_token:nativeToken,...(operation==='list'?{}:{data:{operation,request_id:operation+'_'+suffix,...extra}})}});
+    const nativeList=await exchange('CHOOSE','list');
+    assert.equal(nativeList.data.resources[0].id,resource);
+    const nativeReserve=await exchange('CHOOSE','reserve',{resource_id:resource,quantity:1});
+    assert.equal(nativeReserve.screen,'REVIEW');
+    const nativeConfirmed=await exchange('REVIEW','confirm');
+    const nativeOrderId=nativeConfirmed.data.extension_message_response.params.order_id;
+    const nativeOrder=(await query('SELECT payment_status FROM whatsapp_orders WHERE business_id=$1 AND id=$2',[business,nativeOrderId])).rows[0];
+    assert.equal(nativeOrder.payment_status,'unpaid');
+    await query("UPDATE whatsapp_webview_invites SET expires_at=NOW()-INTERVAL '1 second' WHERE business_id=$1 AND webview_id=$2",[business,view]);
+    assert.equal((await action({action:'load'})).status,404);
+  }finally{
+    enterSystemContext();await query('DELETE FROM businesses WHERE id IN ($1,$2)',[business,other]);
+    if(saved.app===undefined)delete process.env.APP_URL;else process.env.APP_URL=saved.app;
+    if(saved.encryption===undefined)delete process.env.ENCRYPTION_KEY;else process.env.ENCRYPTION_KEY=saved.encryption;
+    global.fetch=saved.fetch;
+  }
+});

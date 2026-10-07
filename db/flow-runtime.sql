@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS flow_runtime_sessions (
   FOREIGN KEY(phone_id,business_id) REFERENCES whatsapp_phone_numbers(id,business_id) ON DELETE CASCADE,
   FOREIGN KEY(contact_id,business_id) REFERENCES contacts(id,business_id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS flow_runtime_sessions_contact ON flow_runtime_sessions(business_id,contact_id,id);
 CREATE TABLE IF NOT EXISTS flow_runtime_reservations (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -52,16 +53,22 @@ CREATE TABLE IF NOT EXISTS flow_runtime_reservations (
   resource_id TEXT NOT NULL,
   quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 1000),
   snapshot JSONB NOT NULL,
-  status TEXT NOT NULL CHECK(status IN ('held','confirmed','cancelled','expired')),
+  status TEXT NOT NULL CHECK(status IN ('held','pending_external','confirmed','cancel_pending','external_failed','cancelled','expired')),
   expires_at TIMESTAMPTZ NOT NULL,
   order_id TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(id,business_id),
   FOREIGN KEY(session_id,business_id) REFERENCES flow_runtime_sessions(id,business_id) ON DELETE CASCADE,
   FOREIGN KEY(resource_id,business_id) REFERENCES flow_runtime_resources(id,business_id),
   FOREIGN KEY(order_id,business_id) REFERENCES whatsapp_orders(id,business_id)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS flow_runtime_active_reservation ON flow_runtime_reservations(session_id) WHERE status IN ('held','confirmed');
+ALTER TABLE flow_runtime_reservations DROP CONSTRAINT IF EXISTS flow_runtime_reservations_status_check;
+ALTER TABLE flow_runtime_reservations ADD CONSTRAINT flow_runtime_reservations_status_check CHECK(status IN ('held','pending_external','confirmed','cancel_pending','external_failed','cancelled','expired'));
+CREATE UNIQUE INDEX IF NOT EXISTS flow_runtime_reservations_tenant_identity ON flow_runtime_reservations(id,business_id);
+DROP INDEX IF EXISTS flow_runtime_active_reservation;
+CREATE UNIQUE INDEX flow_runtime_active_reservation ON flow_runtime_reservations(session_id) WHERE status IN ('held','pending_external','confirmed','cancel_pending','external_failed');
 CREATE INDEX IF NOT EXISTS flow_runtime_capacity ON flow_runtime_reservations(business_id,resource_id,status,expires_at);
+CREATE INDEX IF NOT EXISTS flow_runtime_reservations_session_recent ON flow_runtime_reservations(business_id,session_id,created_at DESC,id DESC);
 CREATE TABLE IF NOT EXISTS flow_runtime_requests (
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   session_id TEXT NOT NULL,

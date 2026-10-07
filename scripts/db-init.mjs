@@ -19,7 +19,7 @@ if (!process.env.DATABASE_URL) {
 
 const schema = (await fs.readFile(new URL("../db/schema.sql", import.meta.url), "utf8")).replace(/^\uFEFF/, "");
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_MIGRATION_URL || process.env.DATABASE_URL,
   ssl: databaseSslConfig()
 });
 
@@ -187,6 +187,13 @@ try {
   await client.query(await fs.readFile(new URL('../db/automation-advanced-nodes.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/provider-connectors.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/flow-runtime.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-webviews.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/external-availability.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/crm-connectors.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/crm-production-gaps.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/ai-integrations-production.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/meta-webhook-queue.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/public-site.sql', import.meta.url), 'utf8'));
   await client.query(
     `INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
      SELECT 'mue_' || md5(m.meta_message_id),c.business_id,c.contact_id,m.meta_message_id,
@@ -267,6 +274,7 @@ try {
        status = EXCLUDED.status,
        updated_at = NOW()`
   );
+  await client.query(await fs.readFile(new URL('../db/template-ownership.sql', import.meta.url), 'utf8'));
   await seedPlatformSettings(client);
   const privacySettings = (await client.query("SELECT key,value FROM platform_settings WHERE key IN ('privacy_intro','privacy_last_updated')")).rows;
   const privacyValues = Object.fromEntries(privacySettings.map((row) => [row.key, row.value]));

@@ -16,7 +16,7 @@ if (!process.env.TEST_DATABASE_ADMIN_URL && !["localhost", "127.0.0.1", "[::1]"]
 const databaseName = `wcrm_test_${crypto.randomBytes(8).toString("hex")}`;
 const testUrl = new URL(source);
 testUrl.pathname = `/${databaseName}`;
-const env = { ...process.env, DATABASE_URL: testUrl.toString(), TEST_DATABASE_URL: testUrl.toString() };
+const env = { ...process.env, DATABASE_URL: testUrl.toString(), DATABASE_MIGRATION_URL: testUrl.toString(), TEST_DATABASE_URL: testUrl.toString() };
 const admin = new pg.Client({ connectionString: source, ssl: databaseSslConfig() });
 let created = false;
 
@@ -36,7 +36,7 @@ try {
   const requested = process.env.TEST_FILE;
   const tests = (await readdir("tests")).filter((name) => name.endsWith(".test.mjs") && (!requested || name === requested)).map((name) => `tests/${name}`);
   if (!tests.length) throw new Error('No matching integration test file.');
-  await run(["--test", ...tests]);
+  await run(["--test", "--test-concurrency=1", ...tests]);
 } finally {
   if (created) {
     await admin.query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()", [databaseName]);

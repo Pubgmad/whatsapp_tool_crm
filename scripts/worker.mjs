@@ -24,10 +24,11 @@ async function tick() {
     signal: AbortSignal.timeout(Math.max(intervalMs, 60000))
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`Job endpoint returned ${response.status}: ${result.code || 'UNKNOWN'}`);
-  if (runRetention) nextRetentionAt = Date.now() + retentionIntervalMs;
-  const activity = [result.campaigns?.claimed, result.automation?.claimed, result.retention, result.metaHealth?.failed, result.integrations?.claimed, result.commerce?.started, result.commerce?.failed, result.support?.assigned, result.support?.breached, result.connectors?.processed, result.connectors?.skipped].some(Boolean);
+  if (runRetention && result.retention !== undefined && !result.errors?.retention) nextRetentionAt = Date.now() + retentionIntervalMs;
+  if (!response.ok) throw new Error(`Job endpoint returned ${response.status}: ${result.code || JSON.stringify(result.errors || {})}`);
+  const activity = [result.metaWebhooks?.claimed, result.campaigns?.claimed, result.automation?.claimed, result.retention, result.metaHealth?.failed, result.integrations?.claimed, result.commerce?.started, result.commerce?.failed, result.support?.assigned, result.support?.breached, result.connectors?.processed, result.connectors?.skipped, result.checkoutRecovery?.queued, result.checkoutRecovery?.skipped,result.crmSync?.attempted,result.salesforceSync?.attempted,result.calendarFulfillment?.claimed,result.bookingNotices?.claimed,result.shopifyOrderCheck?.attempted,result.aiAutoReply?.attempted].some(Boolean);
   if (activity) console.info('Job cycle', {
+    metaWebhooks: result.metaWebhooks,
     campaigns: result.campaigns,
     automation: result.automation,
     retention: result.retention,
@@ -35,7 +36,14 @@ async function tick() {
     integrations: result.integrations,
     commerce: result.commerce,
     support: result.support,
-    connectors: result.connectors
+    connectors: result.connectors,
+    checkoutRecovery: result.checkoutRecovery,
+    crmSync: result.crmSync,
+    salesforceSync: result.salesforceSync,
+    calendarFulfillment: result.calendarFulfillment,
+    bookingNotices: result.bookingNotices,
+    shopifyOrderCheck: result.shopifyOrderCheck,
+    aiAutoReply: result.aiAutoReply
   });
 }
 

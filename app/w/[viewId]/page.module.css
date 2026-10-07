@@ -1,0 +1,20 @@
+.page{min-height:100dvh;background:#f5f7fa;color:#212937;display:grid;place-items:center;padding:40px 24px}
+.content{width:min(100%,660px);display:grid;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;color:#3d5799;font-weight:700;font-size:15px;overflow-wrap:anywhere}
+.content h1{font-size:clamp(32px,2rem,46px);line-height:1.15;letter-spacing:0;margin:0;overflow-wrap:anywhere}
+.content p{white-space:pre-wrap;line-height:1.7;color:#4f5a6b;margin:0;overflow-wrap:anywhere}
+.action{width:fit-content;min-height:48px;padding:12px 18px;background:#3d5799;color:white;border-radius:6px;display:inline-flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;max-width:100%;overflow-wrap:anywhere}
+.action:hover{background:#2d4687}.action:focus-visible{outline:3px solid #9db4eb;outline-offset:3px}
+.transactionPage{min-height:100dvh;background:#f6f8f8;color:#16202a;padding:24px max(20px,calc((100vw - 720px)/2));display:flex;flex-direction:column;gap:24px}
+.transactionHeader{display:flex;justify-content:space-between;align-items:start;gap:16px;border-bottom:1px solid #d8e2e0;padding-bottom:20px}
+.transactionHeader small{color:#42695e;font-weight:700}.transactionHeader h1{font-size:28px;margin:6px 0}.transactionHeader p{margin:0;color:#51616b;line-height:1.5;white-space:pre-wrap}
+.transactionHeader button{width:38px;height:38px;flex:none;border:1px solid #ccd7d4;background:white;border-radius:6px;display:grid;place-items:center}
+.transactionBody{display:grid;gap:18px}.transactionBody h2{font-size:20px;margin:0}.resourceList{display:grid;border-top:1px solid #d8e2e0}
+.resource{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:12px;padding:16px 2px;border-bottom:1px solid #d8e2e0;cursor:pointer}
+.resource>span{display:grid;gap:4px;min-width:0}.resource strong{overflow-wrap:anywhere}.resource small{color:#5d6b74}.price{text-align:right;white-space:nowrap}
+.transactionFooter{display:flex;align-items:end;justify-content:space-between;gap:12px}.transactionFooter label{display:grid;gap:5px;font-size:13px}.transactionFooter input{width:82px;padding:10px;border:1px solid #becdca;border-radius:5px}
+.transactionFooter button{min-height:42px;padding:10px 18px;background:#276c57;color:white;border:0;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:700;cursor:pointer}
+.transactionFooter button:disabled{opacity:.55;cursor:not-allowed}.transactionFooter .secondary{background:white;color:#276c57;border:1px solid #b9cdc6}
+.transactionBody dl{margin:0;display:grid;gap:8px}.transactionBody dl>div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e0e8e6;padding:8px 0}.transactionBody dt{color:#617078}.transactionBody dd{margin:0;text-align:right;overflow-wrap:anywhere}
+.error{color:#a62535;background:#fff2f3;padding:12px;border:1px solid #efcbd0;border-radius:5px}.completeIcon{color:#276c57}
+@media(max-width:520px){.transactionPage{padding:20px 16px}.transactionHeader h1{font-size:24px}.resource{grid-template-columns:20px minmax(0,1fr)}.price{grid-column:2;text-align:left}.transactionFooter{align-items:stretch}.transactionFooter button{flex:1}}

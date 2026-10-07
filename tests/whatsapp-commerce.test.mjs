@@ -30,6 +30,7 @@ test('fulfillment cannot resurrect completed orders or cancel captured payments'
   assert.equal(canTransitionOrder('pending', 'processing', 'unpaid'), true);
   assert.equal(canTransitionOrder('completed', 'pending', 'unpaid'), false);
   assert.equal(canTransitionOrder('processing', 'cancelled', 'captured'), false);
+  assert.equal(canTransitionOrder('processing', 'cancelled', 'partially_refunded'), false);
 });
 
 test('payments require matching phone, reference and checkout message', async () => {
@@ -47,8 +48,19 @@ test('delayed pending events cannot downgrade a captured payment', async () => {
   const calls = [];
   await reconcileWhatsAppPayment('company', '321', { id: 'wamid.checkout', type: 'payment', status: 'pending', timestamp: '1700000000', payment: { reference_id: 'reference' } }, async (run) => run({ query: async (sql, params) => {
     calls.push(sql);
+    if (sql.startsWith('SELECT 1 FROM shopify_order_settlements')) return {rowCount:0,rows:[]};
     if (sql.startsWith('SELECT')) return { rows: [{ id: 'order', payment_status: 'captured', payment_event_at: new Date() }] };
     return { rowCount: 1, rows: [{ id: 'event' }] };
   } }));
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
+});
+
+test('Meta payment events do not overwrite a verified Shopify settlement', async () => {
+  const calls=[];
+  const handled=await reconcileWhatsAppPayment('company','321',{id:'wamid.checkout',type:'payment',status:'pending',timestamp:'1700000000',payment:{reference_id:'reference'}},async run=>run({query:async sql=>{
+    calls.push(sql);
+    if(sql.startsWith('SELECT 1 FROM shopify_order_settlements'))return {rowCount:1,rows:[{order_id:'order'}]};
+    return {rows:[{id:'order',payment_status:'refunded'}]};
+  }}));
+  assert.equal(handled,false);assert.equal(calls.length,2);
 });

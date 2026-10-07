@@ -49,7 +49,7 @@ test('a verified owner signs in and reaches the dashboard',async({page,context,b
     await page.getByLabel('Password',{exact:true}).fill(password);
     await page.getByRole('button',{name:'Sign in'}).click();
     await expect(page).toHaveURL(/\/app\/dashboard$/,{timeout:30000});
-    await expect(page.locator('section.workspace')).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Command center'})).toBeVisible();
     const session=(await context.cookies()).find(cookie=>cookie.name==='wcrm_session');
     expect(session?.httpOnly).toBe(true);
     await expect.poll(async()=> (await page.request.get('/api/me')).status()).toBe(200);

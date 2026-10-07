@@ -1,6 +1,6 @@
 ﻿import { sendReply } from "@/lib/actions";
+import { withWorkspaceFeature } from '@/lib/feature-controls';
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export async function POST(request) { return sendReply(request); }
-
-
+export async function POST(request) { return withWorkspaceFeature('inbox', sendReply)(request); }
