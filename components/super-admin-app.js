@@ -13,6 +13,7 @@ import PolicyText from "./policy-text";
 import SupportPolicy from './support-policy';
 import MetaCreditOperations from "./meta-credit-operations";
 import PublicSiteEditor from './public-site-editor';
+import ParityReportPanel from './parity-report-panel';
 import { isSessionFailure } from '../lib/auth-navigation';
 
 const emptyPlan = {
@@ -307,7 +308,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
             <div><span>Calendar fulfillments</span><strong>{dashboard.operations.calendarFulfillment?.needsAttention || 0} need attention</strong></div>
           </div> : <Empty text="Operations snapshot unavailable" />}
         </Panel>
-      </section><MetaCreditLines /></>}
+      </section><ParityReportPanel api={api} /><MetaCreditLines /></>}
 
       {initialSection === "plans" && <><section className="superGrid">
         <Panel title="Plan catalogue" subtitle="Super Admin controlled pricing, features, limits, visibility, and activation">

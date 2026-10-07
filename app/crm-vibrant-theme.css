@@ -69,3 +69,44 @@
   background: rgba(239, 68, 68, 0.15);
   color: #b91c1c;
 }
+
+.parityPanel {
+  margin: 1.25rem 0 2rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: var(--surface, #fff);
+}
+
+.paritySummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin: 0.75rem 0 1rem;
+  font-size: 0.9rem;
+  color: var(--muted, #64748b);
+}
+
+.parityTableWrap {
+  overflow-x: auto;
+}
+
+.parityTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.parityTable th,
+.parityTable td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+  vertical-align: top;
+  text-align: left;
+}
+
+.parityTable small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted, #64748b);
+}

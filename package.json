@@ -16,7 +16,8 @@
     "db:seed": "node scripts/db-seed.mjs",
     "reviewer:init": "node scripts/reviewer-init.mjs",
     "super-admin:init": "node scripts/db-init.mjs",
-    "security:rotate-secrets": "node scripts/rotate-secrets.mjs"
+    "security:rotate-secrets": "node scripts/rotate-secrets.mjs",
+    "docs:parity": "node scripts/generate-parity-docs.mjs"
   },
   "dependencies": {
     "cheerio": "^1.2.0",

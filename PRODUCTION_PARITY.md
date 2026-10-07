@@ -53,4 +53,6 @@ This document states what is **implemented in this repository** for a Meta-enabl
 
 `npm test` — unit/integration coverage including meta activation, CRM, webviews, automation simulate, intent routing, and campaign safety. Playwright includes `e2e/workspace-mobile.spec.js` on Pixel 7 / iPhone 15 projects when `DATABASE_URL` is available locally.
 
+**Dynamic parity registry:** `lib/product-capability-registry.js` is the single capability catalog. Regenerate `AISENSY_GAP_MATRIX.md` with `npm run docs:parity`. Live status: Super Admin `GET /api/super-admin/parity` and workspace `GET /api/workspace/parity`.
+
 When this file and `CRM_PRODUCTION_GAP_STATUS.md` agree with `npm test` passing and `npm run build` succeeding, the **codebase** is production-shaped for AiSensy-class WhatsApp CRM; your remaining work is **environment configuration and live Meta/CRM/Shopify smoke**, not missing core modules.

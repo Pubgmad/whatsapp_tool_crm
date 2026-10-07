@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import sharp from 'sharp';
-import {saveBrandAsset,validateSiteDocument} from '../lib/public-site.js';
+import {mergePublicFooterLinks,saveBrandAsset,validateSiteDocument} from '../lib/public-site.js';
 
 const section={id:'about',kind:'about',title:'About the product',eyebrow:'Our team',visible:true,layout:'plain',align:'left',blocks:[{type:'paragraph',text:'Customer support with WhatsApp.',emphasis:'none'}],ctaLabel:'Learn more',ctaHref:'/signup'};
+
+test('mergePublicFooterLinks dedupes CMS and platform defaults',()=>{
+  assert.deepEqual(mergePublicFooterLinks([{label:'Pricing',href:'/signup'}],[{label:'About',href:'/about'},{label:'Dup',href:'/signup'}]),[{label:'Pricing',href:'/signup'},{label:'About',href:'/about'}]);
+});
 
 test('public site footer and social links validate',()=>{
   const doc=validateSiteDocument({sections:[section],footerLinks:[{label:'About',href:'/about'}],socialLinks:[{label:'LinkedIn',href:'https://linkedin.com/company/example'}]});
