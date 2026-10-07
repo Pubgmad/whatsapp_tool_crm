@@ -2,7 +2,7 @@
 
 Generated 2026-10-07 from `lib/product-capability-registry.js` (do not edit this table by hand; run `npm run docs:parity`).
 
-Registry: **46** capabilities — **8** strong, **35** partial, **3** gap.
+Registry: **50** capabilities — **8** strong, **42** partial, **0** gap.
 
 | Capability | Group | Code | Benchmarks | Evidence | Operator note |
 | --- | --- | --- | --- | --- | --- |
@@ -39,15 +39,19 @@ Registry: **46** capabilities — **8** strong, **35** partial, **3** gap.
 | WhatsApp Calling (WebRTC) | Meta WhatsApp products | partial | aisensy, meta | lib/whatsapp-calling.js |  |
 | Lists, buttons, interactive messages | Meta WhatsApp products | strong | meta | lib/actions.js |  |
 | Signed Meta webhooks & durable queue | Meta WhatsApp products | strong | meta, platform | lib/meta-webhook-queue.js, lib/actions.js |  |
-| WhatsApp Groups (Cloud API) | Meta WhatsApp products | gap | meta |  | Meta documents group messaging; this CRM targets 1:1 business messaging today. |
-| MM API delivery optimizations & benchmarks | Meta WhatsApp products | gap | meta |  | Use Meta Marketing Messages API features in Ads Manager; not duplicated as first-class CRM controls. |
+| WhatsApp Groups (Cloud API) | Meta WhatsApp products | partial | meta | lib/whatsapp-groups.js, components/whatsapp-groups.js, app/api/whatsapp/groups/route.js | Platform-gated; sync and send when Meta grants Groups API on the WABA. |
+| MM API delivery optimizations & benchmarks | Meta WhatsApp products | partial | meta | lib/mm-lite-optimizer.js, lib/mm-api-readiness.js, components/mm-lite-optimizer-panel.js | Send path and optimizer feature matrix documented in CRM; TTL/benchmarks remain Meta-controlled. |
 | Shopify OAuth, inventory, drafts, reconcile | External integrations | partial | aisensy, integration | lib/shopify-auth.js, lib/shopify-drafts.js |  |
 | WooCommerce store events | External integrations | partial | aisensy, integration | lib/provider-connectors.js |  |
 | Google Calendar availability & booking | External integrations | partial | aisensy, integration | lib/calendar-fulfillment.js, lib/external-availability.js |  |
 | HubSpot contacts, objects, outbound create | External integrations | partial | aisensy, integration | lib/hubspot-contacts.js, lib/crm-objects.js, lib/crm-object-outbound.js |  |
 | Salesforce contacts, leads, objects, outbound create | External integrations | partial | aisensy, integration | lib/salesforce-contacts.js, lib/crm-object-outbound.js |  |
 | Tenant API keys & signed webhooks | External integrations | partial | aisensy, integration | lib/workspace-integrations.js |  |
-| Zapier-style integration catalog | External integrations | gap | aisensy |  | Use workspace webhooks and API keys for custom integrations. |
+| Integration marketplace & automation recipes | External integrations | partial | aisensy | lib/integration-marketplace.js, components/integration-marketplace.js, app/api/integrations/marketplace/route.js | Operator catalog plus Zapier/Make/n8n webhook recipes—not a third-party app store. |
+| AI safety events & abuse monitoring | AI & bots | partial | aisensy | lib/ai-safety-events.js, lib/ai-policy.js, components/ai-support-settings.js |  |
+| Lead form & website traffic ad objectives | Ads & attribution | partial | aisensy, meta | lib/whatsapp-ad-objectives.js, lib/whatsapp-ads.js, components/whatsapp-ads.js |  |
+| Load-test & queue SLO certification | SaaS platform & ops | partial | platform | lib/slo-certification.js, scripts/load-test-slo.mjs, app/api/super-admin/slo-certification/route.js |  |
+| Multi-browser & mobile a11y E2E matrix | SaaS platform & ops | partial | platform | lib/a11y-certification.js, e2e/a11y-public.spec.js, e2e/workspace-mobile.spec.js, playwright.config.js |  |
 | Super Admin, plans, feature toggles | SaaS platform & ops | strong | platform | lib/super-admin.js, lib/feature-controls.js |  |
 | Public site CMS (sections, footer, social, link/image blocks) | SaaS platform & ops | partial | platform | lib/public-site.js, components/public-site-editor.js |  |
 | Live production certification checks | SaaS platform & ops | strong | platform | lib/production-certification.js |  |

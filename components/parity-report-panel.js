@@ -9,7 +9,12 @@ const statusLabel = {
   gap: 'Not in scope'
 };
 
-export default function ParityReportPanel({ api, title = 'Product parity', subtitle = 'AiSensy & Meta benchmark vs this codebase (dynamic registry).' }) {
+export default function ParityReportPanel({
+  api,
+  parityPath = '/api/super-admin/parity',
+  title = 'Product parity',
+  subtitle = 'AiSensy & Meta benchmark vs this codebase (dynamic registry).'
+}) {
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -17,7 +22,7 @@ export default function ParityReportPanel({ api, title = 'Product parity', subti
   useEffect(() => {
     let active = true;
     setLoading(true);
-    api('/api/super-admin/parity')
+    api(parityPath)
       .then((result) => {
         if (active) setReport(result);
       })
@@ -30,7 +35,7 @@ export default function ParityReportPanel({ api, title = 'Product parity', subti
     return () => {
       active = false;
     };
-  }, [api]);
+  }, [api, parityPath]);
 
   if (loading) return <section className="parityPanel"><h2>{title}</h2><p>Loading parity registry…</p></section>;
   if (error) return <section className="parityPanel"><h2>{title}</h2><p role="alert">{error}</p></section>;

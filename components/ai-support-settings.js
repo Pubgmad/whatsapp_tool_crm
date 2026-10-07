@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Bot, Plus, RefreshCcw, Trash2 } from 'lucide-react';
 import './whatsapp-modules.css';
 import './ai-support-settings.css';
+import HonestLimitsCallout from './honest-limits-callout';
 
 export default function AiSupportSettings({ api, postJson, uploadForm, role }) {
   const [data, setData] = useState(null);
@@ -64,6 +65,8 @@ export default function AiSupportSettings({ api, postJson, uploadForm, role }) {
     {data && <>
       <p role="status">AI suggestions today: {data.usage.requests} / {data.usage.limit}</p>
       <p role="status">Automatic replies today: {data.autoReply?.sent??0} / {autoReplyDailyLimit}{data.autoReply?.unknown?` (${data.autoReply.unknown} need manual verification)`:''}</p>
+      <HonestLimitsCallout limitId="ai_safety_eval" compact />
+      {data.safety && <section aria-label="AI safety and abuse monitoring"><h3>Safety &amp; abuse (24h)</h3><p role="status">Blocked: {data.safety.last24h.blocked} · injection attempts: {data.safety.last24h.injection} · autonomous denials: {data.safety.last24h.autonomousDenied}</p>{data.safety.recent.length>0&&<ul>{data.safety.recent.slice(0,8).map(item=><li key={item.id}><small>{item.event_kind}</small> {item.detail||item.source}</li>)}</ul>}</section>}
       {canEdit&&!!data.unknownReplies?.length&&<div role="alert"><strong>Verify these replies in Meta before responding again</strong>{data.unknownReplies.map(item=><div key={item.inbound_message_id} className="aiSupportActions"><a href={'/app/inbox/'+encodeURIComponent(item.conversation_id)}>{item.conversation_id}</a><span>{item.last_error||'Delivery unconfirmed'}</span><button type="button" disabled={busy} onClick={()=>{if(window.confirm('Did you confirm in Meta that this reply was sent?'))run(()=>postJson('/api/ai-agent',{action:'resolve_unknown',inboundMessageId:item.inbound_message_id,resolution:'sent'}),'Review recorded');}}>Sent</button><button type="button" disabled={busy} onClick={()=>{if(window.confirm('Did you confirm in Meta that this reply was not sent?'))run(()=>postJson('/api/ai-agent',{action:'resolve_unknown',inboundMessageId:item.inbound_message_id,resolution:'not_sent'}),'Review recorded');}}>Not sent</button></div>)}</div>}
       <form className="aiSupportForm" onSubmit={event => { event.preventDefault(); run(() => postJson('/api/ai-agent', { action: 'configure', enabled, allowCrmContext, autoReplyEnabled,autoReplyDailyLimit,instructions,actionProposalsEnabled,actionAutonomousEnabled,actionAttributeKeys:actionAttributeKeys.split(',').map(key=>key.trim()).filter(Boolean),bookingFlowId,bookingInviteText,bookingInviteCta,intentRoutingEnabled,intentRoutes:Object.fromEntries(Object.entries(intentRoutes).filter(([,value])=>value)),dialogflowEnabled,dialogflowAgentId,dialogflowLocation }), 'Assistant settings saved'); }}>
         <label>Instructions<textarea rows="4" maxLength={4000} value={instructions} onChange={event => setInstructions(event.target.value)} disabled={!canEdit} /></label>

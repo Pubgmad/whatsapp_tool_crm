@@ -44,7 +44,7 @@ export default function WorkspaceOperationsPanel({ api }) {
         </article>
         <article>
           <strong>Marketing Messages API</strong>
-          <span>Status: {report.marketingMessages?.status || 'UNKNOWN'}</span>
+          <span>Status: {report.marketingMessages?.marketingMessagesStatus || 'UNKNOWN'} · path: {report.marketingMessages?.sendPath || '—'}</span>
           <small>{report.marketingMessages?.operatorNote}</small>
         </article>
         <article>

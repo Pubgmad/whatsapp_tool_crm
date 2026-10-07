@@ -6,7 +6,9 @@ test('checkout recovery defaults off before settings are seeded', async () => {
   const flags = await workspaceFeatureFlags(null, async () => ({ rows: [] }));
   assert.deepEqual(Object.keys(flags).sort(), Object.keys(WORKSPACE_FEATURES).sort());
   assert.equal(flags.checkout_recovery, false);
-  assert.ok(Object.entries(flags).filter(([name]) => name !== 'checkout_recovery').every(([,enabled]) => enabled));
+  assert.equal(flags.whatsapp_groups, false);
+  const defaultOff = new Set(['checkout_recovery', 'whatsapp_groups']);
+  assert.ok(Object.entries(flags).filter(([name]) => !defaultOff.has(name)).every(([,enabled]) => enabled));
 });
 
 test('checkout recovery requires a global enable and respects tenant disable', async () => {

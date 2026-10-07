@@ -134,3 +134,70 @@
   background: rgba(248, 250, 252, 0.9);
   font-size: 0.88rem;
 }
+
+.inboxSlaWidget {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.inboxSlaWidget header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.inboxSlaWidget header h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.inboxSlaMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.65rem;
+}
+
+.inboxSlaMetrics article {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.inboxSlaMetrics article.warn {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(254, 242, 242, 0.9);
+}
+
+.inboxSlaWaitingList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.inboxSlaWaitingList li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.inboxSlaWaitingList li.breached {
+  border-color: rgba(220, 38, 38, 0.4);
+}
+
+.workspaceQualityStack {
+  display: grid;
+  gap: 1rem;
+}

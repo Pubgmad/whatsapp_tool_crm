@@ -22,6 +22,7 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/whatsapp_crm_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/whatsapp_crm_test
       DATABASE_SSL: 'false'
       AUTH_SECRET: ci-auth-secret-with-at-least-thirty-two-characters
       CSRF_SECRET: ci-csrf-secret-with-at-least-thirty-two-characters
@@ -40,6 +41,7 @@ jobs:
       - run: npm ci
       - run: npm run db:init
       - run: npm test
+      - run: npm run test:integration
       - run: npm run build
       - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:e2e

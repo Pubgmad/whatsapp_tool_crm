@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "node --test tests/*.test.mjs",
+    "test": "node --import ./tests/preload.mjs --test tests/*.test.mjs",
     "test:integration": "node scripts/test-integration.mjs",
     "test:e2e": "playwright test",
     "start": "next start",
@@ -17,7 +17,9 @@
     "reviewer:init": "node scripts/reviewer-init.mjs",
     "super-admin:init": "node scripts/db-init.mjs",
     "security:rotate-secrets": "node scripts/rotate-secrets.mjs",
-    "docs:parity": "node scripts/generate-parity-docs.mjs"
+    "docs:parity": "node scripts/generate-parity-docs.mjs",
+    "record:a11y": "node scripts/record-a11y-e2e.mjs",
+    "record:slo": "node scripts/load-test-slo.mjs"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
