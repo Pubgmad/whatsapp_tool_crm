@@ -1,7 +1,7 @@
-import { requireSession } from '@/lib/auth.js';
-import { errorJson, json } from '@/lib/db.js';
-import { requireWorkspaceManager } from '@/lib/workspace-permissions.js';
-import { flowScreenDropOffForBusiness, flowScreenFunnelForBusiness } from '@/lib/flow-screen-analytics.js';
+import { requireSession } from '../../../../lib/auth.js';
+import { errorJson, json } from '../../../../lib/db.js';
+import { requireWorkspaceManager } from '../../../../lib/workspace-permissions.js';
+import { flowScreenDropOffForBusiness, flowScreenFunnelForBusiness } from '../../../../lib/flow-screen-analytics.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
