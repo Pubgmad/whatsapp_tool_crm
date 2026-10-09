@@ -20,6 +20,10 @@ test('API nodes branch by status, timeout, and transport error', async () => {
   assert.equal((await executeAdvancedNode({ node, context: {}, effects })).next, 'accepted');
   effects.request = async () => { throw Object.assign(new Error('timeout'), { code: 'AUTOMATION_API_TIMEOUT' }); };
   assert.equal((await executeAdvancedNode({ node, context: {}, effects })).next, 'timed_out');
+  const withUnmatched = { ...node, statusBranches: [{ status: '202', next: 'accepted' }], unmatchedStatusNext: 'other_status' };
+  normalizeAdvancedNode(withUnmatched);
+  effects.request = async () => ({ statusCode: 418, data: {} });
+  assert.equal((await executeAdvancedNode({ node: withUnmatched, context: {}, effects })).next, 'other_status');
 });
 
 test('safe regex triggers reject unbounded and backtracking constructs', () => {
