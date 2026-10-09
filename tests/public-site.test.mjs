@@ -26,8 +26,17 @@ test('public sections remain structured text and reject active links',()=>{
   assert.throws(()=>validateSiteDocument({sections:[{...section,ctaHref:'javascript:alert(1)'}]}),{code:'SITE_INVALID'});
   assert.throws(()=>validateSiteDocument({sections:[{...section,ctaHref:'//evil.example'}]}),{code:'SITE_INVALID'});
   assert.throws(()=>validateSiteDocument({sections:[section,{...section}]}),{code:'SITE_INVALID'});
-  assert.throws(()=>validateSiteDocument({sections:[{...section,blocks:[{type:'html',text:'<script>bad()</script>'}]}]}),{code:'SITE_INVALID'});
   assert.throws(()=>validateSiteDocument({sections:[{...section,unexpected:'unsafe'}]}),{code:'SITE_INVALID'});
+});
+
+test('html design blocks keep markup and strip breakout hosts',()=>{
+  const doc=validateSiteDocument({sections:[{...section,blocks:[{type:'html',text:'<style>.hero{color:#125c63}</style><div class="hero">Designed<a href="javascript:alert(1)">x</a><iframe src="https://evil.example"></iframe></div><script>window.__ok=1</script>'}]}]});
+  const html=doc.sections[0].blocks[0];
+  assert.equal(html.type,'html');
+  assert.match(html.text,/class="hero"/);
+  assert.match(html.text,/window\.__ok=1/);
+  assert.doesNotMatch(html.text,/<iframe/i);
+  assert.match(html.text,/href="#"/);
 });
 
 test('brand assets reject unsupported and oversized input before storage',async()=>{
