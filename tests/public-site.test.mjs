@@ -39,6 +39,15 @@ test('html design blocks keep markup and strip breakout hosts',()=>{
   assert.match(html.text,/href="#"/);
 });
 
+test('full HTML pasted as paragraph promotes to html and orphan CTA is cleared',()=>{
+  const markup='<!DOCTYPE html><html><head><style>.card{color:#333}</style></head><body><div class="card">Hello</div></body></html>';
+  const doc=validateSiteDocument({sections:[{...section,ctaLabel:'',ctaHref:'/signup',blocks:[{type:'paragraph',text:markup,emphasis:'none'}]}]});
+  assert.equal(doc.sections[0].blocks[0].type,'html');
+  assert.match(doc.sections[0].blocks[0].text,/class="card"/);
+  assert.equal(doc.sections[0].ctaHref,'');
+  assert.equal(doc.sections[0].ctaLabel,'');
+});
+
 test('brand assets reject unsupported and oversized input before storage',async()=>{
   await assert.rejects(saveBrandAsset('logo',Buffer.from('not an image')), {code:'ASSET_INVALID'});
   const rectangle=await sharp({create:{width:32,height:24,channels:3,background:'#ffffff'}}).png().toBuffer();
