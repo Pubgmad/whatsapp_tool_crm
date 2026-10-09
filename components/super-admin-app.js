@@ -124,7 +124,10 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   useEffect(() => {
     if (loading) return;
     if (authOnly && admin) window.location.replace('/super-admin');
-    if (!authOnly && !admin && isSessionFailure(bootstrapError)) window.location.replace('/super-admin/login');
+    // No admin identity after bootstrap → login. Keep non-session platform errors on-screen (Retry).
+    if (!authOnly && !admin && (!bootstrapError || isSessionFailure(bootstrapError))) {
+      window.location.replace('/super-admin/login');
+    }
   }, [admin, authOnly, loading, bootstrapError]);
   useEffect(() => {
     if (!admin || !initialCompanyId || selected?.company?.id === initialCompanyId) return;
