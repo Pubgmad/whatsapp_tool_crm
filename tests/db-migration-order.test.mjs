@@ -30,3 +30,10 @@ test('db-init ALTERs crm_connections only after crm-connectors CREATE', async ()
   const productSql = await fs.readFile(path.join(root, 'db', 'product-completion-wave.sql'), 'utf8');
   assert.match(productSql, /crm_connections/, 'product-completion-wave should ALTER crm_connections');
 });
+
+test('tracked_link_tokens exposes (id,business_id) for click event FKs', async () => {
+  const schema = await fs.readFile(path.join(root, 'db', 'click-tracking.sql'), 'utf8');
+  assert.match(schema, /UNIQUE\(id,business_id\)/);
+  assert.match(schema, /CREATE UNIQUE INDEX IF NOT EXISTS tracked_link_tokens_id_business/);
+  assert.match(schema, /FOREIGN KEY\(token_id,business_id\) REFERENCES tracked_link_tokens\(id,business_id\)/);
+});

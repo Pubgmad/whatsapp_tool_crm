@@ -19,5 +19,10 @@ CREATE POLICY tenant_isolation ON campaign_send_events
   USING (COALESCE(current_setting('app.system_access', true), '') = 'true' OR business_id = COALESCE(current_setting('app.business_id', true), ''))
   WITH CHECK (COALESCE(current_setting('app.system_access', true), '') = 'true' OR business_id = COALESCE(current_setting('app.business_id', true), ''));
 
-ALTER TABLE tracked_link_tokens ADD COLUMN IF NOT EXISTS parameter_slot TEXT NOT NULL DEFAULT '';
-CREATE INDEX IF NOT EXISTS tracked_link_tokens_slot ON tracked_link_tokens(business_id, definition_id, parameter_slot) WHERE confirmed_at IS NOT NULL;
+-- tracked_link_tokens is created in click-tracking.sql (runs later). Guard for fresh DBs.
+DO $$ BEGIN
+  IF to_regclass('public.tracked_link_tokens') IS NOT NULL THEN
+    ALTER TABLE tracked_link_tokens ADD COLUMN IF NOT EXISTS parameter_slot TEXT NOT NULL DEFAULT '';
+    CREATE INDEX IF NOT EXISTS tracked_link_tokens_slot ON tracked_link_tokens(business_id, definition_id, parameter_slot) WHERE confirmed_at IS NOT NULL;
+  END IF;
+END $$;

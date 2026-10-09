@@ -20,6 +20,8 @@ test('tracking references are typed and never accepted as mixed partial text',()
 test('repeat click storage is append-only, tenant scoped and retention linked',()=>{
  const schema=fs.readFileSync('./db/click-tracking.sql','utf8');
  assert.match(schema,/CREATE TABLE IF NOT EXISTS tracked_link_click_events/);
+ assert.match(schema,/UNIQUE\(id,business_id\)/);
+ assert.match(schema,/tracked_link_tokens_id_business/);
  assert.match(schema,/FOREIGN KEY\(token_id,business_id\).*ON DELETE CASCADE/);
  assert.match(schema,/tracked_link_click_events ENABLE ROW LEVEL SECURITY/);
  assert.match(schema,/tracked_link_click_events FORCE ROW LEVEL SECURITY/);

@@ -27,8 +27,11 @@ CREATE TABLE IF NOT EXISTS tracked_link_tokens (
  FOREIGN KEY(definition_id,business_id) REFERENCES tracked_link_definitions(id,business_id) ON DELETE CASCADE,
  FOREIGN KEY(contact_id,business_id) REFERENCES contacts(id,business_id) ON DELETE CASCADE,
  FOREIGN KEY(campaign_recipient_id,contact_id) REFERENCES campaign_recipients(id,contact_id) ON DELETE CASCADE,
+ UNIQUE(id,business_id),
  UNIQUE(business_id,reference)
 );
+-- Upgrade path: older installs created tokens with PRIMARY KEY(id) only; composite FKs need (id,business_id).
+CREATE UNIQUE INDEX IF NOT EXISTS tracked_link_tokens_id_business ON tracked_link_tokens(id,business_id);
 ALTER TABLE tracked_link_tokens ADD COLUMN IF NOT EXISTS parameter_slot TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS tracked_click_audience ON tracked_link_tokens(business_id,contact_id,campaign_recipient_id,confirmed_at) WHERE confirmed_at IS NOT NULL;
 CREATE TABLE IF NOT EXISTS tracked_link_click_events (
