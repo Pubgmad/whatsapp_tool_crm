@@ -8,6 +8,7 @@ import CampaignFailedWorkbench from './campaign-failed-workbench';
 import WorkspaceProductionCertPanel from './workspace-production-cert-panel';
 import ParityReportPanel from './parity-report-panel';
 import CampaignSourceAnalyticsPanel from './campaign-source-analytics-panel';
+import JourneyReportPanel from './journey-report-panel';
 
 export default function WorkspaceResultsManagerShell({ api, postJson }) {
   const [bundle, setBundle] = useState(null);
@@ -54,6 +55,7 @@ export default function WorkspaceResultsManagerShell({ api, postJson }) {
       {bundle && (
         <>
           <CampaignSourceAnalyticsPanel rows={bundle.campaignSources || []} />
+          <JourneyReportPanel api={api} />
           <WorkspaceProductionHub api={api} hub={bundle.hub} />
           <WorkspaceOperationsPanel api={api} report={bundle.operations} />
           <CampaignFailedWorkbench api={api} data={bundle.failures} postJson={postJson} onReload={load} />

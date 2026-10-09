@@ -182,7 +182,6 @@ try {
   await client.query(await fs.readFile(new URL('../db/commerce-automation.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/engagement-audiences.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/whatsapp-retargeting.sql', import.meta.url), 'utf8'));
-  await client.query(await fs.readFile(new URL('../db/product-completion-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/production-p1-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/production-p2-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/production-p3-wave.sql', import.meta.url), 'utf8'));
@@ -196,6 +195,8 @@ try {
   await client.query(await fs.readFile(new URL('../db/external-availability.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/crm-connectors.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/crm-production-gaps.sql', import.meta.url), 'utf8'));
+  // product-completion-wave ALTERs crm_connections — must run after crm-connectors CREATE
+  await client.query(await fs.readFile(new URL('../db/product-completion-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ai-integrations-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/production-parity-extensions.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/meta-webhook-queue.sql', import.meta.url), 'utf8'));

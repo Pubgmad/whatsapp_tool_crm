@@ -46,6 +46,9 @@ export default function AudienceBulkTagsPanel({ segment, api, onApplied }) {
       });
       setJob(result.job);
       if (result.job?.status === 'completed') onApplied?.();
+      else if (result.queued || result.job?.status === 'queued') {
+        setError('');
+      }
     } catch (cause) {
       setError(cause.message || 'Bulk tag job failed.');
     } finally {
@@ -93,6 +96,7 @@ export default function AudienceBulkTagsPanel({ segment, api, onApplied }) {
                 <div className="audienceBulkTagsStatus" aria-live="polite">
                   <Badge kind={job.status === 'completed' ? 'good' : job.status === 'failed' ? 'bad' : 'warn'}>{job.status}</Badge>
                   <span>{job.processedContacts} / {job.totalContacts} contacts</span>
+                  {job.status === 'queued' && <small>Queued for the background worker — keep the queue worker running.</small>}
                   {job.error && <small className="errorLine">{job.error}</small>}
                 </div>
               )}
