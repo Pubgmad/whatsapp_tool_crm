@@ -1,0 +1,10 @@
+.audienceBulkTagsModal { width: min(100%, 520px); }
+.audienceBulkTagsHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.audienceBulkTagsHeader h3 { margin: 0 0 6px; font-size: 18px; }
+.audienceBulkTagsHeader p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.audienceBulkTagsForm { display: grid; gap: 12px; }
+.audienceBulkTagsForm label { display: grid; gap: 6px; font-size: 13px; }
+.audienceBulkTagsForm select,
+.audienceBulkTagsForm textarea { width: 100%; box-sizing: border-box; }
+.audienceBulkTagsStatus { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; background: var(--soft); border-radius: 7px; font-size: 13px; }
+.segmentList .segmentRowActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
