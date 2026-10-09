@@ -17,6 +17,15 @@ ALTER TABLE availability_connections ADD COLUMN IF NOT EXISTS order_sync_enabled
 ALTER TABLE availability_connections ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ;
 ALTER TABLE availability_connections ADD COLUMN IF NOT EXISTS refresh_expires_at TIMESTAMPTZ;
 ALTER TABLE availability_connections ADD COLUMN IF NOT EXISTS auth_method TEXT NOT NULL DEFAULT 'manual' CHECK(auth_method IN ('manual','oauth'));
+ALTER TABLE availability_connections ADD COLUMN IF NOT EXISTS webhook_connector_id TEXT;
+ALTER TABLE availability_connections ADD COLUMN IF NOT EXISTS webhook_status JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE availability_connections ADD COLUMN IF NOT EXISTS webhook_checked_at TIMESTAMPTZ;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='availability_connections_webhook_connector_fk') THEN
+    ALTER TABLE availability_connections ADD CONSTRAINT availability_connections_webhook_connector_fk
+      FOREIGN KEY(webhook_connector_id,business_id) REFERENCES provider_connectors(id,business_id) ON DELETE SET NULL (webhook_connector_id);
+  END IF;
+END $$;
 CREATE TABLE IF NOT EXISTS shopify_oauth_states (
   state_hash TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,

@@ -5,6 +5,7 @@ import {query,transaction,enterSystemContext} from '../lib/db.js';
 import {createSessionToken} from '../lib/auth.js';
 import {createCsrfToken} from '../lib/security.js';
 import {integrationSettings,triggerIntegrationWorkflow} from '../lib/workspace-integrations.js';
+import {upsertPublicContact} from '../lib/public-workspace-api.js';
 import {runCommerceAutomation} from '../lib/commerce-automation.js';
 import {journeyReportForBusiness} from '../lib/whatsapp-journey-analytics.js';
 
@@ -22,12 +23,20 @@ test('workflow API keys are scoped, revocable, CSRF-protected and idempotent',{s
     await query('INSERT INTO conversations (id,business_id,contact_id) VALUES ($1,$2,$3)',['v_'+suffix,business,contact]);
     await query("INSERT INTO automation_flows (id,business_id,name,status,trigger_mode,definition) VALUES ($1,$2,'Manual','active','manual',$3)",[flow,business,JSON.stringify({startNodeId:'end',nodes:[{id:'end',type:'end',body:''}]})]);
     assert.equal((await integrationSettings(request({action:'createKey',name:'Store',flowIds:[flow]},false))).status,403);
-    const created=await integrationSettings(request({action:'createKey',name:'Store',flowIds:[flow]}));assert.equal(created.status,201);const key=await created.json();
-    enterSystemContext();const saved=(await query('SELECT token_hash FROM workspace_api_keys WHERE id=$1',[key.id])).rows[0];assert.notEqual(saved.token_hash,key.token);assert.equal(saved.token_hash,crypto.createHash('sha256').update(key.token).digest('hex'));
-    const trigger=body=>new Request(new URL('/api/integrations/workflows',base),{method:'POST',headers:{authorization:'Bearer '+key.token,'idempotency-key':'unique_reference_'+suffix,'content-type':'application/json'},body:JSON.stringify(body)});
+    const created=await integrationSettings(request({action:'createKey',name:'Store',flowIds:[flow],scopes:['workflows:execute'],expiresInDays:30,rateLimitPerMinute:100}));assert.equal(created.status,201);const key=await created.json();
+    enterSystemContext();const saved=(await query('SELECT token_hash,scopes,expires_at FROM workspace_api_keys WHERE id=$1',[key.id])).rows[0];assert.notEqual(saved.token_hash,key.token);assert.equal(saved.token_hash,crypto.createHash('sha256').update(key.token).digest('hex'));assert.deepEqual(saved.scopes,['workflows:execute']);assert.ok(saved.expires_at);
+    const scopedCreated=await integrationSettings(request({action:'createKey',name:'Contacts only',flowIds:[],scopes:['contacts:write'],expiresInDays:30,rateLimitPerMinute:10}));assert.equal(scopedCreated.status,201);const scoped=await scopedCreated.json();
+    await query("INSERT INTO whatsapp_accounts (id,business_id,waba_id,status,access_token_encrypted) VALUES ($1,$2,$3,'connected','test-encrypted')",['api_wa_'+suffix,business,'api_waba_'+suffix]);
+    await query("INSERT INTO whatsapp_phone_numbers (id,business_id,whatsapp_account_id,phone_number_id,is_default,registration_state) VALUES ($1,$2,$3,$4,TRUE,'registered')",['api_wp_'+suffix,business,'api_wa_'+suffix,'api_phone_'+suffix]);
+    const contactRequest=()=>new Request(new URL('/api/v1/contacts',base),{method:'PUT',headers:{authorization:'Bearer '+scoped.token,'idempotency-key':'contact_reference_'+suffix,'content-type':'application/json'},body:JSON.stringify({name:'API buyer',phone:'+15550002222',source:'Landing page',tags:['Lead','VIP'],customAttributes:{campaign:'October'}})});
+    const contactResults=await Promise.all([upsertPublicContact(contactRequest()),upsertPublicContact(contactRequest())]);assert.deepEqual(contactResults.map(result=>result.status),[201,201]);const contactPayload=await contactResults[0].json();assert.equal(contactPayload.contact.source,'Landing page');assert.deepEqual(contactPayload.contact.tags,['lead','vip']);
+    const scopedTrigger=new Request(new URL('/api/v1/workflows',base),{method:'POST',headers:{authorization:'Bearer '+scoped.token,'idempotency-key':'scoped_reference_'+suffix,'content-type':'application/json'},body:JSON.stringify({flowId:flow,contactId:contact})});assert.equal((await triggerIntegrationWorkflow(scopedTrigger)).status,403);
+    const rotatedResponse=await integrationSettings(request({action:'rotateKey',id:key.id,graceMinutes:60}));assert.equal(rotatedResponse.status,200);const rotated=await rotatedResponse.json();
+    const trigger=(body,token=rotated.token)=>new Request(new URL('/api/v1/workflows',base),{method:'POST',headers:{authorization:'Bearer '+token,'idempotency-key':'unique_reference_'+suffix,'content-type':'application/json'},body:JSON.stringify(body)});
+    assert.equal((await triggerIntegrationWorkflow(trigger({businessId:other,flowId:flow,contactId:contact},key.token))).status,400);
     assert.equal((await triggerIntegrationWorkflow(trigger({businessId:other,flowId:flow,contactId:contact}))).status,400);
-    const results=await Promise.all([triggerIntegrationWorkflow(trigger({flowId:flow,contactId:contact})),triggerIntegrationWorkflow(trigger({flowId:flow,contactId:contact}))]);assert.deepEqual(results.map(response=>response.status).sort(),[200,202]);
-    enterSystemContext();assert.equal((await query('SELECT 1 FROM automation_jobs WHERE business_id=$1',[business])).rowCount,1);assert.equal((await query('SELECT 1 FROM automation_jobs WHERE business_id=$1',[other])).rowCount,0);
+    const variables={orderReference:'external-123',nested:{source:'api'}},results=await Promise.all([triggerIntegrationWorkflow(trigger({flowId:flow,contactId:contact,variables})),triggerIntegrationWorkflow(trigger({flowId:flow,contactId:contact,variables}))]);assert.deepEqual(results.map(response=>response.status).sort(),[200,202]);
+    enterSystemContext();assert.equal((await query('SELECT 1 FROM automation_jobs WHERE business_id=$1',[business])).rowCount,1);assert.equal((await query('SELECT 1 FROM automation_jobs WHERE business_id=$1',[other])).rowCount,0);assert.deepEqual((await query('SELECT context FROM automation_sessions WHERE business_id=$1',[business])).rows[0].context,variables);
     assert.equal((await integrationSettings(request({action:'revokeKey',id:key.id}))).status,200);
     assert.equal((await triggerIntegrationWorkflow(trigger({flowId:flow,contactId:contact}))).status,401);
     enterSystemContext();await assert.rejects(transaction(async client=>{

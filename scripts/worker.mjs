@@ -1,5 +1,6 @@
 import process from 'node:process';
 import nextEnv from '@next/env';
+import { operationalPolicy } from '../lib/operational-policy.js';
 
 nextEnv.loadEnvConfig(process.cwd());
 
@@ -9,8 +10,9 @@ if (!secret || secret.startsWith('replace-with') || !baseUrl) {
   throw new Error('JOB_RUNNER_SECRET and JOB_RUNNER_URL or APP_URL are required.');
 }
 
-const intervalMs = Math.max(5000, Number(process.env.JOB_POLL_INTERVAL_MS) || 15000);
-const retentionIntervalMs = 24 * 60 * 60 * 1000;
+const policy = operationalPolicy();
+const intervalMs = policy.workerPollIntervalMs;
+const retentionIntervalMs = policy.workerRetentionIntervalHours * 60 * 60 * 1000;
 const endpoint = new URL('/api/jobs/run', baseUrl);
 let nextRetentionAt = 0;
 let stopping = false;

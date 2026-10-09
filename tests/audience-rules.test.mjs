@@ -1,12 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeAudienceRules, audienceContactQuery } from '../lib/audience-rules.js';
+import { audienceCampaignIds, normalizeAudienceRules, audienceContactQuery } from '../lib/audience-rules.js';
 
 test('existing segment rules remain consent-aware and normalize legacy lists',()=>{
   const result=normalizeAudienceRules({tags:'VIP, vip',sources:'website',lastActiveDays:'30'});
-  assert.equal(result.permission,'marketable');assert.deepEqual(result.engagement,[]);assert.equal(result.lastActiveDays,30);
+  assert.equal(result.version,2);assert.equal(result.root.type,'group');
+  assert.deepEqual(result.root.children.find(rule=>rule.type==='permission'),{type:'permission',value:'marketable'});
+  assert.deepEqual(result.root.children.find(rule=>rule.type==='tags').values,['vip']);
   const query=audienceContactQuery('tenant',{tags:'vip',tagMode:'all'});
   assert.match(query.text,/ct.business_id = \$1/);assert.match(query.text,/unsubscribed = FALSE/);assert.match(query.text,/\?&/);
+});
+test('versioned nested groups preserve precedence and collect campaign ownership checks',()=>{
+  const rules={version:2,root:{type:'group',operator:'and',children:[
+    {type:'permission',value:'marketable'},
+    {type:'group',operator:'or',children:[
+      {type:'attribute',key:'stage',operator:'equals',value:"lead' OR TRUE --"},
+      {type:'engagement',campaignId:'camp_1',event:'read',match:'matched',withinDays:14}
+    ]}
+  ]}};
+  const statement=audienceContactQuery('tenant',rules);
+  assert.match(statement.text,/\(ct\.marketing_permission = TRUE.* AND \(.* OR .*\)\)/s);
+  assert.equal(statement.text.includes("lead' OR TRUE --"),false);
+  assert.ok(statement.params.includes("lead' OR TRUE --"));
+  assert.deepEqual(audienceCampaignIds(rules),['camp_1']);
+});
+test('tree depth, fanout, node count and unknown versions fail closed',()=>{
+  const leaf={type:'permission',value:'marketable'};
+  const tooDeep={version:2,root:{type:'group',operator:'and',children:[{type:'group',operator:'and',children:[{type:'group',operator:'and',children:[{type:'group',operator:'and',children:[{type:'group',operator:'and',children:[leaf]}]}]}]}]}};
+  const tooWide={version:2,root:{type:'group',operator:'and',children:Array(51).fill(leaf)}};
+  for(const value of [{version:99,root:{type:'group',operator:'and',children:[]}},tooDeep,tooWide]) {
+    assert.throws(()=>normalizeAudienceRules(value),{code:'SEGMENT_RULES_INVALID'});
+  }
 });
 test('engagement supports AND/OR, verified incoming replies and recipient-bound exclusions',()=>{
   const statement=audienceContactQuery('tenant',{engagementMode:'any',engagement:[{campaignId:'campaign_a',event:'delivered',match:'matched'},{campaignId:'campaign_b',event:'replied',match:'not_matched',withinDays:7}]});

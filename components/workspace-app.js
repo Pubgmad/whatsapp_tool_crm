@@ -27,6 +27,10 @@ import HubSpotConnection from './hubspot-connection';
 import AutomationAdvancedNodeFields from './automation-advanced-node-fields';
 import AutomationConnections from './automation-connections';
 import AudienceSegmentComposer from './audience-segment-composer';
+import CampaignDripManager from './campaign-drip-manager';
+import InboxContact360 from './inbox-contact-360';
+import CampaignSourceAnalyticsPanel from './campaign-source-analytics-panel';
+import { campaignSourceLabel } from '../lib/campaign-source-labels.js';
 import WhatsAppRetargetingPanel from './whatsapp-retargeting-panel';
 import ApprovedTemplatePicker from './approved-template-picker';
 import SearchableOptionPicker from './searchable-option-picker';
@@ -127,9 +131,11 @@ function mergeWorkspaceState(current, incoming) {
   };
 }
 
-function stateUrl(view, { page = 1, messagePage = 1, notePage = 1, conversationId = "" } = {}) {
+function stateUrl(view, { page = 1, messagePage = 1, notePage = 1, conversationId = "", inboxFilter = "", q = "" } = {}) {
   const params = new URLSearchParams({ page: String(page), messagePage: String(messagePage), notePage: String(notePage) });
   if (conversationId) params.set("conversationId", conversationId);
+  if (inboxFilter) params.set("inboxFilter", inboxFilter);
+  if (q) params.set("q", q);
   return `/api/workspace/${encodeURIComponent(view)}?${params}`;
 }
 
@@ -285,8 +291,14 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     const page = overrides.page || pages[location.view] || 1;
     const messagePage = overrides.messagePage || pages.messages || 1;
     const notePage = overrides.notePage || pages.notes || 1;
+    const inboxFilter = overrides.inboxFilter ?? pages.inboxFilter ?? "";
+    const inboxQ = overrides.inboxQ ?? pages.inboxQ ?? "";
     let nextState;
-    try { nextState = await api(stateUrl(location.view, { page, messagePage, notePage, conversationId: location.conversationId || "" })); }
+    try {
+      nextState = await api(stateUrl(location.view, {
+        page, messagePage, notePage, conversationId: location.conversationId || "", inboxFilter, q: inboxQ
+      }));
+    }
     catch (error) { if (scopeGate.current.current(request)) throw error; return null; }
     if (!scopeGate.current.current(request)) return null;
     setState((current) => mergeWorkspaceState(current, nextState));
@@ -310,6 +322,15 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     const overrides = key === "messages" ? { messagePage: nextPage } : key === "notes" ? { notePage: nextPage } : { page: nextPage };
     setPages((current) => ({ ...current, [key]: nextPage, ...(["messages", "notes"].includes(key) ? {} : { [location.view]: nextPage }) }));
     try { await loadScope(location, false, overrides); }
+    catch (error) { notify(error.message); }
+  };
+
+  const reloadInbox = async ({ inboxFilter, inboxQ, page = 1 } = {}) => {
+    const location = workspaceLocation(pathname);
+    const nextFilter = inboxFilter ?? pages.inboxFilter ?? "";
+    const nextQ = inboxQ ?? pages.inboxQ ?? "";
+    setPages((current) => ({ ...current, inbox: page, inboxFilter: nextFilter, inboxQ: nextQ }));
+    try { await loadScope(location, false, { page, inboxFilter: nextFilter, inboxQ: nextQ }); }
     catch (error) { notify(error.message); }
   };
 
@@ -370,7 +391,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
   const latestCampaign = state.campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const screenProps = { state, mutate, changePage, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget };
+  const screenProps = { state, mutate, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || "", inboxQ: pages.inboxQ || "" };
 
   return (
     <main className="shell">
@@ -492,7 +513,7 @@ function Screens({ activeView, ...props }) {
     {screens[activeView]}
     {activeView === "inbox" && <Pagination label="Message history" meta={props.state.pagination?.messages} onChange={(page) => props.changePage("messages", page)} />}
     {activeView === "inbox" && <Pagination label="Internal notes" meta={props.state.pagination?.notes} onChange={(page) => props.changePage("notes", page)} />}
-    {pageKey && <Pagination label={activeView === "inbox" ? "Conversations" : "Records"} meta={props.state.pagination?.[pageKey]} onChange={(page) => props.changePage(pageKey, page)} />}
+    {pageKey && <Pagination label={activeView === "inbox" ? "Conversations" : "Records"} meta={props.state.pagination?.[pageKey] || props.state.pagination?.inbox} onChange={(page) => props.changePage(pageKey, page)} />}
   </>;
 }
 
@@ -855,6 +876,9 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
   const [draggedNode, setDraggedNode] = useState("");
   const [formError, setFormError] = useState("");
   const [simulateText, setSimulateText] = useState("");
+  const [simulateApiOutcome, setSimulateApiOutcome] = useState("success");
+  const [simulateApiStatus, setSimulateApiStatus] = useState("200");
+  const [simulateAdvancedOutcome, setSimulateAdvancedOutcome] = useState("success");
   const [simulateResult, setSimulateResult] = useState(null);
   const analytics = flows.reduce((totals, flow) => ({
     active: totals.active + flow.activeSessions,
@@ -863,7 +887,7 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
     pending: totals.pending + flow.pendingJobs
   }), { active: 0, completed: 0, handoff: 0, pending: 0 });
 
-  const createNode = () => ({ id: `node_${Date.now().toString(36)}`, type: "question", body: "", inputKind: "buttons", options: [], next: "", fallback: "", captureAs: "", templateId: "", delayMinutes: 0, assignedUserId: "" });
+  const createNode = () => ({ id: `node_${Date.now().toString(36)}`, type: "question", body: "", inputKind: "buttons", options: [], next: "", fallback: "", captureAs: "", templateId: "", delayMinutes: 0, assignedUserId: "", allowedDestinations: [], statusBranches: [], productSections: [] });
   const reset = () => { setEditingId(""); setFlowMeta({ name: "", description: "", status: "draft", triggerMode: "keywords", triggerKeywords: "" }); setNodes([]); setFormError(""); };
   const updateMeta = (key, value) => setFlowMeta((current) => ({ ...current, [key]: value }));
   const updateNode = (nodeId, key, value) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, [key]: value } : node));
@@ -905,7 +929,7 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
       templateParameters: node.templateParameters || {},
       delayMinutes: node.delayMinutes || 0,
       assignedUserId: node.assignedUserId || ""
-      ,errorNext:node.errorNext||"",falseNext:node.falseNext||"",attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing"
+      ,errorNext:node.errorNext||"",falseNext:node.falseNext||"",timeoutNext:node.timeoutNext||"",statusBranches:node.statusBranches||[],attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing",model:node.model||"",prompt:node.prompt||"",allowedDestinations:node.allowedDestinations||[],catalogId:node.catalogId||"",retailerId:node.retailerId||"",productSections:node.productSections||[]
     })));
     setFormError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -921,6 +945,7 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
         id: option.id.trim(),
         label: option.label.trim(),
         description: option.description.trim(),
+        section: String(option.section || "").trim(),
         match: String(option.match || "").split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
         next: option.next
       })).filter((option) => option.id && option.label),
@@ -934,7 +959,7 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
       templateParameters: node.templateParameters || {},
       delayMinutes: Math.max(0, Number(node.delayMinutes) || 0),
       assignedUserId: node.assignedUserId,
-      errorNext:node.errorNext||"",falseNext:node.falseNext||"",attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing"
+      errorNext:node.errorNext||"",falseNext:node.falseNext||"",timeoutNext:node.timeoutNext||"",statusBranches:node.statusBranches||[],attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing",model:node.model||"",prompt:node.prompt||"",allowedDestinations:node.allowedDestinations||[],catalogId:node.catalogId||"",retailerId:node.retailerId||"",productSections:node.productSections||[]
     })).filter((node) => node.id);
     return { startNodeId: cleanNodes[0]?.id || "", nodes: cleanNodes };
   };
@@ -944,7 +969,7 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
     setFormError("");
     const definition = buildDefinition();
     if (!definition.nodes.length) { setFormError("Add at least one node before saving."); return; }
-    if (flowMeta.triggerMode === "keywords" && !flowMeta.triggerKeywords.trim()) { setFormError("Add trigger keywords or choose another trigger mode."); return; }
+    if (["keywords", "regex"].includes(flowMeta.triggerMode) && !flowMeta.triggerKeywords.trim()) { setFormError("Add triggers or choose another trigger mode."); return; }
     const wasEditing = Boolean(editingId);
     const saved = await mutate(postJson("/api/automation/flows", {
       id: editingId,
@@ -978,10 +1003,12 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
         <div className="formGrid automationForm">
           <Input label="Flow name" value={flowMeta.name} onChange={(event) => updateMeta("name", event.target.value)} placeholder="Flow name" required />
           <label>Description<textarea rows="3" value={flowMeta.description} onChange={(event) => updateMeta("description", event.target.value)} placeholder="Internal purpose for this flow"></textarea></label>
-          <div className="formSplit"><label>Status<select value={flowMeta.status} onChange={(event) => updateMeta("status", event.target.value)}><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select></label><label>Trigger mode<select value={flowMeta.triggerMode} onChange={(event) => updateMeta("triggerMode", event.target.value)}><option value="keywords">Keywords</option><option value="any_inbound">Any inbound message</option><option value="manual">Manual only</option></select></label></div>
-          <label>Trigger keywords<textarea rows="3" value={flowMeta.triggerKeywords} onChange={(event) => updateMeta("triggerKeywords", event.target.value)} placeholder="Comma or line separated trigger words"></textarea></label>
+          <div className="formSplit"><label>Status<select value={flowMeta.status} onChange={(event) => updateMeta("status", event.target.value)}><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select></label><label>Trigger mode<select value={flowMeta.triggerMode} onChange={(event) => updateMeta("triggerMode", event.target.value)}><option value="keywords">Keywords</option><option value="regex">Safe regex</option><option value="any_inbound">Any inbound message</option><option value="manual">Manual only</option></select></label></div>
+          <label>{flowMeta.triggerMode === 'regex' ? 'Regex triggers' : 'Trigger keywords'}<textarea rows="3" maxLength="4000" value={flowMeta.triggerKeywords} onChange={(event) => updateMeta("triggerKeywords", event.target.value)} placeholder="Comma or line separated triggers"></textarea></label>
           {formError && <div className="formError" role="alert">{formError}</div>}
-          <div className="formSplit"><label>Dry-run sample reply<input value={simulateText} onChange={(event) => setSimulateText(event.target.value)} placeholder="Text a customer might send" /></label><button className="secondaryAction" type="button" onClick={async () => { setFormError(""); try { setSimulateResult(await postJson("/api/automation/simulate", { definition: buildDefinition(), text: simulateText })); } catch (error) { setFormError(error.message); setSimulateResult(null); } }}>Simulate path</button></div>
+          <div className="formSplit"><label>Dry-run sample reply<input value={simulateText} onChange={(event) => setSimulateText(event.target.value)} placeholder="Text a customer might send" /></label><label>API outcome<select value={simulateApiOutcome} onChange={(event) => setSimulateApiOutcome(event.target.value)}><option value="success">Success</option><option value="timeout">Timeout</option><option value="error">Error</option></select></label></div>
+          <div className="formSplit"><label>API status<input value={simulateApiStatus} onChange={(event) => setSimulateApiStatus(event.target.value)} placeholder="200 or 4xx" /><small>Used when API outcome is success</small></label><label>Advanced node outcome<select value={simulateAdvancedOutcome} onChange={(event) => setSimulateAdvancedOutcome(event.target.value)}><option value="success">Success</option><option value="error">Error</option></select></label></div>
+          <button className="secondaryAction" type="button" onClick={async () => { setFormError(""); try { setSimulateResult(await postJson("/api/automation/simulate", { definition: buildDefinition(), text: simulateText, apiOutcome: simulateApiOutcome, apiStatus: simulateApiStatus, advancedOutcome: simulateAdvancedOutcome })); } catch (error) { setFormError(error.message); setSimulateResult(null); } }}>Simulate path</button>
           {simulateResult && <ol className="simulateTrail">{simulateResult.steps.map((step) => <li key={step.nodeId}><strong>{step.type}</strong> {step.body || step.detail || ""}</li>)}</ol>}
           <button className="primaryAction" type="submit"><Bot size={18} /> <span>{editingId ? "Update flow" : "Save flow"}</span></button>
         </div>
@@ -992,7 +1019,7 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
           <header><button className="iconButton dragHandle" type="button" title="Drag node"><Bot size={16} /></button><div><strong>{node.id || `Node ${nodeIndex + 1}`}</strong><span>{nodeIndex === 0 ? "Start node" : "Step node"}</span></div><button className="iconButton dangerSoft" type="button" title="Remove node" onClick={() => removeNode(node.id)}><Trash2 size={16} /></button></header>
           <div className="nodeFields">
             <label>Node ID<input value={node.id} onChange={(event) => updateNode(node.id, "id", event.target.value)} /></label>
-            <label>Type<select value={node.type} onChange={(event) => updateNode(node.id, "type", event.target.value)}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option><option value="handoff">Human handoff</option><option value="end">End</option><option value="attribute_condition">Contact condition</option><option value="set_contact_attribute">Set contact field</option><option value="api_request">API request</option><option value="order_lookup">Order lookup</option><option value="set_order_status">Update order status</option></select></label>
+            <label>Type<select value={node.type} onChange={(event) => updateNode(node.id, "type", event.target.value)}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option><option value="section_list">Section list</option><option value="single_product">Single product</option><option value="multi_product">Multi-product list</option><option value="ai_route">AI route</option><option value="handoff">Human handoff</option><option value="end">End</option><option value="attribute_condition">Contact condition</option><option value="set_contact_attribute">Set contact field</option><option value="api_request">API request</option><option value="order_lookup">Order lookup</option><option value="set_order_status">Update order status</option></select></label>
             <label>Input<select value={node.inputKind} onChange={(event) => updateNode(node.id, "inputKind", event.target.value)}><option value="buttons">Buttons</option><option value="list">List</option><option value="text">Free text</option><option value="none">No input</option></select></label>
             <label>Next node<select value={node.next} onChange={(event) => updateNode(node.id, "next", event.target.value)}><option value="">None</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label>
           </div>
@@ -1002,7 +1029,7 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
           {node.type === "handoff" && <label>Assign to<select value={node.assignedUserId} onChange={(event) => updateNode(node.id, "assignedUserId", event.target.value)}><option value="">Keep unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select></label>}
           <label>Message<textarea rows="4" value={node.body} onChange={(event) => updateNode(node.id, "body", event.target.value)} placeholder="Message body. Use variables like {{name}} or captured values."></textarea></label>
           <div className="nodeFields"><label>Fallback<textarea rows="2" value={node.fallback} onChange={(event) => updateNode(node.id, "fallback", event.target.value)} placeholder="Shown when reply does not match"></textarea></label><label>Capture as<input value={node.captureAs} onChange={(event) => updateNode(node.id, "captureAs", event.target.value)} placeholder="Variable name" /></label></div>
-          {(node.inputKind === "buttons" || node.inputKind === "list") && <div className="optionEditor"><div className="optionHead"><strong>Options</strong><button className="secondaryAction" type="button" onClick={() => addOption(node.id)}><Plus size={16} /> Add option</button></div>{node.options.map((option, optionIndex) => <div className="optionRow" key={`${node.id}-${optionIndex}`}><input value={option.id} onChange={(event) => updateOption(node.id, optionIndex, "id", event.target.value)} placeholder="id" /><input value={option.label} onChange={(event) => updateOption(node.id, optionIndex, "label", event.target.value)} placeholder="label" /><input value={option.match} onChange={(event) => updateOption(node.id, optionIndex, "match", event.target.value)} placeholder="match terms" /><select value={option.next} onChange={(event) => updateOption(node.id, optionIndex, "next", event.target.value)}><option value="">Next</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><button className="iconButton dangerSoft" type="button" onClick={() => removeOption(node.id, optionIndex)}><Trash2 size={15} /></button></div>)}</div>}
+          {(node.inputKind === "buttons" || node.inputKind === "list" || node.type === 'section_list') && <div className="optionEditor"><div className="optionHead"><strong>{node.type === 'section_list' ? 'Section rows' : 'Options'}</strong><button className="secondaryAction" type="button" onClick={() => addOption(node.id)} disabled={node.options.length >= (node.inputKind === 'buttons' && node.type !== 'section_list' ? 3 : 10)}><Plus size={16} /> Add option</button></div>{node.options.map((option, optionIndex) => <div className="optionRow" key={`${node.id}-${optionIndex}`}>{node.type === 'section_list'&&<input value={option.section||''} maxLength="24" onChange={(event) => updateOption(node.id, optionIndex, "section", event.target.value)} placeholder="section" />}<input value={option.id} onChange={(event) => updateOption(node.id, optionIndex, "id", event.target.value)} placeholder="id" /><input value={option.label} onChange={(event) => updateOption(node.id, optionIndex, "label", event.target.value)} placeholder="label" /><input value={option.match} onChange={(event) => updateOption(node.id, optionIndex, "match", event.target.value)} placeholder="match terms" /><select value={option.next} onChange={(event) => updateOption(node.id, optionIndex, "next", event.target.value)}><option value="">Next</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><button className="iconButton dangerSoft" type="button" onClick={() => removeOption(node.id, optionIndex)}><Trash2 size={15} /></button></div>)}</div>}
         </article>)}
         {!nodes.length && <button className="emptyFlowButton" type="button" onClick={addNode}><Plus size={22} /> Add the first automation node</button>}
       </section>
@@ -1060,7 +1087,7 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
     } catch (error) { mutate(Promise.reject(error)); }
   };
   const targetCount = segment ? segment.contactCount : selectedContactIds.length;
-  return <div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Sending number<select value={phoneNumberId} onChange={(event) => { setPhoneNumberId(event.target.value); setTemplateId(""); setSelectedTemplate(null); setDeliveryMethod("cloud_api"); }} required><option value="">Select a number</option>{phones.map((phone) => <option key={phone.phoneNumberId} value={phone.phoneNumberId}>{phone.displayPhoneNumber || phone.verifiedName || phone.phoneNumberId}</option>)}</select></label><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates.filter((item) => item.wabaId === selectedAccount?.wabaId || (!item.wabaId && selectedAccount?.wabaId === state.setup.wabaId))} wabaId={selectedAccount?.wabaId || ""} value={templateId} onChange={value => { setTemplateId(value); setVariables({}); setDeliveryMethod('cloud_api'); }} onTemplate={setSelectedTemplate} /></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {selectedAccount?.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<SearchableOptionPicker api={api} endpoint="/api/segments?active=1" itemsKey="segments" initialOptions={segments} value={segmentId} onChange={(value, item) => { setSegmentId(value); setSelectedSegment(item); if (value) setSelectedContactIds([]); }} label="Saved segment" placeholder="Find a saved segment" noneLabel="Select contacts manually" formatOption={item => item.name + " (" + item.contactCount + ")"} /></label><label>Schedule<input name="scheduledAt" type="datetime-local" /></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label>Recurring broadcast (days)<input name="recurringIntervalDays" type="number" min="0" max="365" step="1" defaultValue="0" title="After a campaign completes, spawn the next one after this many days (0 = off)" /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<SearchableOptionPicker api={api} endpoint="/api/automation/options" itemsKey="flows" initialOptions={activeFlows} value={automationFlowId} onChange={setAutomationFlowId} label="Reply automation" placeholder="Find an active flow" noneLabel="No follow-up flow" formatOption={item => item.name} /></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}{template && !templateMatchesSender && <small className="errorLine">This template belongs to another WhatsApp account. Select a matching number or template.</small>}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!templateMatchesSender || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div>;
+  return <><div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Sending number<select value={phoneNumberId} onChange={(event) => { setPhoneNumberId(event.target.value); setTemplateId(""); setSelectedTemplate(null); setDeliveryMethod("cloud_api"); }} required><option value="">Select a number</option>{phones.map((phone) => <option key={phone.phoneNumberId} value={phone.phoneNumberId}>{phone.displayPhoneNumber || phone.verifiedName || phone.phoneNumberId}</option>)}</select></label><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates.filter((item) => item.wabaId === selectedAccount?.wabaId || (!item.wabaId && selectedAccount?.wabaId === state.setup.wabaId))} wabaId={selectedAccount?.wabaId || ""} value={templateId} onChange={value => { setTemplateId(value); setVariables({}); setDeliveryMethod('cloud_api'); }} onTemplate={setSelectedTemplate} /></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {selectedAccount?.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<SearchableOptionPicker api={api} endpoint="/api/segments?active=1" itemsKey="segments" initialOptions={segments} value={segmentId} onChange={(value, item) => { setSegmentId(value); setSelectedSegment(item); if (value) setSelectedContactIds([]); }} label="Saved segment" placeholder="Find a saved segment" noneLabel="Select contacts manually" formatOption={item => item.name + " (" + item.contactCount + ")"} /></label><label>Schedule<input name="scheduledAt" type="datetime-local" /></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label>Recurring broadcast (days)<input name="recurringIntervalDays" type="number" min="0" max="365" step="1" defaultValue="0" title="After a campaign completes, spawn the next one after this many days (0 = off)" /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<SearchableOptionPicker api={api} endpoint="/api/automation/options" itemsKey="flows" initialOptions={activeFlows} value={automationFlowId} onChange={setAutomationFlowId} label="Reply automation" placeholder="Find an active flow" noneLabel="No follow-up flow" formatOption={item => item.name} /></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}{template && !templateMatchesSender && <small className="errorLine">This template belongs to another WhatsApp account. Select a matching number or template.</small>}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!templateMatchesSender || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div><CampaignDripManager api={api} postJson={postJson} role={state.account.role} businessId={state.account.business.id} segments={segments} approvedTemplates={approvedTemplates} /></>;
 }
 function WhatsAppReferralReport() {
   const [days, setDays] = useState(30);
@@ -1130,6 +1157,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
           <div className="resultHeader campaignResultActions">
             <Badge kind={campaign.status === "failed" || campaign.status === "cancelled" ? "bad" : ["scheduled", "processing", "paused", "queued", "draft", "pending_approval"].includes(campaign.status) ? "warn" : "good"}>{campaign.status}</Badge>
             <Badge kind="neutral">{campaign.deliveryMethod === "marketing_messages_api" ? "Marketing Messages API" : "Cloud API"}</Badge>
+            <Badge kind="neutral">{campaignSourceLabel(campaign.sourceKind)}</Badge>
             {campaign.dynamicAudience && <Badge kind="neutral">Dynamic audience</Badge>}
             {campaign.recurringIntervalDays > 0 && <Badge kind="neutral">Repeats every {campaign.recurringIntervalDays}d</Badge>}
             {canManage && ["queued", "scheduled", "processing"].includes(campaign.status) && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "pause")}><Pause size={15} /> Pause</button>}
@@ -1222,11 +1250,12 @@ function InteractiveReplyForm({ activeContact, mutate }) {
   return <details className="interactiveComposer"><summary><MessageSquareText size={16} /> Interactive message</summary><form onSubmit={submit}><label>Message<textarea name="body" rows="3" required /></label><div className="formSplit"><label>Format<select name="mode"><option value="buttons">Reply buttons (up to 3)</option><option value="list">List (up to 10)</option></select></label><Input name="buttonText" label="List button text" placeholder="Choose" maxLength="20" /></div><Input name="sectionTitle" label="List section title" placeholder="Options" maxLength="24" /><label>Options<textarea name="options" rows="4" placeholder={"pricing|Pricing|View pricing\ndemo|Book a demo|Choose a time"} required /></label><small>Use one option per line: identifier | title | description</small><button className="secondaryAction"><Send size={17} /> Send interactive message</button></form></details>;
 }
 
-function InboxView({ state, activeConversation, activeContact, approvedTemplates, openConversation, mutate }) {
+function InboxView({ state, activeConversation, activeContact, approvedTemplates, openConversation, mutate, reloadInbox, inboxFilter: serverFilter = "", inboxQ: serverQ = "" }) {
   const teamMembers = state.teamMembers || [];
   const currentUserId = state.account?.user?.id || "";
-  const [search, setSearch] = useState("");
-  const [inboxFilter, setInboxFilter] = useState("all");
+  const [search, setSearch] = useState(serverQ);
+  const [inboxFilter, setInboxFilter] = useState(serverFilter || "all");
+  const [inboxSurface, setInboxSurface] = useState("direct");
   const [replyDrafts, setReplyDrafts] = useState({});
   const [suggesting, setSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState('');
@@ -1251,21 +1280,16 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
     return () => { active = false; };
   }, [state.featureFlags?.ai_agent]);
   useEffect(() => { setSuggestionError(''); }, [activeConversation?.id]);
-  const filteredConversations = state.conversations.filter((conversation) => {
-    const contact = state.contacts.find((item) => item.id === conversation.contactId) || {};
-    const latest = conversation.messages.at(-1);
-    const matchesSearch = !search || [contact.name, contact.phone, latest?.body].join(" ").toLowerCase().includes(search.toLowerCase());
-    const filters = {
-      all: true,
-      unread: conversation.unreadCount > 0,
-      mine: conversation.assignedUserId === currentUserId,
-      unassigned: !conversation.assignedUserId,
-      human: conversation.automationPaused,
-      closed: conversation.status === "closed",
-      replyable: conversation.canReply && conversation.status !== "closed"
-    };
-    return matchesSearch && filters[inboxFilter];
-  });
+  const skipSearchReload = useRef(true);
+  useEffect(() => { setSearch(serverQ); setInboxFilter(serverFilter || "all"); }, [serverFilter, serverQ]);
+  useEffect(() => {
+    if (!reloadInbox || skipSearchReload.current) { skipSearchReload.current = false; return undefined; }
+    const handle = window.setTimeout(() => {
+      reloadInbox({ inboxFilter, inboxQ: search.trim(), page: 1 });
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [search, reloadInbox]);
+  const filteredConversations = state.conversations;
   const assignedUser = teamMembers.find((member) => member.id === activeConversation?.assignedUserId);
   const workflowAction = (action, extra = {}) => { if (!activeConversation) return; mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, { action, ...extra }, "PATCH"), action === "note" ? "Note added" : "Conversation updated"); };
   const selectConversation = (conversation) => { suggestionRevision.current += 1; openConversation(conversation.id); if (conversation.unreadCount > 0) mutate(postJson(`/api/conversations/${conversation.id}/workflow`, { action: "mark_read" }, "PATCH")); };
@@ -1314,8 +1338,14 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
     finally { setSuggesting(false); }
   };
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
-  return <><section className="inboxShell">
-    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" /></label><select value={inboxFilter} onChange={(event) => setInboxFilter(event.target.value)}><option value="all">All conversations</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!filteredConversations.length && <EmptyState text="No conversations match this view" />}</aside>
+  const groupsEnabled = Boolean(state.featureFlags?.whatsapp_groups);
+  return <>
+    {groupsEnabled && <div className="wa-inbox-modes" role="tablist" aria-label="Inbox surface">
+      <button type="button" role="tab" aria-selected={inboxSurface === "direct"} className={inboxSurface === "direct" ? "active" : ""} onClick={() => setInboxSurface("direct")}>1:1 conversations</button>
+      <button type="button" role="tab" aria-selected={inboxSurface === "groups"} className={inboxSurface === "groups" ? "active" : ""} onClick={() => setInboxSurface("groups")}>Groups</button>
+    </div>}
+    {inboxSurface === "groups" ? <WhatsAppGroups api={api} postJson={postJson} enabled={groupsEnabled} embedded /> : <><section className="inboxShell">
+    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" /></label><select value={inboxFilter} onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!filteredConversations.length && <EmptyState text="No conversations match this view" />}</aside>
     <div className="threadPane">{activeConversation && activeContact ? <>
       <header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></header>
       <div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div>
@@ -1330,7 +1360,8 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
       {activeConversation.status !== "closed" && !activeConversation.canReply && <TemplateReplyForm approvedTemplates={approvedTemplates} activeContact={activeContact} mutate={mutate} />}
       <aside className="conversationNotes"><header><div><StickyNote size={17} /><strong>Internal notes</strong></div><span>{activeConversation.notes?.length || 0}</span></header><div className="noteList">{(activeConversation.notes || []).map((item) => <article key={item.id}><p>{item.body}</p><small>{item.author} | {formatTime(item.createdAt)}</small></article>)}{!activeConversation.notes?.length && <span>No internal notes yet</span>}</div><form onSubmit={note}><input name="note" placeholder="Add a note for your team" required /><button className="iconButton" title="Add note"><Plus size={17} /></button></form></aside>
     </> : <EmptyState text="No conversations" />}</div>
-  </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>;
+    <InboxContact360 contactId={activeContact?.id || null} api={api} />
+  </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>}</>;
 }
 function Team({ state, mutate }) {
   return <><TeamMembers state={state} mutate={mutate}/>{['Owner','Manager'].includes(state.account?.role)&&<SupportPolicy endpoint="/api/team/support-policy" canEdit={state.account.role==='Owner'} api={api} postJson={postJson}/>} {state.featureFlags?.ai_agent && ['Owner','Manager'].includes(state.account?.role) && <AiSupportSettings api={api} postJson={postJson} uploadForm={uploadForm} role={state.account.role} />}</>;

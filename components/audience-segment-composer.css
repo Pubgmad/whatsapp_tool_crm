@@ -8,5 +8,11 @@
 .audienceComposer button { display: inline-flex; gap: 8px; align-items: center; justify-content: center; min-height: 36px; }
 .audienceButtons { display: flex; gap: 10px; align-items: end; }
 .audienceComposer > button { justify-self: start; }
+.audienceGroup { display: grid; gap: 12px; padding: 12px; border: 1px solid #dde4e1; border-radius: 8px; background: #fff; min-width: 0; }
+.audienceGroup .audienceGroup { margin-left: 18px; background: #f8faf9; }
+.audienceGroupHeader { display: flex; align-items: center; gap: 10px; }
+.audienceGroupHeader select { width: auto; }
+.audienceGroupHeader button { margin-left: auto; }
+.audienceGroupChildren { display: grid; gap: 12px; min-width: 0; }
 @media(max-width:800px) { .audienceRule { grid-template-columns: repeat(2,minmax(0,1fr)); } .audienceRule > button { justify-self: start; } }
-@media(max-width:480px) { .audienceRule { grid-template-columns: minmax(0,1fr); } }
+@media(max-width:480px) { .audienceRule { grid-template-columns: minmax(0,1fr); } .audienceGroup .audienceGroup { margin-left: 8px; } }

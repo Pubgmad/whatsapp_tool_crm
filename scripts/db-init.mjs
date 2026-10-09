@@ -200,6 +200,8 @@ try {
   await client.query(await fs.readFile(new URL('../db/production-parity-extensions.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/meta-webhook-queue.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/public-site.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/inbox-contact-360.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/campaign-source-taxonomy.sql', import.meta.url), 'utf8'));
   await client.query(
     `INSERT INTO message_usage_events (id,business_id,contact_ref,meta_message_id,source,sent_at)
      SELECT 'mue_' || md5(m.meta_message_id),c.business_id,c.contact_id,m.meta_message_id,

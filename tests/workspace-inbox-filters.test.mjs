@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { commerceAutomationPreset } from '../lib/commerce-automation-presets.js';
+
+test('commerce automation presets are bounded and typed', () => {
+  const preset = commerceAutomationPreset('shopify_payment_reminder');
+  assert.equal(preset.eventType, 'whatsapp_order_received');
+  assert.equal(preset.unpaidOnly, true);
+  assert.equal(commerceAutomationPreset('missing'), null);
+});

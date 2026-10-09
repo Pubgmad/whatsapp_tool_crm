@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {verifyShopifyOAuthHmac} from '../lib/shopify-auth.js';
+import {normalizeProviderEvent} from '../lib/provider-connectors.js';
 import {verifiedShopifySettlement} from '../lib/shopify-drafts.js';
 
 const money=amount=>({presentmentMoney:{amount,currencyCode:'USD'}});
@@ -26,4 +27,10 @@ test('Shopify OAuth callback HMAC rejects changed or duplicate parameters',()=>{
   assert.equal(verifyShopifyOAuthHmac(params,secret),true);
   params.set('code','changed');assert.equal(verifyShopifyOAuthHmac(params,secret),false);
   params.set('code','def');params.append('code','def');assert.equal(verifyShopifyOAuthHmac(params,secret),false);
+});
+
+test('refund webhooks only trigger order reconciliation and cannot assert settlement amounts',()=>{
+  const event=normalizeProviderEvent('shopify','refunds/create',{id:999,order_id:123,created_at:'2026-10-01T00:00:00Z',transactions:[{amount:'40.00'}]});
+  assert.deepEqual(event,{resource:'order',externalId:'123',occurredAt:'2026-10-01T00:00:00.000Z',phone:'',amount:'0',currency:'USD',terminal:true,state:'refunded'});
+  assert.throws(()=>verifiedShopifySettlement(order([tx(1,'SALE','40.00'),tx(2,'REFUND','20.00')],'REFUNDED','20.00'),'gid://shopify/Order/123','40.00','USD'),{code:'SHOPIFY_PAYMENT_MISMATCH'});
 });

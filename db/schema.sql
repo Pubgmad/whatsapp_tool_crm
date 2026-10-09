@@ -748,6 +748,37 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS whatsapp_groups (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  phone_number_id TEXT NOT NULL,
+  meta_group_id TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT '',
+  participant_count INTEGER NOT NULL DEFAULT 0,
+  invite_link TEXT NOT NULL DEFAULT '',
+  sync_status TEXT NOT NULL DEFAULT 'synced' CHECK (sync_status IN ('synced','stale','error')),
+  last_error TEXT NOT NULL DEFAULT '',
+  meta_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+  unread_count INTEGER NOT NULL DEFAULT 0,
+  last_read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (business_id, meta_group_id)
+);
+CREATE TABLE IF NOT EXISTS whatsapp_group_messages (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  group_id TEXT NOT NULL REFERENCES whatsapp_groups(id) ON DELETE CASCADE,
+  direction TEXT NOT NULL CHECK (direction IN ('incoming','outgoing')),
+  body TEXT NOT NULL DEFAULT '',
+  message_type TEXT NOT NULL DEFAULT 'text',
+  status TEXT NOT NULL DEFAULT 'received',
+  meta_message_id TEXT NOT NULL DEFAULT '',
+  sender_ref TEXT NOT NULL DEFAULT '',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_super_admins_email ON super_admins(email);
 CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_at ON platform_audit_logs(at DESC);
 CREATE INDEX IF NOT EXISTS idx_businesses_account_status ON businesses(account_status);
@@ -777,11 +808,14 @@ CREATE INDEX IF NOT EXISTS idx_conversation_notes_page ON conversation_notes(bus
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_meta_message_id ON messages(meta_message_id) WHERE meta_message_id <> '';
 CREATE INDEX IF NOT EXISTS idx_events_business_at ON events(business_id, at DESC);
 CREATE INDEX IF NOT EXISTS idx_campaign_jobs_status ON campaign_jobs(status, run_at);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_groups_business ON whatsapp_groups(business_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_group_messages_group ON whatsapp_group_messages(business_id, group_id, at DESC, id DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_group_messages_meta ON whatsapp_group_messages(business_id, meta_message_id) WHERE meta_message_id <> '';
 
 DO $$
 DECLARE tenant_table TEXT;
 BEGIN
-  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_coexistence_sync','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','ai_agent_settings','ai_agent_daily_usage','ai_agent_knowledge','ai_auto_reply_jobs','ai_action_proposals','message_usage_events','events','audit_logs'] LOOP
+  FOREACH tenant_table IN ARRAY ARRAY['workspace_deletion_requests','meta_connection_events','meta_authorizations','whatsapp_accounts','whatsapp_phone_numbers','whatsapp_coexistence_sync','whatsapp_media_assets','whatsapp_native_flows','whatsapp_analytics_snapshots','business_subscriptions','billing_events','team_invitations','contacts','contact_consent_events','audience_segments','templates','campaigns','automation_flows','automation_sessions','automation_jobs','conversations','conversation_notes','ai_agent_settings','ai_agent_daily_usage','ai_agent_knowledge','ai_auto_reply_jobs','ai_action_proposals','message_usage_events','events','audit_logs','whatsapp_groups','whatsapp_group_messages'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', tenant_table);

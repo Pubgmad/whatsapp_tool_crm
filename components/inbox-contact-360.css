@@ -1,0 +1,165 @@
+.contact360 {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  gap: 16px;
+  padding: 18px;
+  color: var(--ink);
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.inboxShell:has(> .contact360) {
+  grid-template-columns: minmax(240px, 300px) minmax(420px, 1fr) minmax(280px, 340px);
+}
+
+.contact360Header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.contact360Header h3 {
+  margin: 6px 0 2px;
+  font-size: 18px;
+}
+
+.contact360Header a {
+  color: var(--brand-dark);
+  font-size: 13px;
+}
+
+.contact360 > section {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.contact360 h4,
+.contact360 p {
+  margin: 0;
+}
+
+.contact360 h4 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.contact360 dl,
+.contact360 form {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.contact360 dl > div {
+  display: grid;
+  grid-template-columns: minmax(90px, .7fr) minmax(0, 1.3fr);
+  gap: 8px;
+}
+
+.contact360 dt,
+.contact360 time,
+.contact360 small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.contact360 dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.contact360 form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.contact360Metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.contact360Metrics span {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.contact360Timeline {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact360Timeline li {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 0 0 18px 18px;
+  border-left: 1px solid var(--line-strong);
+}
+
+.contact360Timeline li::before {
+  position: absolute;
+  top: 4px;
+  left: -4px;
+  width: 7px;
+  height: 7px;
+  content: "";
+  background: var(--brand);
+  border-radius: 50%;
+}
+
+.contact360Timeline span {
+  color: var(--ink-soft);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.contact360 .attribution {
+  width: fit-content;
+  padding: 3px 6px;
+  background: var(--soft);
+  border-radius: 999px;
+}
+
+.contact360 .attribution.unknown {
+  color: #7b4d0b;
+  background: var(--attention-soft);
+}
+
+@media (max-width: 1100px) {
+  .inboxShell:has(> .contact360) {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  }
+
+  .contact360 {
+    grid-column: 1 / -1;
+    max-height: none;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .inboxShell:has(> .contact360) {
+    grid-template-columns: 1fr;
+  }
+}

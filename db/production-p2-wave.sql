@@ -14,6 +14,40 @@ CREATE TABLE IF NOT EXISTS whatsapp_groups (
   UNIQUE (business_id, meta_group_id)
 );
 CREATE INDEX IF NOT EXISTS idx_whatsapp_groups_business ON whatsapp_groups(business_id, updated_at DESC);
+ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS unread_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS whatsapp_group_messages (
+  id TEXT PRIMARY KEY,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  group_id TEXT NOT NULL REFERENCES whatsapp_groups(id) ON DELETE CASCADE,
+  direction TEXT NOT NULL CHECK (direction IN ('incoming','outgoing')),
+  body TEXT NOT NULL DEFAULT '',
+  message_type TEXT NOT NULL DEFAULT 'text',
+  status TEXT NOT NULL DEFAULT 'received',
+  meta_message_id TEXT NOT NULL DEFAULT '',
+  sender_ref TEXT NOT NULL DEFAULT '',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_group_messages_group ON whatsapp_group_messages(business_id, group_id, at DESC, id DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_group_messages_meta ON whatsapp_group_messages(business_id, meta_message_id) WHERE meta_message_id <> '';
+ALTER TABLE whatsapp_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE whatsapp_groups FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON whatsapp_groups;
+CREATE POLICY tenant_isolation ON whatsapp_groups USING (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR business_id=COALESCE(current_setting('app.business_id',true),'')
+) WITH CHECK (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR business_id=COALESCE(current_setting('app.business_id',true),'')
+);
+ALTER TABLE whatsapp_group_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE whatsapp_group_messages FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON whatsapp_group_messages;
+CREATE POLICY tenant_isolation ON whatsapp_group_messages USING (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR business_id=COALESCE(current_setting('app.business_id',true),'')
+) WITH CHECK (
+  COALESCE(current_setting('app.system_access',true),'')='true' OR business_id=COALESCE(current_setting('app.business_id',true),'')
+);
 
 CREATE TABLE IF NOT EXISTS ai_safety_events (
   id TEXT PRIMARY KEY,

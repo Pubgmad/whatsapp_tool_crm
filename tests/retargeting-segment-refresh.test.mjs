@@ -16,10 +16,11 @@ test('retarget segment refresh rebuilds rules from preset metadata', async () =>
     retarget_source_campaign_id: 'camp_9'
   });
   assert.equal(result.refreshed, true);
-  assert.equal(result.rules.engagement.length, 2);
+  const engagement = result.rules.root.children.find((node) => node.type === 'group');
+  assert.equal(engagement.children.length, 2);
   assert.match(updates[0].text, /UPDATE audience_segments/);
   const stored = JSON.parse(updates[0].params[0]);
-  assert.equal(stored.engagement[0].campaignId, 'camp_9');
+  assert.equal(stored.root.children.find((node) => node.type === 'group').children[0].campaignId, 'camp_9');
 });
 
 test('non-retarget segments skip refresh', async () => {

@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS flow_screen_events (
 );
 CREATE INDEX IF NOT EXISTS idx_flow_screen_events_flow ON flow_screen_events(business_id, flow_id, screen_id, created_at DESC);
 
+ALTER TABLE flow_screen_events DROP CONSTRAINT IF EXISTS flow_screen_events_event_kind_check;
+ALTER TABLE flow_screen_events ADD CONSTRAINT flow_screen_events_event_kind_check
+  CHECK (event_kind IN ('view', 'complete', 'abandon'));
+
 ALTER TABLE flow_screen_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE flow_screen_events FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON flow_screen_events;

@@ -9,6 +9,17 @@ CREATE TABLE IF NOT EXISTS workspace_api_keys (
   last_used_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE workspace_api_keys ALTER COLUMN allowed_flow_ids SET DEFAULT '[]'::jsonb;
+ALTER TABLE workspace_api_keys ADD COLUMN IF NOT EXISTS scopes JSONB NOT NULL DEFAULT '["workflows:execute"]'::jsonb;
+ALTER TABLE workspace_api_keys ADD COLUMN IF NOT EXISTS active_from TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE workspace_api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE workspace_api_keys ADD COLUMN IF NOT EXISTS ip_allowlist JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE workspace_api_keys ADD COLUMN IF NOT EXISTS rate_limit_per_minute INTEGER NOT NULL DEFAULT 60;
+ALTER TABLE workspace_api_keys ADD COLUMN IF NOT EXISTS previous_token_hash TEXT;
+ALTER TABLE workspace_api_keys ADD COLUMN IF NOT EXISTS previous_token_valid_until TIMESTAMPTZ;
+ALTER TABLE workspace_api_keys DROP CONSTRAINT IF EXISTS workspace_api_keys_rate_limit_check;
+ALTER TABLE workspace_api_keys ADD CONSTRAINT workspace_api_keys_rate_limit_check CHECK (rate_limit_per_minute BETWEEN 1 AND 1000);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_api_keys_previous_hash ON workspace_api_keys(previous_token_hash) WHERE previous_token_hash IS NOT NULL;
 CREATE TABLE IF NOT EXISTS workspace_api_requests (
   id TEXT NOT NULL,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -19,6 +30,18 @@ CREATE TABLE IF NOT EXISTS workspace_api_requests (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (business_id,id)
 );
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS operation TEXT NOT NULL DEFAULT 'workflow.execute';
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS resource_id TEXT;
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS response_status INTEGER;
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS response_body JSONB;
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS request_payload JSONB;
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS dispatch_status TEXT NOT NULL DEFAULT 'completed';
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS provider_message_id TEXT;
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS error_code TEXT;
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE workspace_api_requests ADD COLUMN IF NOT EXISTS lease_token TEXT;
+ALTER TABLE workspace_api_requests DROP CONSTRAINT IF EXISTS workspace_api_requests_dispatch_status_check;
+ALTER TABLE workspace_api_requests ADD CONSTRAINT workspace_api_requests_dispatch_status_check CHECK (dispatch_status IN ('reserved','sending','provider_accepted','completed','failed','unconfirmed'));
 CREATE TABLE IF NOT EXISTS workspace_webhooks (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -28,6 +51,16 @@ CREATE TABLE IF NOT EXISTS workspace_webhooks (
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE workspace_webhooks ADD COLUMN IF NOT EXISTS previous_signing_secret_encrypted TEXT;
+ALTER TABLE workspace_webhooks ADD COLUMN IF NOT EXISTS previous_secret_valid_until TIMESTAMPTZ;
+ALTER TABLE workspace_webhooks ADD COLUMN IF NOT EXISTS schema_version TEXT NOT NULL DEFAULT '2026-10-01';
+ALTER TABLE workspace_webhooks ADD COLUMN IF NOT EXISTS max_attempts INTEGER NOT NULL DEFAULT 8;
+ALTER TABLE workspace_webhooks ADD COLUMN IF NOT EXISTS initial_backoff_seconds INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE workspace_webhooks ADD COLUMN IF NOT EXISTS secret_rotated_at TIMESTAMPTZ;
+ALTER TABLE workspace_webhooks DROP CONSTRAINT IF EXISTS workspace_webhooks_max_attempts_check;
+ALTER TABLE workspace_webhooks ADD CONSTRAINT workspace_webhooks_max_attempts_check CHECK (max_attempts BETWEEN 1 AND 20);
+ALTER TABLE workspace_webhooks DROP CONSTRAINT IF EXISTS workspace_webhooks_backoff_check;
+ALTER TABLE workspace_webhooks ADD CONSTRAINT workspace_webhooks_backoff_check CHECK (initial_backoff_seconds BETWEEN 5 AND 3600);
 CREATE TABLE IF NOT EXISTS workspace_webhook_deliveries (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
@@ -43,13 +76,18 @@ CREATE TABLE IF NOT EXISTS workspace_webhook_deliveries (
   delivered_at TIMESTAMPTZ,
   UNIQUE (webhook_id,event_id)
 );
+ALTER TABLE workspace_webhook_deliveries DROP CONSTRAINT IF EXISTS workspace_webhook_deliveries_status_check;
+ALTER TABLE workspace_webhook_deliveries ADD CONSTRAINT workspace_webhook_deliveries_status_check CHECK (status IN ('queued','processing','delivered','failed','dead_letter'));
+ALTER TABLE workspace_webhook_deliveries ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ;
+ALTER TABLE workspace_webhook_deliveries ADD COLUMN IF NOT EXISTS replay_count INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_workspace_hooks_due ON workspace_webhook_deliveries(status,run_at);
 CREATE OR REPLACE FUNCTION enqueue_workspace_event_webhooks() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO workspace_webhook_deliveries (id,business_id,webhook_id,event_id,payload)
   SELECT h.id||':'||NEW.id,NEW.business_id,h.id,NEW.id,
-    jsonb_build_object('id',NEW.id,'type',NEW.type,'contactId',NEW.contact_id,'occurredAt',NEW.at,
-      'data',jsonb_strip_nulls(jsonb_build_object('orderId',NEW.metadata->'orderId','messageId',NEW.metadata->'messageId','campaignId',NEW.metadata->'campaignId','status',NEW.metadata->'status','flowId',NEW.metadata->'flowId')))
+    jsonb_build_object('schemaVersion',h.schema_version,'id',NEW.id,'type',NEW.type,'eventType',NEW.type,
+      'workspaceId',NEW.business_id,'contactId',NEW.contact_id,'occurredAt',NEW.at,
+      'data',COALESCE(NEW.metadata,'{}'::jsonb))
   FROM workspace_webhooks h WHERE h.business_id=NEW.business_id AND h.enabled AND h.event_types ? NEW.type
   ON CONFLICT (webhook_id,event_id) DO NOTHING;
   RETURN NEW;
