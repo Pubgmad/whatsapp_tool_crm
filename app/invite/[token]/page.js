@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck, UserPlus } from "lucide-react";
+import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from "../../../lib/password-policy.js";
 
 export default function AcceptInvitePage() {
   const { token } = useParams();
@@ -19,5 +20,5 @@ export default function AcceptInvitePage() {
       window.location.assign("/");
     } catch (nextError) { setError(nextError.message); setPending(false); }
   };
-  return <main className="authShell"><section className="authPanel authPanelPro"><div className="authHeader"><p className="kicker">Company invitation</p><h1>Join the workspace</h1><p>Create your account or use the password for an existing account with this email.</p></div><form className="formGrid authForm" onSubmit={submit}><label>Name<input name="name" autoComplete="name" required /></label><label>Password<span className="passwordWrap"><input name="password" type={visible ? "text" : "password"} minLength="8" autoComplete="new-password" required /><button type="button" onClick={() => setVisible((value) => !value)} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></label>{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction authSubmit" disabled={pending}>{pending ? <ShieldCheck size={18} /> : <UserPlus size={18} />}{pending ? "Joining" : "Join workspace"}</button></form></section></main>;
+  return <main className="authShell"><section className="authPanel authSurfacePro"><div className="authHeader"><p className="kicker">Company invitation</p><h1>Join the workspace</h1><p>Create your account or use the password for an existing account with this email.</p></div><form className="formGrid authForm" onSubmit={submit}><label>Name<input name="name" autoComplete="name" required /></label><label>Password<span className="passwordWrap"><input name="password" type={visible ? "text" : "password"} minLength={PASSWORD_MIN_LENGTH} autoComplete="new-password" required /><button type="button" onClick={() => setVisible((value) => !value)} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span><small className="fieldHint">New accounts: {PASSWORD_POLICY_HINT} Existing accounts: use your current password.</small></label>{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction authSubmit" disabled={pending}>{pending ? <ShieldCheck size={18} /> : <UserPlus size={18} />}{pending ? "Joining" : "Join workspace"}</button></form></section></main>;
 }

@@ -15,7 +15,7 @@ test('signup requires email verification before login', { skip: !process.env.TES
   const { getPublicPlatformConfig } = await import('../lib/platform.js');
   const suffix = crypto.randomBytes(8).toString('hex');
   const email = `signup-${suffix}@example.test`;
-  const password = crypto.randomBytes(24).toString('base64url');
+  const password = `Aa1${crypto.randomBytes(16).toString('base64url')}`;
   const account = await registerAccount({ name: 'Signup test', email, password, businessName: `Signup ${suffix}` });
 
   await assert.rejects(loginAccount({ email, password }), { code: 'EMAIL_NOT_VERIFIED' });

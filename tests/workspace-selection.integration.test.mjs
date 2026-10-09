@@ -13,7 +13,7 @@ test("login selects an accessible membership and rejects a suspended selection",
   const suspendedId = `test_suspended_${suffix}`;
   const activeId = `test_active_${suffix}`;
   const email = `workspace-${suffix}@example.test`;
-  const password = crypto.randomBytes(24).toString("base64url");
+  const password = `Aa1${crypto.randomBytes(16).toString("base64url")}`;
   const client = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
   await client.connect();
   try {

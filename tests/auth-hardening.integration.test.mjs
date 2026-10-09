@@ -48,7 +48,7 @@ test('password-reset session version revokes earlier cookies', { skip: !process.
     );
     const token = createSessionToken({ userId, businessId, role: 'Owner', sessionVersion: 0 });
     assert.equal((await authenticateSessionToken(token)).userId, userId);
-    await resetPassword(resetToken, 'new-secure-password-value');
+    await resetPassword(resetToken, 'NewSecurePass123');
     await assert.rejects(() => authenticateSessionToken(token), { code: 'SESSION_REVOKED' });
   } finally {
     await client.query('DELETE FROM businesses WHERE id=$1', [businessId]);
