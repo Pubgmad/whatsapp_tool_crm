@@ -194,6 +194,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/provider-connectors.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/commerce-payments-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ads-growth-production.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/ad-credits.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/flow-runtime.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/whatsapp-webviews.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/external-availability.sql', import.meta.url), 'utf8'));
