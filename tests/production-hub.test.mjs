@@ -6,7 +6,7 @@ import { workspaceProductionHub } from '../lib/workspace-production-hub.js';
 
 test('production hub honest limits cover all boundary categories', () => {
   const payload = honestLimitsPayload();
-  assert.equal(payload.limits.length, 10);
+  assert.equal(payload.limits.length, 13);
   const ids = new Set(payload.limits.map((l) => l.id));
   assert.ok(ids.has('whatsapp_groups'));
   assert.ok(ids.has('integration_marketplace'));

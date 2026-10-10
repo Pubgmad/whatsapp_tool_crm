@@ -5,7 +5,13 @@ import {validateWebview} from '../lib/whatsapp-webviews.js';
 const valid={title:'Order help',description:'Get help with your order.',buttonLabel:'Chat with our team',prefilledMessage:'I need help with my order',phoneId:'wap_1234567890abcdef',enabled:false};
 
 test('hosted page accepts owner-authored plain text and registered phone ID shape',()=>{
-  assert.deepEqual(validateWebview(valid),valid);
+  assert.deepEqual(validateWebview(valid),{
+    ...valid,
+    pageMode:'cta',
+    formSchema:[],
+    successMessage:'Thanks — we received your details.',
+    automationFlowId:null
+  });
   assert.equal(validateWebview({...valid,description:'Line one\nLine two'}).description,'Line one\nLine two');
 });
 

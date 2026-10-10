@@ -33,7 +33,7 @@ test('improvement backlog is empty when all capabilities are strong', async () =
 
 test('honest limits registry documents production boundaries', async () => {
   const { HONEST_PRODUCT_LIMITS, honestLimitById } = await import('../lib/honest-product-limits.js');
-  assert.equal(HONEST_PRODUCT_LIMITS.length, 10);
+  assert.equal(HONEST_PRODUCT_LIMITS.length, 13);
   assert.ok(honestLimitById('meta_billing_visibility'));
   assert.ok(honestLimitById('inbox_contact_360'));
   assert.ok(honestLimitById('campaign_drip'));
