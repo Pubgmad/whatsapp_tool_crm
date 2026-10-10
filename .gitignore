@@ -7,12 +7,34 @@ out/
 .env.*.local
 data/store.json
 .DS_Store
+Thumbs.db
+Desktop.ini
 npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
 sampleui/
 playwright-report/
 test-results/
+coverage/
+.nyc_output/
+*.tsbuildinfo
 tsconfig.tsbuildinfo
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.pem
+*.key
+credentials.json
+service-account*.json
+tmp/
+temp/
+.cache/
+dist/
+build-artifacts/
 
-# Markdown: only root README is published to GitHub
+# Markdown / docs dumps: only root README is published to GitHub
 *.md
 !/README.md
