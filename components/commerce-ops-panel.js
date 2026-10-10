@@ -57,10 +57,20 @@ export default function CommerceOpsPanel({ api, role }) {
               <tr><td>Paid orders</td><td>{data.orders?.paid ?? 0}</td></tr>
               <tr><td>Open merchant checkouts</td><td>{data.merchantCheckoutsOpen ?? 0}</td></tr>
               <tr><td>Open native checkouts</td><td>{data.nativeCheckoutsOpen ?? 0}</td></tr>
-              <tr><td>Recovery queue</td><td>{data.recoveryQueued ?? 0}</td></tr>
+              <tr><td>Recovery queue (pending)</td><td>{data.recoveryQueued ?? 0}</td></tr>
+              <tr><td>Recovery detected (30d)</td><td>{data.checkoutRecovery?.detected ?? '—'}</td></tr>
+              <tr><td>Recovery queued (30d)</td><td>{data.checkoutRecovery?.queued ?? '—'}</td></tr>
+              <tr><td>Recovered checkouts (30d)</td><td>{data.checkoutRecovery?.recovered ?? '—'}</td></tr>
+              <tr><td>Recovered revenue (verified)</td><td>{data.checkoutRecovery?.recoveredRevenue ?? '0'} {data.checkoutRecovery?.recoveredCurrency || ''}</td></tr>
             </tbody>
           </table>
         </div>
+      )}
+      {data?.awaitingLiveVerification?.length > 0 && (
+        <aside className="wa-module-note" role="note">
+          <strong>Awaiting live verification:</strong>
+          <ul>{data.awaitingLiveVerification.map((item) => <li key={item}>{item}</li>)}</ul>
+        </aside>
       )}
       {!data && !error && <p role="status">Loading commerce summary…</p>}
     </section>

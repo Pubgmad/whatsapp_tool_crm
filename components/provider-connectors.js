@@ -27,11 +27,17 @@ export default function ProviderConnectors({ api, postJson, canEdit = true }) {
       <td>{connector.name}</td><td>{connector.provider}</td><td style={{overflowWrap:'anywhere'}}>{connector.source}</td>
       <td><input readOnly aria-label={'Delivery URL for '+connector.name} value={endpoint(connector)}/><button type="button" title="Copy delivery URL" aria-label="Copy delivery URL" onClick={()=>navigator.clipboard.writeText(endpoint(connector)).catch(cause=>setError(cause.message))}><Copy size={16}/></button></td>
       <td><label><input type="checkbox" checked={connector.enabled} disabled={busy||!canEdit||connector.oauth_managed} onChange={event=>run(()=>postJson('/api/connectors',{action:'toggle',id:connector.id,enabled:event.target.checked}))}/>Enabled{connector.oauth_managed?' (managed by OAuth)':''}</label></td>
-      <td>{connector.provider==='shopify'?<RecoverySettings connector={connector} flows={data.flows} disabled={busy||!canEdit} onSave={settings=>run(()=>postJson('/api/connectors',{action:'recovery_settings',id:connector.id,...settings}))}/>:null}</td>
+      <td>{['shopify','woocommerce'].includes(connector.provider)?<RecoverySettings connector={connector} flows={data.flows} disabled={busy||!canEdit} onSave={settings=>run(()=>postJson('/api/connectors',{action:'recovery_settings',id:connector.id,...settings}))}/>:<span className="wa-module-note">N/A</span>}</td>
       <td>{connector.oauth_managed?'Managed by Shopify OAuth':canEdit ? <RotateCredential disabled={busy} onSave={value=>run(()=>postJson('/api/connectors',{action:'rotate',id:connector.id,secret:value}))}/> : '—'}</td>
     </tr>)}</tbody></table></div>
     <h3>Checkout recovery</h3>
-    <div className="wa-module-table"><table><thead><tr><th>Store</th><th>Checkout</th><th>Customer phone</th><th>Value</th><th>Last update</th><th>Status</th><th>Action</th></tr></thead><tbody>{data?.recoveryCandidates?.map(candidate=><tr key={candidate.connector_id+':'+candidate.external_id}><td>{data.connectors.find(item=>item.id===candidate.connector_id)?.name||candidate.connector_id}</td><td>{candidate.external_id}</td><td>{candidate.data.phone||'Unavailable'}</td><td>{candidate.data.amount} {candidate.data.currency}</td><td>{new Date(candidate.occurred_at).toLocaleString()}</td><td>{candidate.recovery_reason||candidate.session_status||candidate.recovery_status}</td><td>{candidate.recovery_status==='skipped'&&<button type="button" disabled={busy} onClick={()=>run(()=>postJson('/api/connectors',{action:'retry_recovery',id:candidate.connector_id,checkoutId:candidate.external_id}))}>Retry</button>}</td></tr>)}</tbody></table></div>
+    {data?.analytics&&<p className="wa-module-note" role="status">
+      Last {data.analytics.days}d: {data.analytics.detected} abandoned · {data.analytics.queued} recovery queued · {data.analytics.recovered} recovered
+      {data.analytics.recoveredRevenue&&data.analytics.recoveredRevenue!=='0'?` · revenue ${data.analytics.recoveredRevenue} ${data.analytics.recoveredCurrency}`:''}
+      {' '}({data.analytics.conversionRate}% conversion). {data.analytics.attributionNote}
+    </p>}
+    <p className="wa-module-note">Shopify OAuth auto-registers checkout webhooks. WooCommerce abandoned carts require a signed <code>checkout.abandoned</code> webhook (extension/middleware) — REST alone does not emit carts.</p>
+    <div className="wa-module-table"><table><thead><tr><th>Store</th><th>Checkout</th><th>Customer phone</th><th>Value</th><th>Attempts</th><th>Last update</th><th>Status</th><th>Action</th></tr></thead><tbody>{data?.recoveryCandidates?.map(candidate=><tr key={candidate.connector_id+':'+candidate.external_id}><td>{data.connectors.find(item=>item.id===candidate.connector_id)?.name||candidate.connector_id}</td><td>{candidate.external_id}</td><td>{candidate.data.phone||'Unavailable'}</td><td>{candidate.data.amount} {candidate.data.currency}</td><td>{candidate.recovery_attempts||0}/{candidate.recovery_max_attempts||1}</td><td>{new Date(candidate.occurred_at).toLocaleString()}</td><td>{candidate.recovery_reason||candidate.session_status||candidate.recovery_status}</td><td>{candidate.recovery_status==='skipped'&&<button type="button" disabled={busy} onClick={()=>run(()=>postJson('/api/connectors',{action:'retry_recovery',id:candidate.connector_id,checkoutId:candidate.external_id}))}>Retry</button>}</td></tr>)}</tbody></table></div>
     {data?.recoveryCandidates?.length===0&&<p>No open checkouts are due for review.</p>}
     <a href="/api/connectors/calendar"><Download size={16}/>Order calendar (.ics)</a>
     <h3>Recent provider events</h3><div className="wa-module-table"><table><thead><tr><th>Connector</th><th>Event</th><th>Status</th><th>Result</th><th>Received</th></tr></thead><tbody>{data?.events.map(event=><tr key={event.id}><td>{data.connectors.find(connector=>connector.id===event.connector_id)?.name||event.connector_id}</td><td>{event.topic}</td><td>{event.status}</td><td>{event.error_code||event.session_id||''}</td><td>{new Date(event.received_at).toLocaleString()}</td></tr>)}</tbody></table></div>
@@ -40,12 +46,22 @@ export default function ProviderConnectors({ api, postJson, canEdit = true }) {
 
 function RecoverySettings({connector,flows,disabled,onSave}){
   const [minutes,setMinutes]=useState(connector.recovery_after_minutes);
+  const [maxAttempts,setMaxAttempts]=useState(connector.recovery_max_attempts||1);
+  const [stepMinutes,setStepMinutes]=useState(connector.recovery_step_minutes||1440);
   const [enabled,setEnabled]=useState(connector.recovery_enabled),[flowId,setFlowId]=useState(connector.recovery_flow_id||'');
-  useEffect(()=>{setMinutes(connector.recovery_after_minutes);setEnabled(connector.recovery_enabled);setFlowId(connector.recovery_flow_id||'');},[connector.recovery_after_minutes,connector.recovery_enabled,connector.recovery_flow_id]);
-  return <form onSubmit={event=>{event.preventDefault();onSave({minutes:Number(minutes),enabled,flowId});}}>
+  useEffect(()=>{
+    setMinutes(connector.recovery_after_minutes);
+    setEnabled(connector.recovery_enabled);
+    setFlowId(connector.recovery_flow_id||'');
+    setMaxAttempts(connector.recovery_max_attempts||1);
+    setStepMinutes(connector.recovery_step_minutes||1440);
+  },[connector.recovery_after_minutes,connector.recovery_enabled,connector.recovery_flow_id,connector.recovery_max_attempts,connector.recovery_step_minutes]);
+  return <form onSubmit={event=>{event.preventDefault();onSave({minutes:Number(minutes),enabled,flowId,maxAttempts:Number(maxAttempts),stepMinutes:Number(stepMinutes)});}}>
     <label><input type="checkbox" checked={enabled} onChange={event=>setEnabled(event.target.checked)}/>Send recovery</label>
     <label>Approved marketing workflow<select aria-label={'Recovery workflow for '+connector.name} value={flowId} onChange={event=>setFlowId(event.target.value)} required={enabled}><option value="">Choose workflow</option>{flows.map(flow=><option key={flow.id} value={flow.id}>{flow.name}</option>)}</select></label>
-    <label>Delay (minutes)<input aria-label={'Recovery delay for '+connector.name} type="number" min="15" max="10080" required value={minutes} onChange={event=>setMinutes(event.target.value)}/></label>
+    <label>First delay (min)<input aria-label={'Recovery delay for '+connector.name} type="number" min="15" max="10080" required value={minutes} onChange={event=>setMinutes(event.target.value)}/></label>
+    <label>Attempts (1–3)<input aria-label={'Recovery attempts for '+connector.name} type="number" min="1" max="3" required value={maxAttempts} onChange={event=>setMaxAttempts(event.target.value)}/></label>
+    <label>Step delay (min)<input aria-label={'Recovery step delay for '+connector.name} type="number" min="15" max="10080" required value={stepMinutes} onChange={event=>setStepMinutes(event.target.value)}/></label>
     <button disabled={disabled} title="Save checkout recovery" aria-label={'Save checkout recovery for '+connector.name}><Save size={16}/></button>
   </form>;
 }

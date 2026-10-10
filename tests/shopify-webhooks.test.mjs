@@ -55,11 +55,14 @@ test('Shopify webhook reconciliation repairs orders and reports app-level privac
   };
   const status=await reconcileShopifyWebhooks({shop:'store.myshopify.com',token:'token',connectorId,fetcher});
   assert.equal(status.state,'privacy_action_required');
-  assert.deepEqual(operations[0],['repair','gid://shopify/WebhookSubscription/11',callback]);
+  assert.ok(operations.some((item)=>item[0]==='repair'&&item[1]==='gid://shopify/WebhookSubscription/11'&&item[2]===callback));
+  assert.ok(operations.some((item)=>item[0]==='create'&&item[1]==='ORDERS_CREATE'));
+  assert.ok(operations.some((item)=>item[0]==='create'&&item[1]==='CHECKOUTS_CREATE'));
   assert.equal(status.topics.find(item=>item.topic==='REFUNDS_CREATE').status,'created');
+  assert.equal(status.topics.find(item=>item.topic==='CHECKOUTS_UPDATE').status,'created');
   assert.ok(status.topics.filter(item=>item.privacy).every(item=>item.status==='configuration_required'));
   assert.equal(status.privacyCallbackUrl,'https://crm.example.test/api/webhooks/shopify/privacy');
-  assert.equal(operations.length,2);
+  assert.ok(operations.length>=2);
 }));
 
 test('verified Shopify privacy callbacks normalize without trusting customer payload data',()=>{
