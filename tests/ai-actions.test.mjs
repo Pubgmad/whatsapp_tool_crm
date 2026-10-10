@@ -14,6 +14,9 @@ test('AI action proposals are limited to configured tenant resources',()=>{
   assert.throws(()=>parseActionProposal(response(candidate({action_type:'send_booking_flow',intent:'booking',target_id:'nf_other',attribute_key:'',value:''})),context),{code:'AI_ACTION_INVALID'});
   assert.equal(parseActionProposal(response(candidate({decision:'none'})),context),null);
   assert.throws(()=>parseActionProposal({status:'incomplete',output:[]},context),{code:'AI_ACTION_INCOMPLETE'});
+  assert.deepEqual(parseActionProposal(response(candidate({action_type:'add_contact_tag',intent:'crm',target_id:'',attribute_key:'',value:'vip_lead'})),{...context,allowedTags:[]}),{type:'add_contact_tag',args:{tag:'vip_lead'},reason:'Customer requested this location.'});
+  assert.deepEqual(parseActionProposal(response(candidate({action_type:'assign_conversation',intent:'support',target_id:'u_agent',attribute_key:'',value:''})),{...context,memberIds:['u_agent']}),{type:'assign_conversation',args:{userId:'u_agent'},reason:'Customer requested this location.'});
+  assert.throws(()=>parseActionProposal(response(candidate({action_type:'assign_conversation',intent:'support',target_id:'u_other',attribute_key:'',value:''})),{...context,memberIds:['u_agent']}),{code:'AI_ACTION_INVALID'});
 });
 
 test('model can propose but cannot execute an action',async()=>{
