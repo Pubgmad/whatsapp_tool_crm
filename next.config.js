@@ -5,7 +5,7 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=()" },
-  { key: "Content-Security-Policy", value: `default-src 'self'; script-src 'self' 'unsafe-inline' https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://graph.facebook.com https://www.facebook.com; frame-src 'self' https://www.facebook.com https://web.facebook.com; font-src 'self' data: https://fonts.gstatic.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'${httpsDeployment ? '; upgrade-insecure-requests' : ''}` }
+  { key: "Content-Security-Policy", value: `default-src 'self'; script-src 'self' 'unsafe-inline' https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://graph.facebook.com https://www.facebook.com; frame-src 'self' https://www.facebook.com https://web.facebook.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; font-src 'self' data: https://fonts.gstatic.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'${httpsDeployment ? '; upgrade-insecure-requests' : ''}` }
 ];
 if (httpsDeployment) securityHeaders.splice(4, 0, { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' });
 

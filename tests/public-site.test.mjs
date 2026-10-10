@@ -13,10 +13,14 @@ test('mergePublicFooterLinks dedupes CMS and platform defaults', () => {
 
 test('default CMS document validates with feature routes', () => {
   const doc = getDefaultCmsDocument();
-  assert.equal(doc.version, 2);
+  assert.equal(doc.version, 3);
   assert.ok(doc.pages.some((page) => page.kind === 'home'));
   assert.ok(doc.pages.some((page) => page.kind === 'feature' && page.slug === 'whatsapp-calling'));
-  assert.ok(doc.navigation.length > 0);
+  assert.ok(doc.products.some((product) => product.title === 'WhatsApp CRM'));
+  const productsNav = doc.navigation.find((item) => item.menuStyle === 'mega');
+  assert.ok(productsNav);
+  assert.ok(productsNav.children.length >= 1);
+  assert.ok(productsNav.children[0].children.some((feature) => feature.href.includes('whatsapp-calling')));
 });
 
 test('legacy section documents migrate into pages', () => {

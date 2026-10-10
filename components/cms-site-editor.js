@@ -12,10 +12,82 @@ function publicPathForPage(page) {
   return `/${page.slug}`;
 }
 
-const pageKinds = ['home', 'page', 'feature', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
+const pageKinds = ['home', 'page', 'feature', 'product', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
 const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'cta-band', 'faq', 'stats', 'rich', 'columns'];
 const backgrounds = ['default', 'muted', 'brand', 'dark', 'accent-soft'];
-const blockTypes = ['heading', 'paragraph', 'list', 'quote', 'button', 'link', 'image', 'card', 'feature-item', 'faq-item', 'stat', 'html'];
+const blockTypes = ['heading', 'paragraph', 'list', 'quote', 'button', 'link', 'image', 'card', 'feature-item', 'faq-item', 'stat', 'video', 'html'];
+const iconOptions = ['', 'message', 'phone', 'megaphone', 'bot', 'spark', 'workflow', 'form', 'grid', 'shield', 'integrations', 'products', 'automation'];
+
+function syncProductsMegaNav(products = []) {
+  const visible = products.filter((product) => product.visible !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
+  return {
+    id: 'nav-products',
+    label: 'Products',
+    href: '/features',
+    type: 'internal',
+    menuStyle: 'mega',
+    description: 'Explore products and capabilities',
+    icon: 'products',
+    visible: true,
+    openInNewTab: false,
+    children: visible.map((product) => ({
+      id: `nav-product-${product.id}`,
+      label: product.title,
+      href: product.href || '/features',
+      type: 'internal',
+      menuStyle: 'dropdown',
+      description: product.summary || '',
+      icon: product.icon || 'grid',
+      visible: true,
+      openInNewTab: false,
+      children: (product.features || []).filter((feature) => feature.visible !== false).map((feature) => ({
+        id: `nav-feature-${feature.id}`,
+        label: feature.title,
+        href: feature.href || '/features',
+        type: 'internal',
+        menuStyle: 'link',
+        description: feature.summary || '',
+        icon: feature.icon || '',
+        visible: true,
+        openInNewTab: false,
+        children: []
+      }))
+    }))
+  };
+}
+
+const emptyProduct = () => ({
+  id: newId('product'),
+  title: 'New product',
+  slug: 'new-product',
+  summary: 'Short product description for the mega menu',
+  href: '/features',
+  icon: 'products',
+  visible: true,
+  order: 100,
+  features: []
+});
+const emptyFeature = () => ({
+  id: newId('feat'),
+  title: 'New feature',
+  summary: '',
+  href: '/features/new-feature',
+  icon: '',
+  visible: true,
+  order: 100
+});
+const emptyNav = () => ({
+  id: newId('nav'),
+  label: 'Link',
+  href: '/',
+  type: 'internal',
+  menuStyle: 'link',
+  description: '',
+  icon: '',
+  visible: true,
+  openInNewTab: false,
+  children: []
+});
 
 const newId = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const emptyBlock = (type = 'paragraph') => {
@@ -25,6 +97,7 @@ const emptyBlock = (type = 'paragraph') => {
   if (type === 'faq-item') return { type, title: 'Question?', text: 'Answer.', emphasis: 'none' };
   if (type === 'stat') return { type, title: '99%', text: 'Metric label', emphasis: 'none' };
   if (type === 'html') return { type, text: '<section style="padding:32px"><h2>Custom HTML</h2><p>Scoped design import.</p></section>', emphasis: 'none' };
+  if (type === 'video') return { type, href: 'https://www.youtube.com/embed/dQw4w9WgXcQ', title: 'Product video', text: 'Product video', emphasis: 'none' };
   return { type, text: 'Add content…', emphasis: 'none' };
 };
 const emptySection = () => ({
@@ -92,6 +165,7 @@ export default function CmsSiteEditor({ api, notify }) {
     const result = await api('/api/super-admin/site');
     const doc = result.site.document;
     if (!doc?.pages?.length) throw new Error('Website CMS document is empty. Save once to seed default pages.');
+    if (!Array.isArray(doc.products)) doc.products = [];
     setSnapshot(result.site);
     setDocument(doc);
     setAssets(result.assets || {});
@@ -175,7 +249,7 @@ export default function CmsSiteEditor({ api, notify }) {
       <div className={styles.top}>
         <div>
           <h2>Website & product CMS</h2>
-          <p>Draft r{snapshot.revision} · Published r{snapshot.publishedRevision || 'none'} · Structured pages, navigation, feature routes, branding</p>
+          <p>Draft r{snapshot.revision} · Published r{snapshot.publishedRevision || 'none'} · Products, mega menus, feature pages, and branding — publish to update the live site</p>
         </div>
         <div className={styles.actions}>
           <a href={publicPath} target="_blank" rel="noreferrer"><Eye size={16} /> Preview path</a>
@@ -186,7 +260,7 @@ export default function CmsSiteEditor({ api, notify }) {
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
 
       <div className={styles.tabs}>
-        {['pages', 'navigation', 'theme', 'branding'].map((id) => (
+        {['pages', 'products', 'navigation', 'theme', 'branding'].map((id) => (
           <button type="button" key={id} className={tab === id ? styles.activeTab : ''} onClick={() => setTab(id)}>{id}</button>
         ))}
       </div>
@@ -205,27 +279,144 @@ export default function CmsSiteEditor({ api, notify }) {
         </div>
       )}
 
+      {tab === 'products' && (
+        <div className={styles.panel}>
+          <div className={styles.row}>
+            <h3 style={{ margin: 0, flex: 1 }}>Products & features catalog</h3>
+            <button type="button" onClick={() => {
+              const mega = syncProductsMegaNav(document.products || []);
+              const rest = (document.navigation || []).filter((item) => item.id !== 'nav-products');
+              const home = rest.find((item) => item.id === 'nav-home') || { id: 'nav-home', label: 'Home', href: '/', type: 'internal', menuStyle: 'link', description: '', icon: '', visible: true, openInNewTab: false, children: [] };
+              const others = rest.filter((item) => item.id !== 'nav-home');
+              change({ navigation: [home, mega, ...others] });
+              notify('Products mega menu synced into Navigation');
+            }}>Sync to Products mega menu</button>
+            <button type="button" onClick={() => change({ products: [...(document.products || []), emptyProduct()] })}><Plus size={15} /> Add product</button>
+          </div>
+          <p className={styles.help}>Create products, nest features under each one, then sync into the header mega menu. Feature hrefs should match published page URLs like <code>/features/whatsapp-calling</code>.</p>
+          {(document.products || []).map((product, productIndex) => (
+            <div className={styles.card} key={product.id}>
+              <div className={styles.row}>
+                <label>Product title<input value={product.title} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, title: event.target.value } : item) })} /></label>
+                <label>Slug<input value={product.slug} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, slug: event.target.value } : item) })} /></label>
+                <label>Href<input value={product.href || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, href: event.target.value } : item) })} /></label>
+                <label>Icon
+                  <select value={product.icon || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, icon: event.target.value } : item) })}>
+                    {iconOptions.map((icon) => <option key={icon || 'none'} value={icon}>{icon || 'none'}</option>)}
+                  </select>
+                </label>
+                <label className={styles.check}><input type="checkbox" checked={product.visible !== false} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, visible: event.target.checked } : item) })} /> Visible</label>
+                <button type="button" onClick={() => change({ products: document.products.filter((_, i) => i !== productIndex) })}><Trash2 size={15} /></button>
+              </div>
+              <label>Summary<textarea rows={2} value={product.summary || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, summary: event.target.value } : item) })} /></label>
+              <div className={styles.blocksHead}>
+                <h4>Features under {product.title}</h4>
+                <button type="button" onClick={() => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, features: [...(item.features || []), emptyFeature()] } : item) })}><Plus size={14} /> Feature</button>
+              </div>
+              {(product.features || []).map((feature, featureIndex) => (
+                <div className={styles.block} key={feature.id}>
+                  <div className={styles.row}>
+                    <label>Feature<input value={feature.title} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, features: item.features.map((feat, fi) => fi === featureIndex ? { ...feat, title: event.target.value } : feat) } : item) })} /></label>
+                    <label>Page URL<input value={feature.href || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, features: item.features.map((feat, fi) => fi === featureIndex ? { ...feat, href: event.target.value } : feat) } : item) })} /></label>
+                    <label>Icon
+                      <select value={feature.icon || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, features: item.features.map((feat, fi) => fi === featureIndex ? { ...feat, icon: event.target.value } : feat) } : item) })}>
+                        {iconOptions.map((icon) => <option key={icon || 'none'} value={icon}>{icon || 'none'}</option>)}
+                      </select>
+                    </label>
+                    <button type="button" onClick={() => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, features: item.features.filter((_, fi) => fi !== featureIndex) } : item) })}><Trash2 size={14} /></button>
+                  </div>
+                  <label>Description<input value={feature.summary || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, features: item.features.map((feat, fi) => fi === featureIndex ? { ...feat, summary: event.target.value } : feat) } : item) })} /></label>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       {tab === 'navigation' && (
         <div className={styles.panel}>
-          <h3>Header navigation</h3>
+          <div className={styles.row}>
+            <h3 style={{ margin: 0, flex: 1 }}>Header navigation / mega menu</h3>
+            <button type="button" onClick={() => change({ navigation: [...(document.navigation || []), emptyNav()] })}><Plus size={15} /> Top-level item</button>
+          </div>
+          <p className={styles.help}>Use menu style <strong>mega</strong> for Products (product groups + feature links). Use <strong>dropdown</strong> for simpler menus. Reorder with the arrows. Publish to update the live header.</p>
           {(document.navigation || []).map((item, index) => (
             <div className={styles.card} key={item.id}>
               <div className={styles.row}>
                 <label>Label<input value={item.label} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, label: event.target.value } : nav) })} /></label>
-                <label>Href<input value={item.href} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, href: event.target.value } : nav) })} /></label>
+                <label>Href<input value={item.href || ''} placeholder={item.menuStyle === 'mega' ? '/features (optional overview)' : '/about'} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, href: event.target.value } : nav) })} /></label>
+                <label>Menu style
+                  <select value={item.menuStyle || 'link'} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, menuStyle: event.target.value } : nav) })}>
+                    <option value="link">link</option>
+                    <option value="dropdown">dropdown</option>
+                    <option value="mega">mega</option>
+                  </select>
+                </label>
                 <label>Type
-                  <select value={item.type} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, type: event.target.value } : nav) })}>
+                  <select value={item.type || 'internal'} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, type: event.target.value } : nav) })}>
                     <option value="internal">internal</option>
                     <option value="external">external</option>
                     <option value="hash">hash</option>
+                    <option value="menu">menu only</option>
                   </select>
                 </label>
                 <label className={styles.check}><input type="checkbox" checked={item.visible !== false} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, visible: event.target.checked } : nav) })} /> Visible</label>
+                <button type="button" disabled={index === 0} onClick={() => {
+                  const next = [...document.navigation];
+                  [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                  change({ navigation: next });
+                }}><ArrowUp size={15} /></button>
+                <button type="button" disabled={index >= document.navigation.length - 1} onClick={() => {
+                  const next = [...document.navigation];
+                  [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                  change({ navigation: next });
+                }}><ArrowDown size={15} /></button>
                 <button type="button" onClick={() => change({ navigation: document.navigation.filter((_, i) => i !== index) })}><Trash2 size={15} /></button>
               </div>
+              {(item.menuStyle === 'mega' || item.menuStyle === 'dropdown') && (
+                <>
+                  <div className={styles.blocksHead}>
+                    <h4>Child groups / links</h4>
+                    <button type="button" onClick={() => change({
+                      navigation: document.navigation.map((nav, i) => i === index ? {
+                        ...nav,
+                        children: [...(nav.children || []), { id: newId('nav-child'), label: 'Group', href: '/features', type: 'internal', menuStyle: 'dropdown', description: '', icon: 'grid', visible: true, openInNewTab: false, children: [] }]
+                      } : nav)
+                    }}><Plus size={14} /> Group</button>
+                  </div>
+                  {(item.children || []).map((child, childIndex) => (
+                    <div className={styles.block} key={child.id}>
+                      <div className={styles.row}>
+                        <label>Group label<input value={child.label} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, children: nav.children.map((c, ci) => ci === childIndex ? { ...c, label: event.target.value } : c) } : nav) })} /></label>
+                        <label>Href<input value={child.href || ''} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, children: nav.children.map((c, ci) => ci === childIndex ? { ...c, href: event.target.value } : c) } : nav) })} /></label>
+                        <label>Description<input value={child.description || ''} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, children: nav.children.map((c, ci) => ci === childIndex ? { ...c, description: event.target.value } : c) } : nav) })} /></label>
+                        <button type="button" onClick={() => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, children: nav.children.filter((_, ci) => ci !== childIndex) } : nav) })}><Trash2 size={14} /></button>
+                      </div>
+                      <div className={styles.blocksHead}>
+                        <h4>Nested links</h4>
+                        <button type="button" onClick={() => change({
+                          navigation: document.navigation.map((nav, i) => i === index ? {
+                            ...nav,
+                            children: nav.children.map((c, ci) => ci === childIndex ? {
+                              ...c,
+                              children: [...(c.children || []), { id: newId('nav-leaf'), label: 'Feature link', href: '/features/whatsapp-calling', type: 'internal', menuStyle: 'link', description: '', icon: '', visible: true, openInNewTab: false, children: [] }]
+                            } : c)
+                          } : nav)
+                        }}><Plus size={14} /> Nested link</button>
+                      </div>
+                      {(child.children || []).map((leaf, leafIndex) => (
+                        <div className={styles.row} key={leaf.id}>
+                          <label>Label<input value={leaf.label} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, children: nav.children.map((c, ci) => ci === childIndex ? { ...c, children: c.children.map((l, li) => li === leafIndex ? { ...l, label: event.target.value } : l) } : c) } : nav) })} /></label>
+                          <label>Href<input value={leaf.href || ''} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, children: nav.children.map((c, ci) => ci === childIndex ? { ...c, children: c.children.map((l, li) => li === leafIndex ? { ...l, href: event.target.value } : l) } : c) } : nav) })} /></label>
+                          <button type="button" onClick={() => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, children: nav.children.map((c, ci) => ci === childIndex ? { ...c, children: c.children.filter((_, li) => li !== leafIndex) } : c) } : nav) })}><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           ))}
-          <button type="button" onClick={() => change({ navigation: [...document.navigation, { id: newId('nav'), label: 'Link', href: '/features', type: 'internal', visible: true, openInNewTab: false, children: [] }] })}><Plus size={15} /> Add nav item</button>
           <h3>Footer</h3>
           <label>Blurb<textarea rows={3} value={document.footer?.blurb || ''} onChange={(event) => change({ footer: { ...document.footer, blurb: event.target.value } })} /></label>
           {(document.footer?.links || []).map((link, index) => (
@@ -416,6 +607,12 @@ export default function CmsSiteEditor({ api, notify }) {
                           </label>
                           {block.asset === 'custom' && <label>URL<input value={block.href || ''} onChange={(event) => updateBlock(index, { href: event.target.value })} /></label>}
                           <label>Alt<input value={block.alt || ''} onChange={(event) => updateBlock(index, { alt: event.target.value, text: event.target.value })} /></label>
+                        </div>
+                      )}
+                      {block.type === 'video' && (
+                        <div className={styles.row}>
+                          <label>YouTube/Vimeo embed URL<input value={block.href || ''} onChange={(event) => updateBlock(index, { href: event.target.value })} placeholder="https://www.youtube.com/embed/..." /></label>
+                          <label>Title<input value={block.title || ''} onChange={(event) => updateBlock(index, { title: event.target.value, text: event.target.value })} /></label>
                         </div>
                       )}
                     </div>

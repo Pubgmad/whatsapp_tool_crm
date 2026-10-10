@@ -18,6 +18,13 @@ function ActionLink({ block, className }) {
 export function MarketingBlock({ block, assets }) {
   if (!block) return null;
   if (block.type === 'html') return <PublicHtmlBlock markup={block.text} className={styles.htmlEmbed} title="Designed section" />;
+  if (block.type === 'video') {
+    return (
+      <div className={styles.videoEmbed}>
+        <iframe title={block.title || 'Video'} src={block.href} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+      </div>
+    );
+  }
   if (block.type === 'link' || block.type === 'button') return <p><ActionLink block={block} /></p>;
   if (block.type === 'image') {
     const src = block.asset === 'logo' ? assets?.logo?.url : block.asset === 'hero' ? assets?.hero?.url : block.href;
