@@ -25,6 +25,19 @@ test('bot user-agent detector marks scrapers but not normal browsers', () => {
   assert.equal(isLikelyBotUserAgent('Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'), false);
 });
 
+test('consent auto-reply helper refuses empty bodies without calling Meta', async () => {
+  const { sendConsentKeywordAutoReply } = await import('../lib/consent-management.js');
+  const result = await sendConsentKeywordAutoReply({
+    businessId: 'b1',
+    contactId: 'c1',
+    conversationId: 'v1',
+    autoReply: '   ',
+    action: 'opt_out'
+  });
+  assert.equal(result.sent, false);
+  assert.equal(result.reason, 'empty_auto_reply');
+});
+
 test('marketing eligibility fails closed for suppressions and workspace toggle', async () => {
   const rows = {
     settings: { marketing_messaging_enabled: false, opt_out_keywords: ['STOP'], opt_in_keywords: ['START'], opt_out_auto_reply: '', opt_in_auto_reply: '' },
