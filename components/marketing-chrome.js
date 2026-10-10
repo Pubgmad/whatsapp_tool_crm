@@ -128,25 +128,34 @@ function DesktopItem({ item, onNavigate }) {
         type="button"
         className={styles.navTrigger}
         aria-expanded={open}
+        aria-haspopup="true"
         aria-controls={menuId}
         onClick={() => setOpen((value) => !value)}
       >
         {item.label}
         <ChevronDown size={15} aria-hidden />
       </button>
-      <div id={menuId} hidden={!open}>
-        {item.menuStyle === 'mega' ? <MegaPanel item={item} onNavigate={() => { setOpen(false); onNavigate?.(); }} /> : <DropdownPanel item={item} onNavigate={() => { setOpen(false); onNavigate?.(); }} />}
-      </div>
+      {open ? (
+        <div id={menuId}>
+          {item.menuStyle === 'mega'
+            ? <MegaPanel item={item} onNavigate={() => { setOpen(false); onNavigate?.(); }} />
+            : <DropdownPanel item={item} onNavigate={() => { setOpen(false); onNavigate?.(); }} />}
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function MobileItem({ item, onNavigate }) {
   const [open, setOpen] = useState(false);
-  const hasMenu = (item.menuStyle === 'mega' || item.menuStyle === 'dropdown') && item.children?.length;
+  const children = (item.children || []).filter((child) => child.visible !== false);
+  const hasMenu = (item.menuStyle === 'mega' || item.menuStyle === 'dropdown') && children.length > 0;
+  const grouped = children.some((child) => (child.children || []).some((leaf) => leaf.visible !== false));
+
   if (!hasMenu) {
     return <NavAnchor item={item} className={styles.mobileLink} onNavigate={onNavigate} />;
   }
+
   return (
     <div className={styles.mobileGroup}>
       <button type="button" className={styles.mobileTrigger} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
@@ -155,7 +164,7 @@ function MobileItem({ item, onNavigate }) {
       </button>
       {open && (
         <div className={styles.mobilePanel}>
-          {(item.children || []).filter((child) => child.visible !== false).map((group) => (
+          {grouped ? children.map((group) => (
             <div key={group.id} className={styles.mobileProduct}>
               <NavAnchor item={group} className={styles.mobileProductLink} onNavigate={onNavigate}>
                 <strong>{group.label}</strong>
@@ -167,6 +176,8 @@ function MobileItem({ item, onNavigate }) {
                 </NavAnchor>
               ))}
             </div>
+          )) : children.map((child) => (
+            <NavAnchor key={child.id} item={child} className={styles.mobileLink} onNavigate={onNavigate} />
           ))}
         </div>
       )}
@@ -188,11 +199,13 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
         <button type="button" className={styles.menuToggle} aria-expanded={open} aria-controls="marketing-nav" onClick={() => setOpen((value) => !value)}>
           {open ? 'Close' : 'Menu'}
         </button>
-        <nav id="marketing-nav" className={`${styles.nav} ${styles.desktopNav}`} aria-label="Primary">
-          {items.map((item) => <DesktopItem key={item.id} item={item} onNavigate={close} />)}
-        </nav>
-        <div className={`${styles.mobileNav} ${open ? styles.navOpen : ''}`}>
-          {items.map((item) => <MobileItem key={item.id} item={item} onNavigate={close} />)}
+        <div id="marketing-nav" className={styles.navShell}>
+          <nav className={`${styles.nav} ${styles.desktopNav}`} aria-label="Primary">
+            {items.map((item) => <DesktopItem key={item.id} item={item} onNavigate={close} />)}
+          </nav>
+          <nav className={`${styles.mobileNav} ${open ? styles.navOpen : ''}`} aria-label="Primary mobile">
+            {items.map((item) => <MobileItem key={item.id} item={item} onNavigate={close} />)}
+          </nav>
         </div>
         <div className={styles.headerActions}>
           <Link className={styles.btnSecondary} href="/login" onClick={close}>{signInLabel}</Link>

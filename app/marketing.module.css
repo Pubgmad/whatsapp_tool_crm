@@ -31,6 +31,7 @@
 }
 .brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--mk-ink);font-weight:750;font-size:1.05rem;min-width:140px}
 .brand img{display:block;max-width:168px;max-height:44px;width:auto;height:auto;object-fit:contain}
+.navShell{display:flex;align-items:center;flex:1;min-width:0}
 .nav,.desktopNav{display:flex;align-items:center;gap:4px 8px;flex:1;flex-wrap:wrap}
 .navLink,.navTrigger{color:#234348;text-decoration:none;font-weight:600;font-size:.95rem;padding:8px 10px;border:0;background:transparent;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-radius:10px}
 .navLink:hover,.navTrigger:hover,.menuOpen .navTrigger{color:var(--mk-primary);background:rgba(15,118,110,.06)}
@@ -147,8 +148,9 @@
   .gridFeatures,.gridCards{grid-template-columns:repeat(2,minmax(0,1fr))}
   .gridStats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .splitMediaLeft .copy{order:0}
+  .navShell{order:5;width:100%;flex-direction:column;align-items:stretch}
   .desktopNav{display:none}
-  .mobileNav{display:none;order:5;width:100%;flex-direction:column;align-items:stretch;padding-top:8px;gap:4px}
+  .mobileNav{display:none;width:100%;flex-direction:column;align-items:stretch;padding-top:8px;gap:4px}
   .mobileNav.navOpen{display:flex}
   .menuToggle{display:inline-flex;margin-left:auto}
   .headerActions{width:100%;justify-content:stretch}.headerActions a{flex:1}

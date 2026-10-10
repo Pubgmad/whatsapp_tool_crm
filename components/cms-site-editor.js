@@ -199,17 +199,14 @@ export default function CmsSiteEditor({ api, notify }) {
     setBusy(true); setError('');
     try {
       let next = snapshot;
-      if (dirty || publish) {
-        next = (await api('/api/super-admin/site', { method: 'POST', body: JSON.stringify({ action: 'save', revision: next.revision, document }) })).site;
-        setSnapshot(next);
-        setDocument(next.document);
-        setDirty(false);
-      }
       if (publish) {
-        next = (await api('/api/super-admin/site', { method: 'POST', body: JSON.stringify({ action: 'publish', revision: next.revision }) })).site;
-        setSnapshot(next);
-        setDocument(next.document);
+        next = (await api('/api/super-admin/site', { method: 'POST', body: JSON.stringify({ action: 'publish', revision: next.revision, document }) })).site;
+      } else {
+        next = (await api('/api/super-admin/site', { method: 'POST', body: JSON.stringify({ action: 'save', revision: next.revision, document }) })).site;
       }
+      setSnapshot(next);
+      setDocument(next.document);
+      setDirty(false);
       notify(publish ? 'Website published' : 'Draft saved');
     } catch (reason) {
       setError(reason.message);
@@ -377,11 +374,13 @@ export default function CmsSiteEditor({ api, notify }) {
                 <>
                   <div className={styles.blocksHead}>
                     <h4>Child groups / links</h4>
-                    <button type="button" onClick={() => change({
-                      navigation: document.navigation.map((nav, i) => i === index ? {
-                        ...nav,
-                        children: [...(nav.children || []), { id: newId('nav-child'), label: 'Group', href: '/features', type: 'internal', menuStyle: 'dropdown', description: '', icon: 'grid', visible: true, openInNewTab: false, children: [] }]
-                      } : nav)
+                    <button type="button" onClick={() => {
+                      change({
+                        navigation: document.navigation.map((nav, i) => i === index ? {
+                          ...nav,
+                          children: [...(nav.children || []), { id: newId('nav-child'), label: 'Group', href: '/features', type: 'internal', menuStyle: 'dropdown', description: '', icon: 'grid', visible: true, openInNewTab: false, children: [] }]
+                        } : nav)
+                      });
                     }}><Plus size={14} /> Group</button>
                   </div>
                   {(item.children || []).map((child, childIndex) => (
@@ -394,14 +393,16 @@ export default function CmsSiteEditor({ api, notify }) {
                       </div>
                       <div className={styles.blocksHead}>
                         <h4>Nested links</h4>
-                        <button type="button" onClick={() => change({
-                          navigation: document.navigation.map((nav, i) => i === index ? {
-                            ...nav,
-                            children: nav.children.map((c, ci) => ci === childIndex ? {
-                              ...c,
-                              children: [...(c.children || []), { id: newId('nav-leaf'), label: 'Feature link', href: '/features/whatsapp-calling', type: 'internal', menuStyle: 'link', description: '', icon: '', visible: true, openInNewTab: false, children: [] }]
-                            } : c)
-                          } : nav)
+                        <button type="button" onClick={() => {
+                          change({
+                            navigation: document.navigation.map((nav, i) => i === index ? {
+                              ...nav,
+                              children: nav.children.map((c, ci) => ci === childIndex ? {
+                                ...c,
+                                children: [...(c.children || []), { id: newId('nav-leaf'), label: 'Feature link', href: '/features/whatsapp-calling', type: 'internal', menuStyle: 'link', description: '', icon: '', visible: true, openInNewTab: false, children: [] }]
+                              } : c)
+                            } : nav)
+                          });
                         }}><Plus size={14} /> Nested link</button>
                       </div>
                       {(child.children || []).map((leaf, leafIndex) => (

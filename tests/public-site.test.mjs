@@ -68,6 +68,14 @@ test('rejects unsafe external navigation targets', () => {
   }), { code: 'SITE_INVALID' });
 });
 
+test('rejects internal nav links to missing pages', () => {
+  const base = getDefaultCmsDocument();
+  assert.throws(() => validateSiteDocument({
+    ...base,
+    navigation: [...base.navigation, { id: 'ghost', label: 'Ghost', href: '/does-not-exist', type: 'internal', menuStyle: 'link', description: '', icon: '', visible: true, openInNewTab: false, children: [] }]
+  }), { code: 'SITE_INVALID' });
+});
+
 test('brand assets reject unsupported and oversized input before storage', async () => {
   await assert.rejects(saveBrandAsset('logo', Buffer.from('not an image')), { code: 'ASSET_INVALID' });
   const rectangle = await sharp({ create: { width: 32, height: 24, channels: 3, background: '#ffffff' } }).png().toBuffer();
