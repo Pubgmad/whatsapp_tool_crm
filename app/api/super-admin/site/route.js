@@ -11,7 +11,7 @@ export async function GET(request){
 export async function POST(request){
   try{
     const admin=await requireSuperAdmin(request);
-    const body=await readOptionalJsonBodyLimited(request,120000);
+    const body=await readOptionalJsonBodyLimited(request,750000);
     const site=await changeSiteDraft(body);
     await query('INSERT INTO platform_audit_logs(id,super_admin_id,action,metadata) VALUES($1,$2,$3,$4)',[id('pa'),admin.id,body.action==='publish'?'public_site_published':'public_site_draft_saved',JSON.stringify({revision:site.revision})]);
     return json({site});

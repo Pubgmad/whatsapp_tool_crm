@@ -2,11 +2,10 @@ import { notFound } from 'next/navigation';
 import { loadMarketingContext, MarketingPageView, resolvePage } from '../../lib/marketing-page';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Terms' };
 
-export default async function TermsPage() {
+export default async function ContactPage() {
   const ctx = await loadMarketingContext();
-  const page = resolvePage(ctx.site.document, { slug: 'terms' }) || resolvePage(ctx.site.document, { kind: 'legal' });
+  const page = resolvePage(ctx.site.document, { kind: 'contact' }) || resolvePage(ctx.site.document, { slug: 'contact' });
   if (!page) notFound();
   return <MarketingPageView {...ctx} page={page} />;
 }

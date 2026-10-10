@@ -12,7 +12,7 @@ import {
 import PolicyText from "./policy-text";
 import SupportPolicy from './support-policy';
 import MetaCreditOperations from "./meta-credit-operations";
-import PublicSiteEditor from './public-site-editor';
+import CmsSiteEditor from './cms-site-editor';
 import ParityReportPanel from './parity-report-panel';
 import SloCertificationPanel from './slo-certification-panel';
 import A11yCertificationPanel from './a11y-certification-panel';
@@ -90,7 +90,7 @@ const adminHeadings = {
   plans: ["Subscription plans", "Control pricing, billing periods, features, limits, visibility, and availability."],
   features: ['Feature controls', 'Enable or disable WhatsApp modules across workspaces.'],
   'meta-webhooks': ['Meta webhook operations', 'Review delivery failures and replay individual events.'],
-  content: ["Platform content", "Manage customer-facing business content and configurable platform values."],
+  content: ["Website & product CMS", "Manage pages, feature routes, navigation, branding, and publishable product storytelling."],
   "privacy-policy": ["Privacy policy", "Draft, preview, publish, and review the public privacy policy."],
   companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."],
   "data-requests": ["Data requests", "Review workspace and Meta data deletion requests."],
@@ -323,7 +323,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       </section>
 
       <PlanManager plans={plans} onSave={savePlan} /></>}
-      {initialSection === "content" && <><PublicSiteEditor api={api} notify={notify}/><ContentManager settings={settings.filter((item) => item.category !== 'feature_controls')} onSave={saveSetting} /></>}
+      {initialSection === "content" && <><CmsSiteEditor api={api} notify={notify}/><ContentManager settings={settings.filter((item) => item.category !== 'feature_controls')} onSave={saveSetting} /></>}
       {initialSection === 'features' && <ContentManager settings={settings.filter((item) => item.category === 'feature_controls')} onSave={saveSetting} />}
       {initialSection === 'meta-webhooks' && <MetaWebhookOperations notify={notify} />}
       {initialSection === "privacy-policy" && <PrivacyPolicyEditor settings={settings} notify={notify} />}

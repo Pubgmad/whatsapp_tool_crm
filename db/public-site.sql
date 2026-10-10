@@ -18,3 +18,11 @@ CREATE TABLE IF NOT EXISTS platform_brand_assets (
   version text NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS public_site_revisions (
+  id text PRIMARY KEY,
+  revision integer NOT NULL CHECK (revision >= 0),
+  document jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS public_site_revisions_revision_idx ON public_site_revisions (revision DESC);

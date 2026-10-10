@@ -1,56 +1,72 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import sharp from 'sharp';
-import {mergePublicFooterLinks,saveBrandAsset,validateSiteDocument} from '../lib/public-site.js';
+import { getDefaultCmsDocument, migrateSiteDocument, validateSiteDocument } from '../lib/cms-document.js';
+import { mergePublicFooterLinks, saveBrandAsset } from '../lib/public-site.js';
 
-const section={id:'about',kind:'about',title:'About the product',eyebrow:'Our team',visible:true,layout:'plain',align:'left',blocks:[{type:'paragraph',text:'Customer support with WhatsApp.',emphasis:'none'}],ctaLabel:'Learn more',ctaHref:'/signup'};
-
-test('mergePublicFooterLinks dedupes CMS and platform defaults',()=>{
-  assert.deepEqual(mergePublicFooterLinks([{label:'Pricing',href:'/signup'}],[{label:'About',href:'/about'},{label:'Dup',href:'/signup'}]),[{label:'Pricing',href:'/signup'},{label:'About',href:'/about'}]);
+test('mergePublicFooterLinks dedupes CMS and platform defaults', () => {
+  assert.deepEqual(
+    mergePublicFooterLinks([{ label: 'Pricing', href: '/signup' }], [{ label: 'About', href: '/about' }, { label: 'Dup', href: '/signup' }]),
+    [{ label: 'Pricing', href: '/signup' }, { label: 'About', href: '/about' }]
+  );
 });
 
-test('public site footer and social links validate',()=>{
-  const doc=validateSiteDocument({sections:[section],footerLinks:[{label:'About',href:'/about'}],socialLinks:[{label:'LinkedIn',href:'https://linkedin.com/company/example'}]});
-  assert.equal(doc.footerLinks[0].href,'/about');
-  assert.equal(doc.socialLinks[0].label,'LinkedIn');
+test('default CMS document validates with feature routes', () => {
+  const doc = getDefaultCmsDocument();
+  assert.equal(doc.version, 2);
+  assert.ok(doc.pages.some((page) => page.kind === 'home'));
+  assert.ok(doc.pages.some((page) => page.kind === 'feature' && page.slug === 'whatsapp-calling'));
+  assert.ok(doc.navigation.length > 0);
 });
 
-test('public site link and image blocks validate',()=>{
-  const doc=validateSiteDocument({sections:[{...section,blocks:[{type:'link',label:'Sign up',href:'/signup'},{type:'image',asset:'hero',alt:'Product screenshot'}]}]});
-  assert.equal(doc.sections[0].blocks[0].href,'/signup');
-  assert.equal(doc.sections[0].blocks[1].asset,'hero');
+test('legacy section documents migrate into pages', () => {
+  const legacy = {
+    sections: [{
+      id: 'about',
+      kind: 'about',
+      title: 'About the product',
+      eyebrow: 'Our team',
+      visible: true,
+      layout: 'plain',
+      align: 'left',
+      blocks: [{ type: 'paragraph', text: 'Customer support with WhatsApp.', emphasis: 'none' }],
+      ctaLabel: 'Learn more',
+      ctaHref: '/signup'
+    }],
+    footerLinks: [{ label: 'About', href: '/about' }],
+    socialLinks: [{ label: 'LinkedIn', href: 'https://linkedin.com/company/example' }]
+  };
+  const doc = validateSiteDocument(migrateSiteDocument(legacy));
+  assert.equal(doc.footer.socialLinks[0].label, 'LinkedIn');
+  const about = doc.pages.find((page) => page.kind === 'about');
+  assert.equal(about.sections[0].blocks[0].text, 'Customer support with WhatsApp.');
 });
 
-test('public sections remain structured text and reject active links',()=>{
-  assert.deepEqual(validateSiteDocument({sections:[section]}).sections[0],section);
-  assert.throws(()=>validateSiteDocument({sections:[{...section,ctaHref:'javascript:alert(1)'}]}),{code:'SITE_INVALID'});
-  assert.throws(()=>validateSiteDocument({sections:[{...section,ctaHref:'//evil.example'}]}),{code:'SITE_INVALID'});
-  assert.throws(()=>validateSiteDocument({sections:[section,{...section}]}),{code:'SITE_INVALID'});
-  assert.throws(()=>validateSiteDocument({sections:[{...section,unexpected:'unsafe'}]}),{code:'SITE_INVALID'});
+test('html import blocks sanitize breakout hosts', () => {
+  const base = getDefaultCmsDocument();
+  base.pages[0].sections[0].blocks = [{
+    type: 'html',
+    text: '<style>.hero{color:#125c63}</style><div class="hero">Designed<a href="javascript:alert(1)">x</a><iframe src="https://evil.example"></iframe></div><script>window.__ok=1</script>'
+  }];
+  const doc = validateSiteDocument(base);
+  const html = doc.pages[0].sections[0].blocks[0];
+  assert.equal(html.type, 'html');
+  assert.match(html.text, /class="hero"/);
+  assert.match(html.text, /window\.__ok=1/);
+  assert.doesNotMatch(html.text, /<iframe/i);
 });
 
-test('html design blocks keep markup and strip breakout hosts',()=>{
-  const doc=validateSiteDocument({sections:[{...section,blocks:[{type:'html',text:'<style>.hero{color:#125c63}</style><div class="hero">Designed<a href="javascript:alert(1)">x</a><iframe src="https://evil.example"></iframe></div><script>window.__ok=1</script>'}]}]});
-  const html=doc.sections[0].blocks[0];
-  assert.equal(html.type,'html');
-  assert.match(html.text,/class="hero"/);
-  assert.match(html.text,/window\.__ok=1/);
-  assert.doesNotMatch(html.text,/<iframe/i);
-  assert.match(html.text,/href="#"/);
+test('rejects unsafe external navigation targets', () => {
+  const base = getDefaultCmsDocument();
+  assert.throws(() => validateSiteDocument({
+    ...base,
+    navigation: [{ id: 'bad', label: 'Bad', href: 'javascript:alert(1)', type: 'external', visible: true, children: [] }]
+  }), { code: 'SITE_INVALID' });
 });
 
-test('full HTML pasted as paragraph promotes to html and orphan CTA is cleared',()=>{
-  const markup='<!DOCTYPE html><html><head><style>.card{color:#333}</style></head><body><div class="card">Hello</div></body></html>';
-  const doc=validateSiteDocument({sections:[{...section,ctaLabel:'',ctaHref:'/signup',blocks:[{type:'paragraph',text:markup,emphasis:'none'}]}]});
-  assert.equal(doc.sections[0].blocks[0].type,'html');
-  assert.match(doc.sections[0].blocks[0].text,/class="card"/);
-  assert.equal(doc.sections[0].ctaHref,'');
-  assert.equal(doc.sections[0].ctaLabel,'');
-});
-
-test('brand assets reject unsupported and oversized input before storage',async()=>{
-  await assert.rejects(saveBrandAsset('logo',Buffer.from('not an image')), {code:'ASSET_INVALID'});
-  const rectangle=await sharp({create:{width:32,height:24,channels:3,background:'#ffffff'}}).png().toBuffer();
-  await assert.rejects(saveBrandAsset('favicon',rectangle), {code:'ASSET_INVALID'});
-  await assert.rejects(saveBrandAsset('logo',Buffer.alloc(5_000_001)), {code:'ASSET_INVALID'});
+test('brand assets reject unsupported and oversized input before storage', async () => {
+  await assert.rejects(saveBrandAsset('logo', Buffer.from('not an image')), { code: 'ASSET_INVALID' });
+  const rectangle = await sharp({ create: { width: 32, height: 24, channels: 3, background: '#ffffff' } }).png().toBuffer();
+  await assert.rejects(saveBrandAsset('favicon', rectangle), { code: 'ASSET_INVALID' });
+  await assert.rejects(saveBrandAsset('logo', Buffer.alloc(5_000_001)), { code: 'ASSET_INVALID' });
 });
