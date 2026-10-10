@@ -27,6 +27,8 @@ import HubSpotConnection from './hubspot-connection';
 import CommerceOpsPanel from './commerce-ops-panel';
 import AutomationAdvancedNodeFields from './automation-advanced-node-fields';
 import AutomationConnections from './automation-connections';
+import AutomationFlowCanvas from './automation-flow-canvas';
+import AutomationLiveOpsPanel from './automation-live-ops-panel';
 import AudienceSegmentComposer from './audience-segment-composer';
 import AudienceBulkTagsPanel from './audience-bulk-tags-panel';
 import CampaignDripManager from './campaign-drip-manager';
@@ -738,6 +740,7 @@ function Setup({ state, mutate }) {
     {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={state.account.role}/>}
     {section === 'flows' && <WhatsAppFlowDesigner api={api} postJson={postJson} flows={operations.nativeFlows} onUploaded={()=>mutate(Promise.resolve({ok:true}), 'Flow uploaded')}/>}
     {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={state.account.role}/>}
+    {section === 'connection' && <AutomationLiveOpsPanel api={api} />}
     {section === 'journeys' && <WhatsAppJourneyAnalytics api={api}/>}
     {section === 'groups' && <WhatsAppGroups api={api} postJson={postJson} enabled={state.featureFlags?.whatsapp_groups} />}
     {section === 'integrations' && isWorkspaceManager(state.account.role) && <><IntegrationMarketplace api={api} /><WorkspaceIntegrations api={api} postJson={postJson}/><ProviderConnectors api={api} postJson={postJson} canEdit={state.account.role === 'Owner'} /><TrackedLinks api={api} postJson={postJson} role={state.account.role}/>{state.featureFlags?.webviews&&<WhatsAppWebviews api={api} postJson={postJson}/>} {state.featureFlags?.crm_sync&&state.account.role==='Owner'&&<><HubSpotConnection api={api} postJson={postJson} role={state.account.role}/><HubSpotConnection provider="salesforce" api={api} postJson={postJson} role={state.account.role}/></>}</>}
@@ -905,8 +908,9 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
   const [editingId, setEditingId] = useState("");
   const [flowMeta, setFlowMeta] = useState({ name: "", description: "", status: "draft", triggerMode: "keywords", triggerKeywords: "" });
   const [nodes, setNodes] = useState([]);
+  const [selectedNodeId, setSelectedNodeId] = useState("");
+  const [connectingFrom, setConnectingFrom] = useState("");
   const [selectedTemplateDetails, setSelectedTemplateDetails] = useState({});
-  const [draggedNode, setDraggedNode] = useState("");
   const [formError, setFormError] = useState("");
   const [simulateText, setSimulateText] = useState("");
   const [simulateApiOutcome, setSimulateApiOutcome] = useState("success");
@@ -919,34 +923,60 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
     handoff: totals.handoff + flow.handoffSessions,
     pending: totals.pending + flow.pendingJobs
   }), { active: 0, completed: 0, handoff: 0, pending: 0 });
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
 
-  const createNode = () => ({ id: `node_${Date.now().toString(36)}`, type: "question", body: "", inputKind: "buttons", options: [], next: "", fallback: "", captureAs: "", templateId: "", delayMinutes: 0, assignedUserId: "", allowedDestinations: [], statusBranches: [], productSections: [] });
-  const reset = () => { setEditingId(""); setFlowMeta({ name: "", description: "", status: "draft", triggerMode: "keywords", triggerKeywords: "" }); setNodes([]); setFormError(""); };
+  const createNode = (type = "question", position = {}) => ({
+    id: `node_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    type,
+    body: "",
+    inputKind: ["send_native_flow", "send_webview_cta", "single_product", "multi_product", "ai_route", "end", "handoff"].includes(type) ? "none" : type === "section_list" ? "list" : "buttons",
+    options: [],
+    next: "",
+    fallback: "",
+    captureAs: "",
+    templateId: "",
+    delayMinutes: 0,
+    assignedUserId: "",
+    allowedDestinations: [],
+    statusBranches: [],
+    productSections: [],
+    canvasX: Number.isFinite(position.canvasX) ? position.canvasX : undefined,
+    canvasY: Number.isFinite(position.canvasY) ? position.canvasY : undefined
+  });
+  const reset = () => { setEditingId(""); setFlowMeta({ name: "", description: "", status: "draft", triggerMode: "keywords", triggerKeywords: "" }); setNodes([]); setSelectedNodeId(""); setConnectingFrom(""); setFormError(""); };
   const updateMeta = (key, value) => setFlowMeta((current) => ({ ...current, [key]: value }));
   const updateNode = (nodeId, key, value) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, [key]: value } : node));
-  const addNode = () => setNodes((current) => [...current, createNode()]);
-  const removeNode = (nodeId) => setNodes((current) => current.filter((node) => node.id !== nodeId).map((node) => ({ ...node, next: node.next === nodeId ? "" : node.next, options: node.options.map((option) => ({ ...option, next: option.next === nodeId ? "" : option.next })) })));
+  const addNode = (type = "question", position = {}) => {
+    const node = createNode(type, position);
+    setNodes((current) => [...current, node]);
+    setSelectedNodeId(node.id);
+  };
+  const removeNode = (nodeId) => {
+    setNodes((current) => current.filter((node) => node.id !== nodeId).map((node) => ({
+      ...node,
+      next: node.next === nodeId ? "" : node.next,
+      falseNext: node.falseNext === nodeId ? "" : node.falseNext,
+      errorNext: node.errorNext === nodeId ? "" : node.errorNext,
+      timeoutNext: node.timeoutNext === nodeId ? "" : node.timeoutNext,
+      options: (node.options || []).map((option) => ({ ...option, next: option.next === nodeId ? "" : option.next })),
+      allowedDestinations: (node.allowedDestinations || []).filter((id) => id !== nodeId)
+    })));
+    setSelectedNodeId((current) => current === nodeId ? "" : current);
+    setConnectingFrom((current) => current === nodeId ? "" : current);
+  };
+  const connectNodes = (fromId, toId) => {
+    updateNode(fromId, "next", toId);
+    setConnectingFrom("");
+    setSelectedNodeId(fromId);
+  };
   const addOption = (nodeId) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, options: [...node.options, { id: `option_${node.options.length + 1}`, label: "", description: "", match: "", next: "" }] } : node));
   const updateOption = (nodeId, index, key, value) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, options: node.options.map((option, optionIndex) => optionIndex === index ? { ...option, [key]: value } : option) } : node));
   const removeOption = (nodeId, index) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, options: node.options.filter((_, optionIndex) => optionIndex !== index) } : node));
-  const reorderNode = (targetId) => {
-    if (!draggedNode || draggedNode === targetId) return;
-    setNodes((current) => {
-      const from = current.findIndex((node) => node.id === draggedNode);
-      const to = current.findIndex((node) => node.id === targetId);
-      if (from < 0 || to < 0) return current;
-      const next = [...current];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next;
-    });
-    setDraggedNode("");
-  };
 
   const loadFlow = (flow) => {
     setEditingId(flow.id);
     setFlowMeta({ name: flow.name, description: flow.description || "", status: flow.status || "draft", triggerMode: flow.triggerMode || "keywords", triggerKeywords: (flow.triggerKeywords || []).join(", ") });
-    setNodes((flow.definition?.nodes || []).map((node) => ({
+    const loaded = (flow.definition?.nodes || []).map((node) => ({
       id: node.id,
       type: node.type || "question",
       body: node.body || "",
@@ -961,9 +991,14 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
       templateValues: node.templateValues || {},
       templateParameters: node.templateParameters || {},
       delayMinutes: node.delayMinutes || 0,
-      assignedUserId: node.assignedUserId || ""
-      ,errorNext:node.errorNext||"",falseNext:node.falseNext||"",timeoutNext:node.timeoutNext||"",statusBranches:node.statusBranches||[],attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing",model:node.model||"",prompt:node.prompt||"",allowedDestinations:node.allowedDestinations||[],catalogId:node.catalogId||"",retailerId:node.retailerId||"",productSections:node.productSections||[],nativeFlowId:node.nativeFlowId||"",ctaLabel:node.ctaLabel||"Open",expiresHours:node.expiresHours||24,webviewId:node.webviewId||"",waitForCompletion:node.waitForCompletion===true
-    })));
+      assignedUserId: node.assignedUserId || "",
+      canvasX: node.canvasX,
+      canvasY: node.canvasY,
+      errorNext:node.errorNext||"",falseNext:node.falseNext||"",timeoutNext:node.timeoutNext||"",statusBranches:node.statusBranches||[],attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing",model:node.model||"",prompt:node.prompt||"",allowedDestinations:node.allowedDestinations||[],catalogId:node.catalogId||"",retailerId:node.retailerId||"",productSections:node.productSections||[],nativeFlowId:node.nativeFlowId||"",ctaLabel:node.ctaLabel||"Open",expiresHours:node.expiresHours||24,webviewId:node.webviewId||"",waitForCompletion:node.waitForCompletion===true
+    }));
+    setNodes(loaded);
+    setSelectedNodeId(flow.definition?.startNodeId || loaded[0]?.id || "");
+    setConnectingFrom("");
     setFormError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -992,6 +1027,8 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
       templateParameters: node.templateParameters || {},
       delayMinutes: Math.max(0, Number(node.delayMinutes) || 0),
       assignedUserId: node.assignedUserId,
+      canvasX: Number.isFinite(Number(node.canvasX)) ? Number(node.canvasX) : undefined,
+      canvasY: Number.isFinite(Number(node.canvasY)) ? Number(node.canvasY) : undefined,
       errorNext:node.errorNext||"",falseNext:node.falseNext||"",timeoutNext:node.timeoutNext||"",statusBranches:node.statusBranches||[],attribute:node.attribute||"",operator:node.operator||"equals",compareValue:node.compareValue??"",valueSource:node.valueSource||{kind:'context',key:''},connectionId:node.connectionId||"",requestFields:node.requestFields||[],responseMapping:node.responseMapping||[],orderIdSource:node.orderIdSource||{kind:'context',key:''},orderStatus:node.orderStatus||"processing",model:node.model||"",prompt:node.prompt||"",allowedDestinations:node.allowedDestinations||[],catalogId:node.catalogId||"",retailerId:node.retailerId||"",productSections:node.productSections||[],nativeFlowId:node.nativeFlowId||"",ctaLabel:node.ctaLabel||"Open",expiresHours:Number(node.expiresHours)||24,webviewId:node.webviewId||"",waitForCompletion:node.waitForCompletion===true
     })).filter((node) => node.id);
     return { startNodeId: cleanNodes[0]?.id || "", nodes: cleanNodes };
@@ -1019,19 +1056,23 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
   const updateStatus = (flow, status) => mutate(postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH"), status === "active" ? "Flow activated" : "Flow paused");
   const archive = (flow) => mutate(postJson(`/api/automation/flows/${flow.id}`, {}, "DELETE"), "Flow archived");
   const process = () => mutate(postJson("/api/automation/process", { limit: 25 }), "Automation queue processed");
+  const node = selectedNode;
 
   return <div className="screenGrid automationScreen">
     <section className="automationHero">
-      <div><p className="kicker">Automation studio</p><h2>Build reply flows without code</h2><span>Each company owns its own triggers, nodes, routes, follow-up templates, delays, and handoff rules.</span></div>
+      <div><p className="kicker">Automation studio</p><h2>Visual drag-and-drop reply flows</h2><span>Palette → canvas → wire branches. First node is start; inspector edits the selected step. Worker must run for delayed jobs.</span></div>
       <div className="automationKpis"><Metric label="Flows" value={state.pagination?.automation?.total ?? flows.length} /><Metric label="Active sessions on page" value={analytics.active} /><Metric label="Completed on page" value={analytics.completed} /><Metric label="Pending jobs on page" value={analytics.pending} /></div>
     </section>
 
+    <AutomationLiveOpsPanel api={api} />
+
     <section className="actionBand automationTopbar">
-      <div><strong>{editingId ? "Editing flow" : "New flow"}</strong><span>Use drag handles to reorder nodes. The first node becomes the start node.</span></div>
-      <div className="actionCluster"><button className="secondaryAction" type="button" onClick={addNode}><Plus size={18} /> Add node</button><button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>{editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}</div>
+      <div><strong>{editingId ? "Editing flow" : "New flow"}</strong><span>Drag nodes from the palette, wire next paths, configure the selected node in the inspector.</span></div>
+      <div className="actionCluster"><button className="secondaryAction" type="button" onClick={() => addNode("question")}><Plus size={18} /> Add node</button><button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>{editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}</div>
     </section>
 
-    <form className="visualFlowShell" onSubmit={submit}>
+    <form className="visualFlowShell visualFlowShellCanvas" onSubmit={submit}>
+      <div className="automationInspector">
       <Panel title="Flow settings" subtitle="Stored per company and checked on the server.">
         <div className="formGrid automationForm">
           <Input label="Flow name" value={flowMeta.name} onChange={(event) => updateMeta("name", event.target.value)} placeholder="Flow name" required />
@@ -1047,28 +1088,40 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
         </div>
       </Panel>
 
-      <section className="flowCanvas" aria-label="Automation nodes">
-        {nodes.map((node, nodeIndex) => <article className="flowNode" key={node.id} draggable onDragStart={() => setDraggedNode(node.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => reorderNode(node.id)}>
-          <header><button className="iconButton dragHandle" type="button" title="Drag node"><Bot size={16} /></button><div><strong>{node.id || `Node ${nodeIndex + 1}`}</strong><span>{nodeIndex === 0 ? "Start node" : "Step node"}</span></div><button className="iconButton dangerSoft" type="button" title="Remove node" onClick={() => removeNode(node.id)}><Trash2 size={16} /></button></header>
-          <div className="nodeFields">
-            <label>Node ID<input value={node.id} onChange={(event) => updateNode(node.id, "id", event.target.value)} /></label>
-            <label>Type<select value={node.type} onChange={(event) => { const value = event.target.value; setNodes((current) => current.map((item) => item.id === node.id ? { ...item, type: value, ...(value === "section_list" ? { inputKind: "list" } : {}), ...(['send_native_flow', 'send_webview_cta'].includes(value) ? { inputKind: 'none' } : {}) } : item)); }}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option><option value="send_native_flow">Send native WhatsApp Flow</option><option value="send_webview_cta">Send hosted page CTA</option><option value="section_list">Section list</option><option value="single_product">Single product</option><option value="multi_product">Multi-product list</option><option value="ai_route">AI route</option><option value="handoff">Human handoff</option><option value="end">End</option><option value="attribute_condition">Contact condition</option><option value="set_contact_attribute">Set contact field</option><option value="api_request">API request</option><option value="order_lookup">Order lookup</option><option value="set_order_status">Update order status</option></select></label>
-            <label>Input<select value={node.type === "section_list" ? "list" : node.inputKind} disabled={node.type === "section_list"} onChange={(event) => updateNode(node.id, "inputKind", event.target.value)}><option value="buttons">Buttons</option><option value="list">List</option><option value="text">Free text</option><option value="none">No input</option></select></label>
-            {node.type === "section_list" && <div className="nodeFields"><label>List button text<input maxLength={20} value={node.buttonText || ""} onChange={(event) => updateNode(node.id, "buttonText", event.target.value)} placeholder="Choose" /></label><label>Section title<input maxLength={24} value={node.sectionTitle || ""} onChange={(event) => updateNode(node.id, "sectionTitle", event.target.value)} placeholder="Options" /></label></div>}
-            <label>Next node<select value={node.next} onChange={(event) => updateNode(node.id, "next", event.target.value)}><option value="">None</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label>
-          </div>
-          <AutomationAdvancedNodeFields node={node} nodes={nodes} update={(key,value)=>updateNode(node.id,key,value)} api={api}/>
-          {node.type === "template" && <div className="nodeFields"><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates} value={node.templateId} onChange={value => updateNode(node.id, 'templateId', value)} onTemplate={template => setSelectedTemplateDetails(current => current[node.id]?.id === template?.id ? current : { ...current, [node.id]: template })} /></label><label>Delay minutes<input type="number" min="0" value={node.delayMinutes} onChange={(event) => updateNode(node.id, "delayMinutes", event.target.value)} /></label></div>}
-          {node.type === 'template' && <><div className="nodeFields">{(selectedTemplateDetails[node.id]?.id === node.templateId ? selectedTemplateDetails[node.id] : approvedTemplates.find(template=>template.id===node.templateId))?.variables?.map(key=><label key={key}>Variable {key}<input required value={node.templateValues?.[key]||''} onChange={event=>updateNode(node.id,'templateValues',{...(node.templateValues||{}),[key]:event.target.value})}/></label>)}</div><TemplateParameterFields template={selectedTemplateDetails[node.id]?.id === node.templateId ? selectedTemplateDetails[node.id] : approvedTemplates.find(template=>template.id===node.templateId)} value={node.templateParameters||{}} onChange={value=>updateNode(node.id,'templateParameters',value)}/></>}
-          {node.type === 'send_native_flow' && <div className="nodeFields"><label>Published Flow ID<input required value={node.nativeFlowId || ''} onChange={(event) => updateNode(node.id, 'nativeFlowId', event.target.value)} placeholder="waf_…" /></label><label>CTA label<input maxLength={20} value={node.ctaLabel || 'Open'} onChange={(event) => updateNode(node.id, 'ctaLabel', event.target.value)} /></label><label>Expires (hours)<input type="number" min="1" max="168" value={node.expiresHours || 24} onChange={(event) => updateNode(node.id, 'expiresHours', event.target.value)} /></label><label>Resume node<select value={node.next || ''} onChange={(event) => updateNode(node.id, 'next', event.target.value)}><option value="">End after submission</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label></div>}
-          {node.type === 'send_webview_cta' && <div className="nodeFields"><label>Hosted page ID<input required value={node.webviewId || ''} onChange={(event) => updateNode(node.id, 'webviewId', event.target.value)} placeholder="wv_…" /></label><label className="checkRow"><input type="checkbox" checked={node.waitForCompletion === true} onChange={(event) => updateNode(node.id, 'waitForCompletion', event.target.checked)} /> Wait for transactional completion</label><label>Next node<select value={node.next || ''} onChange={(event) => updateNode(node.id, 'next', event.target.value)}><option value="">Stop</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label></div>}
-          {node.type === "handoff" && <label>Assign to<select value={node.assignedUserId} onChange={(event) => updateNode(node.id, "assignedUserId", event.target.value)}><option value="">Keep unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select></label>}
-          <label>Message<textarea rows="4" value={node.body} onChange={(event) => updateNode(node.id, "body", event.target.value)} placeholder="Message body. Use variables like {{name}} or captured values."></textarea></label>
-          <div className="nodeFields"><label>Fallback<textarea rows="2" value={node.fallback} onChange={(event) => updateNode(node.id, "fallback", event.target.value)} placeholder="Shown when reply does not match"></textarea></label><label>Capture as<input value={node.captureAs} onChange={(event) => updateNode(node.id, "captureAs", event.target.value)} placeholder="Variable name" /></label></div>
-          {(node.inputKind === "buttons" || node.inputKind === "list" || node.type === 'section_list') && <div className="optionEditor"><div className="optionHead"><strong>{node.type === 'section_list' ? 'Section rows' : 'Options'}</strong><button className="secondaryAction" type="button" onClick={() => addOption(node.id)} disabled={node.options.length >= (node.inputKind === 'buttons' && node.type !== 'section_list' ? 3 : 10)}><Plus size={16} /> Add option</button></div>{node.options.map((option, optionIndex) => <div className="optionRow" key={`${node.id}-${optionIndex}`}>{node.type === 'section_list'&&<input value={option.section||''} maxLength="24" onChange={(event) => updateOption(node.id, optionIndex, "section", event.target.value)} placeholder="section" />}<input value={option.id} onChange={(event) => updateOption(node.id, optionIndex, "id", event.target.value)} placeholder="id" /><input value={option.label} onChange={(event) => updateOption(node.id, optionIndex, "label", event.target.value)} placeholder="label" /><input value={option.match} onChange={(event) => updateOption(node.id, optionIndex, "match", event.target.value)} placeholder="match terms" /><select value={option.next} onChange={(event) => updateOption(node.id, optionIndex, "next", event.target.value)}><option value="">Next</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><button className="iconButton dangerSoft" type="button" onClick={() => removeOption(node.id, optionIndex)}><Trash2 size={15} /></button></div>)}</div>}
-        </article>)}
-        {!nodes.length && <button className="emptyFlowButton" type="button" onClick={addNode}><Plus size={22} /> Add the first automation node</button>}
-      </section>
+      {node && <Panel title="Node inspector" subtitle={`Editing ${node.id}`}>
+        <div className="nodeFields">
+          <label>Node ID<input value={node.id} onChange={(event) => { const nextId = event.target.value; setNodes((current) => current.map((item) => item.id === node.id ? { ...item, id: nextId } : item)); setSelectedNodeId(nextId); }} /></label>
+          <label>Type<select value={node.type} onChange={(event) => { const value = event.target.value; setNodes((current) => current.map((item) => item.id === node.id ? { ...item, type: value, ...(value === "section_list" ? { inputKind: "list" } : {}), ...(['send_native_flow', 'send_webview_cta'].includes(value) ? { inputKind: 'none' } : {}) } : item)); }}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option><option value="send_native_flow">Send native WhatsApp Flow</option><option value="send_webview_cta">Send hosted page CTA</option><option value="section_list">Section list</option><option value="single_product">Single product</option><option value="multi_product">Multi-product list</option><option value="ai_route">AI route</option><option value="handoff">Human handoff</option><option value="end">End</option><option value="attribute_condition">Contact condition</option><option value="set_contact_attribute">Set contact field</option><option value="api_request">API request</option><option value="order_lookup">Order lookup</option><option value="set_order_status">Update order status</option></select></label>
+          <label>Input<select value={node.type === "section_list" ? "list" : node.inputKind} disabled={node.type === "section_list"} onChange={(event) => updateNode(node.id, "inputKind", event.target.value)}><option value="buttons">Buttons</option><option value="list">List</option><option value="text">Free text</option><option value="none">No input</option></select></label>
+          {node.type === "section_list" && <div className="nodeFields"><label>List button text<input maxLength={20} value={node.buttonText || ""} onChange={(event) => updateNode(node.id, "buttonText", event.target.value)} placeholder="Choose" /></label><label>Section title<input maxLength={24} value={node.sectionTitle || ""} onChange={(event) => updateNode(node.id, "sectionTitle", event.target.value)} placeholder="Options" /></label></div>}
+          <label>Next node<select value={node.next} onChange={(event) => updateNode(node.id, "next", event.target.value)}><option value="">None</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label>
+          <label className="checkRow"><input type="checkbox" checked={nodes[0]?.id === node.id} onChange={() => setNodes((current) => { const index = current.findIndex((item) => item.id === node.id); if (index <= 0) return current; const next = [...current]; const [moved] = next.splice(index, 1); next.unshift(moved); return next; })} /> Mark as start node</label>
+        </div>
+        <AutomationAdvancedNodeFields node={node} nodes={nodes} update={(key,value)=>updateNode(node.id,key,value)} api={api}/>
+        {node.type === "template" && <div className="nodeFields"><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates} value={node.templateId} onChange={value => updateNode(node.id, 'templateId', value)} onTemplate={template => setSelectedTemplateDetails(current => current[node.id]?.id === template?.id ? current : { ...current, [node.id]: template })} /></label><label>Delay minutes<input type="number" min="0" value={node.delayMinutes} onChange={(event) => updateNode(node.id, "delayMinutes", event.target.value)} /></label></div>}
+        {node.type === 'template' && <><div className="nodeFields">{(selectedTemplateDetails[node.id]?.id === node.templateId ? selectedTemplateDetails[node.id] : approvedTemplates.find(template=>template.id===node.templateId))?.variables?.map(key=><label key={key}>Variable {key}<input required value={node.templateValues?.[key]||''} onChange={event=>updateNode(node.id,'templateValues',{...(node.templateValues||{}),[key]:event.target.value})}/></label>)}</div><TemplateParameterFields template={selectedTemplateDetails[node.id]?.id === node.templateId ? selectedTemplateDetails[node.id] : approvedTemplates.find(template=>template.id===node.templateId)} value={node.templateParameters||{}} onChange={value=>updateNode(node.id,'templateParameters',value)}/></>}
+        {node.type === 'send_native_flow' && <div className="nodeFields"><label>Published Flow ID<input required value={node.nativeFlowId || ''} onChange={(event) => updateNode(node.id, 'nativeFlowId', event.target.value)} placeholder="waf_…" /></label><label>CTA label<input maxLength={20} value={node.ctaLabel || 'Open'} onChange={(event) => updateNode(node.id, 'ctaLabel', event.target.value)} /></label><label>Expires (hours)<input type="number" min="1" max="168" value={node.expiresHours || 24} onChange={(event) => updateNode(node.id, 'expiresHours', event.target.value)} /></label><label>Resume node<select value={node.next || ''} onChange={(event) => updateNode(node.id, 'next', event.target.value)}><option value="">End after submission</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label></div>}
+        {node.type === 'send_webview_cta' && <div className="nodeFields"><label>Hosted page ID<input required value={node.webviewId || ''} onChange={(event) => updateNode(node.id, 'webviewId', event.target.value)} placeholder="wv_…" /></label><label className="checkRow"><input type="checkbox" checked={node.waitForCompletion === true} onChange={(event) => updateNode(node.id, 'waitForCompletion', event.target.checked)} /> Wait for transactional completion</label><label>Next node<select value={node.next || ''} onChange={(event) => updateNode(node.id, 'next', event.target.value)}><option value="">Stop</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label></div>}
+        {node.type === "handoff" && <label>Assign to<select value={node.assignedUserId} onChange={(event) => updateNode(node.id, "assignedUserId", event.target.value)}><option value="">Keep unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select></label>}
+        <label>Message<textarea rows="4" value={node.body} onChange={(event) => updateNode(node.id, "body", event.target.value)} placeholder="Message body. Use variables like {{name}} or captured values."></textarea></label>
+        <div className="nodeFields"><label>Fallback<textarea rows="2" value={node.fallback} onChange={(event) => updateNode(node.id, "fallback", event.target.value)} placeholder="Shown when reply does not match"></textarea></label><label>Capture as<input value={node.captureAs} onChange={(event) => updateNode(node.id, "captureAs", event.target.value)} placeholder="Variable name" /></label></div>
+        {(node.inputKind === "buttons" || node.inputKind === "list" || node.type === 'section_list') && <div className="optionEditor"><div className="optionHead"><strong>{node.type === 'section_list' ? 'Section rows' : 'Options'}</strong><button className="secondaryAction" type="button" onClick={() => addOption(node.id)} disabled={node.options.length >= (node.inputKind === 'buttons' && node.type !== 'section_list' ? 3 : 10)}><Plus size={16} /> Add option</button></div>{node.options.map((option, optionIndex) => <div className="optionRow" key={`${node.id}-${optionIndex}`}>{node.type === 'section_list'&&<input value={option.section||''} maxLength="24" onChange={(event) => updateOption(node.id, optionIndex, "section", event.target.value)} placeholder="section" />}<input value={option.id} onChange={(event) => updateOption(node.id, optionIndex, "id", event.target.value)} placeholder="id" /><input value={option.label} onChange={(event) => updateOption(node.id, optionIndex, "label", event.target.value)} placeholder="label" /><input value={option.match} onChange={(event) => updateOption(node.id, optionIndex, "match", event.target.value)} placeholder="match terms" /><select value={option.next} onChange={(event) => updateOption(node.id, optionIndex, "next", event.target.value)}><option value="">Next</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select><button className="iconButton dangerSoft" type="button" onClick={() => removeOption(node.id, optionIndex)}><Trash2 size={15} /></button></div>)}</div>}
+      </Panel>}
+      </div>
+
+      <AutomationFlowCanvas
+        nodes={nodes}
+        startNodeId={nodes[0]?.id || ""}
+        selectedId={selectedNodeId}
+        onSelect={setSelectedNodeId}
+        onNodesChange={setNodes}
+        onAddNode={addNode}
+        onRemoveNode={removeNode}
+        onConnect={connectNodes}
+        connectingFrom={connectingFrom}
+        onStartConnect={setConnectingFrom}
+        onCancelConnect={() => setConnectingFrom("")}
+      />
     </form>
 
     <AutomationConnections api={api} postJson={postJson} role={state.account.role}/>
