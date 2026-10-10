@@ -34,6 +34,8 @@ test('confirmed POSTs append events after rate and origin checks',()=>{
  const originCheck=source.indexOf("request.headers.get('origin')!==origin");
  const eventInsert=source.indexOf('INSERT INTO tracked_link_click_events');
  assert.ok(rateCheck>=0&&originCheck>rateCheck&&eventInsert>originCheck);
- assert.match(source,/COUNT\(DISTINCT e\.contact_id\)::int AS unique_clickers/);
- assert.match(source,/MIN\(e\.clicked_at\) AS first_clicked_at,MAX\(e\.clicked_at\) AS last_clicked_at/);
+ assert.match(source,/COUNT\(DISTINCT e\.contact_id\) FILTER \(WHERE COALESCE\(e\.is_bot,FALSE\)=FALSE\)::int AS unique_clickers/);
+ assert.match(source,/MIN\(e\.clicked_at\) FILTER \(WHERE COALESCE\(e\.is_bot,FALSE\)=FALSE\) AS first_clicked_at/);
+ assert.match(source,/isLikelyBotUserAgent/);
+ assert.match(source,/INTERVAL '30 seconds'/);
 });

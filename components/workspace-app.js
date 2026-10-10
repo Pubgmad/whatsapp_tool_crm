@@ -208,6 +208,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [pages, setPages] = useState({});
   const [workspaces, setWorkspaces] = useState([]);
   const scopeGate = useRef(null);
+  const inboxRevisionRef = useRef(0);
   if (!scopeGate.current) scopeGate.current = createRequestGate();
 
   const approvedTemplates = useMemo(() => state?.templates.filter((template) => template.status === "Approved") || [], [state]);
@@ -249,12 +250,41 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   }, [account, authMode, pathname]);
   useEffect(() => {
     if (!account) return undefined;
-    const timer = window.setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try { await loadScope(workspaceLocation(window.location.pathname), false); }
-      catch (error) { if (isSessionFailure(error)) { setBootstrapError(error); setAccount(null); } }
-    }, 15000);
-    return () => window.clearInterval(timer);
+    let cancelled = false;
+    let timer = 0;
+    const controller = new AbortController();
+    const poll = async () => {
+      if (cancelled || document.visibilityState !== "visible") {
+        timer = window.setTimeout(poll, 5000);
+        return;
+      }
+      const location = workspaceLocation(window.location.pathname);
+      try {
+        if (location.view === "inbox") {
+          const conversationId = location.conversationId || "";
+          const query = new URLSearchParams({ since: String(inboxRevisionRef.current || 0) });
+          if (conversationId) query.set("conversationId", conversationId);
+          const response = await fetch(`/api/workspace/inbox/stream?${query}`, {
+            cache: "no-store",
+            credentials: "same-origin",
+            signal: controller.signal,
+            headers: { "Content-Type": "application/json" }
+          });
+          const revision = await response.json().catch(() => ({}));
+          if (!response.ok) throw Object.assign(new Error(revision.error || "Inbox sync failed"), { code: revision.code });
+          if (revision?.revision != null) inboxRevisionRef.current = Number(revision.revision) || 0;
+          if (!cancelled && revision?.changed) await loadScope(location, false);
+        } else {
+          await loadScope(location, false);
+        }
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        if (isSessionFailure(error)) { setBootstrapError(error); setAccount(null); return; }
+      }
+      if (!cancelled) timer = window.setTimeout(poll, location.view === "inbox" ? 250 : 15000);
+    };
+    timer = window.setTimeout(poll, 1000);
+    return () => { cancelled = true; controller.abort(); window.clearTimeout(timer); };
   }, [account, pages, pathname]);
 
   const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2600); };
@@ -1387,7 +1417,16 @@ function TeamMembers({ state, mutate }) {
 
 function Unsubscribes({ state, suppressedContacts, mutate }) {
   const [restoreContact, setRestoreContact] = useState(null);
+  const [consentSettings, setConsentSettings] = useState(null);
+  const [customFields, setCustomFields] = useState([]);
   const canManage = isWorkspaceManager(state.account.role);
+  const isOwner = state.account.role === "Owner";
+  useEffect(() => {
+    let active = true;
+    api("/api/workspace/consent").then((result) => { if (active) setConsentSettings(result.settings || null); }).catch(() => {});
+    api("/api/workspace/custom-fields").then((result) => { if (active) setCustomFields(result.fields || []); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const restore = (event) => {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -1401,7 +1440,38 @@ function Unsubscribes({ state, suppressedContacts, mutate }) {
       return result;
     }), "Permission restored");
   };
+  const saveConsent = (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      optOutKeywords: String(form.get("optOutKeywords") || "").split(",").map((item) => item.trim()).filter(Boolean),
+      optInKeywords: String(form.get("optInKeywords") || "").split(",").map((item) => item.trim()).filter(Boolean),
+      optOutAutoReply: form.get("optOutAutoReply"),
+      optInAutoReply: form.get("optInAutoReply")
+    };
+    if (isOwner) payload.marketingMessagingEnabled = form.get("marketingMessagingEnabled") === "on";
+    mutate(postJson("/api/workspace/consent", payload).then((result) => {
+      setConsentSettings(result.settings || consentSettings);
+      return result;
+    }), "Consent settings saved");
+  };
+  const addField = (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    mutate(postJson("/api/workspace/custom-fields", {
+      action: "create",
+      label: form.get("label"),
+      key: form.get("key"),
+      type: form.get("type") || "text"
+    }).then((result) => {
+      setCustomFields(result.fields || []);
+      event.currentTarget.reset();
+      return result;
+    }), "Custom field created");
+  };
   return <>
+    {canManage && consentSettings && <Panel title="WhatsApp consent settings" subtitle="Keyword opt-in/out, marketing master switch, and suppression controls"><form className="formGrid" onSubmit={saveConsent}>{isOwner && <label className="checkRow"><input name="marketingMessagingEnabled" type="checkbox" defaultChecked={consentSettings.marketingMessagingEnabled !== false} /> Marketing messaging enabled</label>}<Input name="optOutKeywords" label="Opt-out keywords (max 5, comma separated)" defaultValue={(consentSettings.optOutKeywords || []).join(", ")} /><Input name="optInKeywords" label="Opt-in keywords (max 5, comma separated)" defaultValue={(consentSettings.optInKeywords || []).join(", ")} /><Input name="optOutAutoReply" label="Opt-out confirmation message" defaultValue={consentSettings.optOutAutoReply || ""} /><Input name="optInAutoReply" label="Opt-in confirmation message" defaultValue={consentSettings.optInAutoReply || ""} /><button className="primaryAction" type="submit"><Save size={18} /> Save consent settings</button></form></Panel>}
+    {canManage && <Panel title="Contact custom fields" subtitle="Reusable attribute keys for segmentation and personalization"><form className="formGrid" onSubmit={addField}><Input name="label" label="Field label" required /><Input name="key" label="Field key" placeholder="loyalty_tier" /><label>Type<select name="type"><option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="date">Date</option></select></label><button className="primaryAction" type="submit"><Plus size={18} /> Add field</button></form><DataTable headers={["Label", "Key", "Type", "Action"]}>{customFields.map((field) => <tr key={field.id}><td><strong>{field.label}</strong></td><td>{field.key}</td><td>{field.type}</td><td><button type="button" className="dangerText" onClick={() => mutate(postJson("/api/workspace/custom-fields", { action: "delete", id: field.id }).then((result) => { setCustomFields(result.fields || []); return result; }), "Custom field removed")}>Remove</button></td></tr>)}</DataTable>{!customFields.length && <EmptyState text="No custom fields defined" />}</Panel>}
     <Panel title="Suppression"><DataTable headers={["Name", "Phone", "Reason", "Action"]}>{suppressedContacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td>{contact.unsubscribed ? "Unsubscribed" : "No permission"}</td><td>{canManage && <button type="button" onClick={() => setRestoreContact(contact)}>Record new consent</button>}</td></tr>)}</DataTable>{!suppressedContacts.length && <EmptyState text="No suppressed contacts" />}</Panel>
     {restoreContact && <div className="modalBackdrop" role="presentation" onMouseDown={() => setRestoreContact(null)}><section className="editModal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="kicker">Marketing permission</p><h2>Record new consent</h2></div><button className="iconButton" type="button" onClick={() => setRestoreContact(null)} aria-label="Close"><X size={18} /></button></header><form className="formGrid" onSubmit={restore}><p>{restoreContact.name} | {restoreContact.phone}</p><Input name="optInSource" label="Consent source" required /><Input name="consentEvidence" label="Evidence of new consent" required minLength="10" /><button className="primaryAction" type="submit"><Save size={18} /> Restore permission</button></form></section></div>}
   </>;

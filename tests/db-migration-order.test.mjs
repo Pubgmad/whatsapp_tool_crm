@@ -37,3 +37,12 @@ test('tracked_link_tokens exposes (id,business_id) for click event FKs', async (
   assert.match(schema, /CREATE UNIQUE INDEX IF NOT EXISTS tracked_link_tokens_id_business/);
   assert.match(schema, /FOREIGN KEY\(token_id,business_id\) REFERENCES tracked_link_tokens\(id,business_id\)/);
 });
+
+test('db-init loads core CRM consent after click-tracking', async () => {
+  const waves = await dbInitWaves();
+  const click = waves.indexOf('click-tracking.sql');
+  const consent = waves.indexOf('core-crm-consent.sql');
+  assert.ok(click >= 0, 'click-tracking.sql must be listed');
+  assert.ok(consent >= 0, 'core-crm-consent.sql must be listed');
+  assert.ok(consent > click, 'core-crm-consent must run after click-tracking');
+});
