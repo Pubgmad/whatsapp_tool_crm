@@ -18,9 +18,11 @@ test('history preserves message direction, date and identity without inventing c
     { id: 'unknown', from: '919777777777', timestamp: '1700000020', type: 'text', text: { body: 'No direction' } }
   ] }] }] });
   assert.equal(result.declined, false);
+  assert.equal(result.complete, false);
   assert.deepEqual(result.messages.map((item) => [item.metaMessageId, item.direction]), [['in-1', 'incoming'], ['out-1', 'outgoing']]);
   assert.equal(result.messages[0].at.toISOString(), '2023-11-14T22:13:20.000Z');
   assert.equal(parseCoexistenceHistory({ history: [{ errors: [{ code: 1 }] }] }).declined, true);
+  assert.equal(parseCoexistenceHistory({ history: [{ metadata: { progress: 100 }, threads: [] }] }).complete, true);
 });
 
 test('Business App echoes use the recipient, not the business number', () => {

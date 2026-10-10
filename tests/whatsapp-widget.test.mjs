@@ -9,16 +9,17 @@ test('widget configuration requires exact HTTPS origins and bounded explicit bus
 });
 test('widget mounts once on authorized websites without HTML injection or credentials',()=>{
   const nodes=new Map(),elements=[];
-  const document={readyState:'complete',getElementById:id=>nodes.get(id),createElement:type=>{const element={type,style:{},attachShadow:()=>({appendChild:child=>elements.push(child)})};return element;},body:{appendChild:element=>nodes.set(element.id,element)}};
-  const script=widgetScript({...input,label:'</script><script>alert(1)</script>'});
+  const document={readyState:'complete',getElementById:id=>nodes.get(id),createElement:type=>{const element={type,style:{},addEventListener(){},attachShadow:()=>({appendChild:child=>elements.push(child)})};return element;},body:{appendChild:element=>nodes.set(element.id,element)}};
+  const script=widgetScript({...input,label:'</script><script>alert(1)</script>',trackUrl:'https://app.example.test/api/public/whatsapp-widget/widget_test/click'});
   assert.equal(script.includes('</script>'),false);
-  vm.runInNewContext(script,{document,window:{location:{origin:input.origins[0]}}});
-  vm.runInNewContext(script,{document,window:{location:{origin:input.origins[0]}}});
+  assert.ok(script.includes('sendBeacon')||script.includes('trackUrl'));
+  vm.runInNewContext(script,{document,window:{location:{origin:input.origins[0]}},navigator:{}});
+  vm.runInNewContext(script,{document,window:{location:{origin:input.origins[0]}},navigator:{}});
   assert.equal(nodes.size,1);assert.equal(elements.length,1);assert.equal(elements[0].textContent,'</script><script>alert(1)</script>');
   const link=new URL(elements[0].href);assert.equal(link.origin,'https://wa.me');assert.equal(link.pathname,'/15550001111');assert.equal(link.searchParams.get('text'),input.message);
   assert.equal(elements[0].style.color,'#000000');assert.equal(elements[0].rel,'noopener noreferrer');
 });
 test('unauthorized origins and invalid phone identities cannot render a widget',()=>{
-  vm.runInNewContext(widgetScript(input),{window:{location:{origin:'https://other.example.test'}},document:{getElementById:()=>{throw Error('Should not access page');}}});
+  vm.runInNewContext(widgetScript(input),{window:{location:{origin:'https://other.example.test'}},document:{getElementById:()=>{throw Error('Should not access page');}},navigator:{}});
   assert.throws(()=>widgetScript({...input,phone:'15550001111?redirect=evil'}),{code:'WIDGET_PHONE_INVALID'});
 });
