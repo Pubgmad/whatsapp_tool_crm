@@ -60,7 +60,7 @@ async function tick() {
     metaWebhooks: result.metaWebhooks || null,
     errors: result.errors || null
   });
-  const activity = [result.metaWebhooks?.claimed, result.campaigns?.claimed, result.automation?.claimed, result.retention, result.metaHealth?.failed, result.integrations?.claimed, result.commerce?.started, result.commerce?.failed, result.support?.assigned, result.support?.breached, result.connectors?.processed, result.connectors?.skipped, result.checkoutRecovery?.queued, result.checkoutRecovery?.skipped, result.paymentReconcile?.merchant, result.paymentReconcile?.native, result.crmSync?.attempted, result.salesforceSync?.attempted, result.calendarFulfillment?.claimed, result.bookingNotices?.claimed, result.shopifyOrderCheck?.attempted, result.aiAutoReply?.attempted].some(Boolean);
+  const activity = [result.metaWebhooks?.claimed, result.campaigns?.claimed, result.automation?.claimed, result.retention, result.metaHealth?.failed, result.integrations?.claimed, result.commerce?.started, result.commerce?.failed, result.support?.assigned, result.support?.breached, result.connectors?.processed, result.connectors?.skipped, result.checkoutRecovery?.queued, result.checkoutRecovery?.skipped, result.paymentReconcile?.merchant, result.paymentReconcile?.native, result.crmSync?.attempted, result.salesforceSync?.attempted, result.calendarFulfillment?.claimed, result.bookingNotices?.claimed, result.shopifyOrderCheck?.attempted, result.aiAutoReply?.attempted, result.adsInsights?.synced, result.adsInsights?.failed].some(Boolean);
   if (activity) console.info('Job cycle', {
     metaWebhooks: result.metaWebhooks,
     campaigns: result.campaigns,
@@ -77,7 +77,8 @@ async function tick() {
     calendarFulfillment: result.calendarFulfillment,
     bookingNotices: result.bookingNotices,
     shopifyOrderCheck: result.shopifyOrderCheck,
-    aiAutoReply: result.aiAutoReply
+    aiAutoReply: result.aiAutoReply,
+    adsInsights: result.adsInsights
   });
 }
 
