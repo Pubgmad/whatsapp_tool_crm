@@ -204,6 +204,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/product-completion-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ai-integrations-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ai-production-closures.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/ai-module-complete.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/production-parity-extensions.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/meta-webhook-queue.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/public-site.sql', import.meta.url), 'utf8'));
