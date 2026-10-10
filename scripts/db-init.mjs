@@ -190,6 +190,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/click-tracking.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/core-crm-consent.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/automation-advanced-nodes.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/automation-flows-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/provider-connectors.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/flow-runtime.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/whatsapp-webviews.sql', import.meta.url), 'utf8'));

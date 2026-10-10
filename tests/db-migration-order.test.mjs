@@ -46,3 +46,15 @@ test('db-init loads core CRM consent after click-tracking', async () => {
   assert.ok(consent >= 0, 'core-crm-consent.sql must be listed');
   assert.ok(consent > click, 'core-crm-consent must run after click-tracking');
 });
+
+test('db-init loads automation-flows-production after advanced automation nodes', async () => {
+  const waves = await dbInitWaves();
+  const advanced = waves.indexOf('automation-advanced-nodes.sql');
+  const production = waves.indexOf('automation-flows-production.sql');
+  assert.ok(advanced >= 0, 'automation-advanced-nodes.sql must be listed');
+  assert.ok(production >= 0, 'automation-flows-production.sql must be listed');
+  assert.ok(production > advanced, 'automation-flows-production must run after advanced nodes');
+  const sql = await fs.readFile(path.join(root, 'db', 'automation-flows-production.sql'), 'utf8');
+  assert.match(sql, /trigger_mode IN \('keywords', 'regex', 'any_inbound', 'manual'\)/);
+  assert.match(sql, /whatsapp_webview_submissions/);
+});
