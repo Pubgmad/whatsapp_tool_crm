@@ -190,13 +190,14 @@ try {
   await client.query(await fs.readFile(new URL('../db/click-tracking.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/core-crm-consent.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/automation-advanced-nodes.sql', import.meta.url), 'utf8'));
+  // flow-runtime + webviews before automation-flows-production (ALTERs whatsapp_webviews)
+  await client.query(await fs.readFile(new URL('../db/flow-runtime.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-webviews.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/automation-flows-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/provider-connectors.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/commerce-payments-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ads-growth-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ad-credits.sql', import.meta.url), 'utf8'));
-  await client.query(await fs.readFile(new URL('../db/flow-runtime.sql', import.meta.url), 'utf8'));
-  await client.query(await fs.readFile(new URL('../db/whatsapp-webviews.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/external-availability.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/crm-connectors.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/crm-production-gaps.sql', import.meta.url), 'utf8'));
