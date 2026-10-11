@@ -31,16 +31,17 @@ test('recipient tracking is idempotent, preview-safe, origin-checked and tenant-
   assert.equal(clicked.status,303);assert.equal(clicked.headers.get('location'),'https://shop.example.test/checkout');
   const firstConfirmed=(await query('SELECT confirmed_at FROM tracked_link_tokens WHERE business_id=$1',[b])).rows[0].confirmed_at;
   assert.ok(firstConfirmed);
+  // Immediate replay still redirects, but the 30s window does not append a duplicate event.
   assert.equal((await visitTrackedLink(clickRequest(),context)).status,303);
   const metrics=(await query(`SELECT COUNT(*)::int AS total_clicks,COUNT(DISTINCT contact_id)::int AS unique_clickers,
     MIN(clicked_at) AS first_clicked_at,MAX(clicked_at) AS last_clicked_at
     FROM tracked_link_click_events WHERE business_id=$1 AND definition_id=$2`,[b,l])).rows[0];
-  assert.equal(metrics.total_clicks,2);
+  assert.equal(metrics.total_clicks,1);
   assert.equal(metrics.unique_clickers,1);
-  assert.ok(new Date(metrics.first_clicked_at)<=new Date(metrics.last_clicked_at));
+  assert.equal(String(metrics.first_clicked_at),String(metrics.last_clicked_at));
   assert.ok((await query('SELECT confirmed_at FROM tracked_link_tokens WHERE business_id=$1',[b])).rows[0].confirmed_at>=firstConfirmed);
   enterTenantContext(b);
-  assert.equal((await query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events')).rows[0].count,2);
+  assert.equal((await query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events')).rows[0].count,1);
   assert.equal((await query('UPDATE tracked_link_click_events SET clicked_at=NOW() RETURNING id')).rowCount,0);
   enterTenantContext(o);
   assert.equal((await query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events')).rows[0].count,0);
