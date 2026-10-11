@@ -26,7 +26,7 @@ test('recipient tracking is idempotent, preview-safe, origin-checked and tenant-
   const denied=await visitTrackedLink(new Request(first.variables[0],{method:'POST',headers:{origin:'https://attacker.example.test'}}),context);
   assert.equal(denied.status,403);
   assert.equal((await query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events WHERE business_id=$1',[b])).rows[0].count,0);
-  const clickRequest=()=>new Request(first.variables[0],{method:'POST',headers:{origin:'https://crm.example.test'}});
+  const clickRequest=()=>new Request(first.variables[0],{method:'POST',headers:{origin:'https://crm.example.test','user-agent':'Mozilla/5.0 (integration-test) Chrome/120.0.0.0'}});
   const clicked=await visitTrackedLink(clickRequest(),context);
   assert.equal(clicked.status,303);assert.equal(clicked.headers.get('location'),'https://shop.example.test/checkout');
   const firstConfirmed=(await query('SELECT confirmed_at FROM tracked_link_tokens WHERE business_id=$1',[b])).rows[0].confirmed_at;

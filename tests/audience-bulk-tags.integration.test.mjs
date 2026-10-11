@@ -26,7 +26,7 @@ test('bulk tags only mutate the frozen tenant snapshot',{skip:!process.env.TEST_
     await query('INSERT INTO audience_tag_job_contacts(job_id,business_id,contact_id) VALUES($1,$2,$3)',[job,business,frozen]);
     const statement=bulkTagUpdateStatement(business,job,'add',['vip']);
     assert.equal((await query(statement.text,statement.params)).rowCount,1);
-    const rows=(await query('SELECT id,tags FROM contacts WHERE id=ANY($1::text[])',[frozen,later,foreign])).rows;
+    const rows=(await query('SELECT id,tags FROM contacts WHERE id=ANY($1::text[])',[[frozen,later,foreign]])).rows;
     const tags=Object.fromEntries(rows.map(row=>[row.id,row.tags]));
     assert.deepEqual(new Set(tags[frozen]),new Set(['old','vip']));
     assert.deepEqual(tags[later],['old']);

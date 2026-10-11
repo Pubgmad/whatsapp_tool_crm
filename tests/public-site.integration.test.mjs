@@ -9,12 +9,18 @@ test('public site requires explicit publish and rejects stale writes',{skip:!pro
   enterSystemContext();
   const initial=await getSiteDraft();
   const document={sections:[{id:'overview',kind:'overview',title:'WhatsApp operations',eyebrow:'Product',visible:true,layout:'plain',align:'left',blocks:[{type:'paragraph',text:'Customer conversations in one workspace.',emphasis:'none'}],ctaLabel:'',ctaHref:''}]};
+  const beforePublish=(await getPublishedSite()).document;
   const saved=await changeSiteDraft({action:'save',revision:initial.revision,document});
-  assert.notDeepEqual((await getPublishedSite()).document,document);
+  assert.deepEqual((await getPublishedSite()).document,beforePublish);
   await assert.rejects(changeSiteDraft({action:'publish',revision:initial.revision}),{code:'SITE_REVISION_CONFLICT'});
   const published=await changeSiteDraft({action:'publish',revision:saved.revision});
   assert.equal(published.publishedRevision,saved.revision);
-  assert.deepEqual((await getPublishedSite()).document,document);
+  const live=(await getPublishedSite()).document;
+  assert.equal(live.version,3);
+  const overview=live.sections.find((section)=>section.id==='overview');
+  assert.ok(overview);
+  assert.equal(overview.title,'WhatsApp operations');
+  assert.equal(overview.blocks?.[0]?.text,'Customer conversations in one workspace.');
 });
 
 test('brand images are decoded, re-encoded and versioned',{skip:!process.env.TEST_DATABASE_URL},async()=>{
