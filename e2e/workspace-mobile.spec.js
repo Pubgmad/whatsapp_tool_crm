@@ -36,7 +36,7 @@ test('authenticated owner navigates core workspace on mobile viewport', async ({
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/app\/dashboard$/, { timeout: 30000 });
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('button', { name: 'Contacts' }).click();
+  await page.getByRole('button', { name: 'Audience' }).click();
   await expect(page.getByRole('heading', { name: 'Audience' })).toBeVisible();
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('button', { name: 'Campaigns' }).click();
