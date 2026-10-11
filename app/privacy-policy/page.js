@@ -35,7 +35,10 @@ export default async function PrivacyPolicyPage() {
             ))}</ul>}
           </section>
         ))}
-        <footer className="legalFooter"><Link href="/">Back to CRM</Link></footer>
+        <footer className="legalFooter">
+          <Link href="/terms">Terms of Service</Link>
+          <Link href="/">Back to CRM</Link>
+        </footer>
       </article>
     </main>
   );
