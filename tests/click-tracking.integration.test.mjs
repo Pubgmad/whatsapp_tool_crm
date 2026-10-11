@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import {query,enterSystemContext,enterTenantContext} from '../lib/db.js';
+import {query,transaction,enterSystemContext,enterTenantContext} from '../lib/db.js';
 import {resolveTrackedParameters,visitTrackedLink} from '../lib/click-tracking.js';
 import {audienceContactQuery} from '../lib/audience-rules.js';
 test('recipient tracking is idempotent, preview-safe, origin-checked and tenant-scoped',{skip:!process.env.TEST_DATABASE_URL},async()=>{
@@ -42,22 +42,20 @@ test('recipient tracking is idempotent, preview-safe, origin-checked and tenant-
   assert.ok((await query('SELECT confirmed_at FROM tracked_link_tokens WHERE business_id=$1',[b])).rows[0].confirmed_at>=firstConfirmed);
   enterTenantContext(b);
   assert.equal((await query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events')).rows[0].count,1);
-  // CI uses the postgres superuser (bypasses RLS). Prove append-only / tenant isolation with a NOBYPASSRLS role.
-  const roleName='click_rls_'+suffix;
-  await query('BEGIN');
-  try{
-    await query(`CREATE ROLE ${roleName} NOLOGIN NOBYPASSRLS`);
-    await query(`GRANT USAGE ON SCHEMA public TO ${roleName}`);
-    await query(`GRANT SELECT,UPDATE ON tracked_link_click_events TO ${roleName}`);
-    await query(`SET LOCAL ROLE ${roleName}`);
-    await query("SELECT set_config('app.business_id',$1,true),set_config('app.system_access','false',true)",[b]);
-    assert.equal((await query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events')).rows[0].count,1);
-    assert.equal((await query('UPDATE tracked_link_click_events SET clicked_at=NOW() RETURNING id')).rowCount,0);
-    await query("SELECT set_config('app.business_id',$1,true)",[o]);
-    assert.equal((await query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events')).rows[0].count,0);
-  }finally{
-    await query('ROLLBACK');
-  }
+  // CI uses the postgres superuser (bypasses RLS). Prove append-only / tenant isolation on one connection.
+  await assert.rejects(transaction(async client=>{
+    const roleName='click_rls_'+suffix;
+    await client.query(`CREATE ROLE ${roleName} NOLOGIN NOBYPASSRLS`);
+    await client.query(`GRANT USAGE ON SCHEMA public TO ${roleName}`);
+    await client.query(`GRANT SELECT,UPDATE ON tracked_link_click_events TO ${roleName}`);
+    await client.query(`SET LOCAL ROLE ${roleName}`);
+    await client.query("SELECT set_config('app.business_id',$1,true),set_config('app.system_access','false',true)",[b]);
+    assert.equal((await client.query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events')).rows[0].count,1);
+    assert.equal((await client.query('UPDATE tracked_link_click_events SET clicked_at=NOW() RETURNING id')).rowCount,0);
+    await client.query("SELECT set_config('app.business_id',$1,true)",[o]);
+    assert.equal((await client.query('SELECT COUNT(*)::int AS count FROM tracked_link_click_events')).rows[0].count,0);
+    const rollback=new Error('Roll back the disposable test role');rollback.code='TEST_ROLLBACK';throw rollback;
+  }),{code:'TEST_ROLLBACK'});
   enterSystemContext();
   const statement=audienceContactQuery(b,{engagement:[{campaignId:k,event:'clicked',match:'matched'}]});
   assert.deepEqual((await query(statement.text,statement.params)).rows.map(row=>row.id),[c]);
