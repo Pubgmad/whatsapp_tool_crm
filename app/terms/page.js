@@ -1,12 +1,45 @@
-import { notFound } from 'next/navigation';
-import { loadMarketingContext, MarketingPageView, resolvePage } from '../../lib/marketing-page';
+import Link from "next/link";
+import { getPublicPlatformConfig } from "../../lib/platform";
+import { getTermsOfService } from "../../lib/terms-of-service";
+import PolicyText from "../../components/policy-text";
 
-export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Terms' };
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  const { document } = getTermsOfService();
+  return { title: document.title, description: document.intro };
+}
 
 export default async function TermsPage() {
-  const ctx = await loadMarketingContext();
-  const page = resolvePage(ctx.site.document, { slug: 'terms' }) || resolvePage(ctx.site.document, { kind: 'legal' });
-  if (!page) notFound();
-  return <MarketingPageView {...ctx} page={page} />;
+  const platform = await getPublicPlatformConfig();
+  const { document, effectiveDate } = getTermsOfService();
+
+  return (
+    <main className="legalShell">
+      <article className="legalDoc">
+        <header className="legalHero">
+          <p className="kicker">{platform.company_name} {platform.product_tagline}</p>
+          <h1>{document.title}</h1>
+          <p><PolicyText value={document.intro} supportEmail={platform.support_email} companyName={platform.company_name} /></p>
+          <span>Last updated: {effectiveDate}</span>
+        </header>
+        {document.sections.map((section, index) => (
+          <section key={index}>
+            <h2>{index + 1}. {section.heading}</h2>
+            {section.paragraphs.map((paragraph, paragraphIndex) => (
+              <p key={paragraphIndex}><PolicyText value={paragraph} supportEmail={platform.support_email} companyName={platform.company_name} /></p>
+            ))}
+            {section.bullets.length > 0 && <ul>{section.bullets.map((item, itemIndex) => (
+              <li key={itemIndex}><PolicyText value={item} supportEmail={platform.support_email} companyName={platform.company_name} /></li>
+            ))}</ul>}
+          </section>
+        ))}
+        <footer className="legalFooter">
+          <Link href="/privacy-policy">Privacy Policy</Link>
+          <Link href="/">Back to CRM</Link>
+        </footer>
+      </article>
+    </main>
+  );
 }

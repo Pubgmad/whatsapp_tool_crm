@@ -9,7 +9,7 @@ test('public product site stays readable and admin publishing is protected',asyn
   expect(editor.status()).toBe(401);
 });
 
-for (const path of ['/login', '/signup', '/forgot-password', '/privacy-policy']) {
+for (const path of ['/login', '/signup', '/forgot-password', '/privacy-policy', '/terms']) {
   test(`${path} is usable without horizontal overflow`, async ({ page }) => {
     await page.goto(path);
     await expect(page.locator('body')).toBeVisible();
@@ -26,6 +26,13 @@ test('published privacy policy is visible while its editor is protected', async 
   expect(response.status()).toBe(401);
   await page.goto('/super-admin/privacy-policy');
   await expect(page).toHaveURL(/\/super-admin\/login/);
+});
+
+test('terms of service is publicly visible', async ({ page }) => {
+  await page.goto('/terms');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Terms of Service');
+  await expect(page.locator('.legalDoc > section').first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Privacy Policy' })).toBeVisible();
 });
 
 test('Super Admin can open privacy draft, preview, and revision history', async ({ page }) => {
