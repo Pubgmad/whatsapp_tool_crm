@@ -16,9 +16,11 @@ test('middleware clears super admin session when leaving admin pages', () => {
   assert.match(middleware, /wcrm_super_session/);
   assert.match(middleware, /pathname\.startsWith\('\/super-admin'\)/);
   assert.match(middleware, /maxAge:\s*0/);
-  assert.match(middleware, /isTrustedAdminNavigation/);
-  assert.match(middleware, /sec-fetch-site/);
-  assert.match(middleware, /same-origin/);
+  assert.match(middleware, /isDocumentNavigation/);
+  assert.match(middleware, /text\/html/);
+  // Must not clear the session on asset/prefetch traffic or post-login bounces.
+  assert.doesNotMatch(middleware, /isTrustedAdminNavigation/);
+  assert.doesNotMatch(middleware, /sec-fetch-site/);
 });
 
 test('super admin login page does not auto-skip authentication', () => {

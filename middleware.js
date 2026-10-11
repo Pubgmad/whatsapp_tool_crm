@@ -14,34 +14,12 @@ function clearSuperCookie(response, request) {
   });
 }
 
-function isSameOriginAdminReferer(request) {
-  const referer = request.headers.get('referer') || '';
-  if (!referer) return false;
-  try {
-    const ref = new URL(referer);
-    return ref.origin === request.nextUrl.origin && ref.pathname.startsWith('/super-admin');
-  } catch {
-    return false;
-  }
-}
-
-/** True for in-app navigations that should keep the Super Admin session. */
-function isTrustedAdminNavigation(request) {
-  if (isSameOriginAdminReferer(request)) return true;
-  // Post-login window.location.replace often has Referer stripped by proxies/browsers.
-  // Typed URLs and external returns use sec-fetch-site: none / cross-site.
-  const site = (request.headers.get('sec-fetch-site') || '').toLowerCase();
-  const mode = (request.headers.get('sec-fetch-mode') || '').toLowerCase();
-  return site === 'same-origin' && (mode === 'navigate' || mode === 'nested-navigate' || mode === '');
-}
-
 /**
  * Super Admin auth rules:
- * 1) Leaving any non-admin page clears the Super Admin cookie.
- * 2) Full document opens of /super-admin* from outside (typed URL, external return, new tab)
- *    force login again — even if a cookie still exists.
- * 3) Same-origin navigations (including post-login redirect) keep the session.
- * Client navigations inside the panel (RSC / fetch) keep the session.
+ * 1) Leaving Super Admin via a top-level HTML navigation clears the session cookie.
+ *    Asset/API/prefetch requests must NOT clear it (that caused post-login bounce loops).
+ * 2) Document opens of protected /super-admin* pages without a cookie go to login.
+ * 3) Login page is always reachable; a valid cookie is enough to enter the panel.
  */
 export function middleware(request) {
   const { pathname } = request.nextUrl;
@@ -56,34 +34,20 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
-  // Left the Super Admin area entirely → drop session.
+  const accept = request.headers.get('accept') || '';
+  const isDocumentNavigation = accept.includes('text/html');
+
+  // Left the Super Admin area on a real page navigation → drop session.
   if (!pathname.startsWith('/super-admin')) {
-    if (!cookie) return NextResponse.next();
+    if (!cookie || !isDocumentNavigation) return NextResponse.next();
     const response = NextResponse.next();
     clearSuperCookie(response, request);
     return response;
   }
 
-  // Login page: always reachable, but drop any leftover cookie unless navigation
-  // came from inside Super Admin (otherwise typed URL / external return would auto-enter).
+  // Login remains reachable whether or not a cookie exists.
   if (pathname === '/super-admin/login' || pathname.startsWith('/super-admin/login/')) {
-    const accept = request.headers.get('accept') || '';
-    const isDocumentNavigation = accept.includes('text/html');
-    if (isDocumentNavigation && cookie && !isTrustedAdminNavigation(request)) {
-      const response = NextResponse.next();
-      clearSuperCookie(response, request);
-      return response;
-    }
     return NextResponse.next();
-  }
-
-  // Full HTML document navigation into admin from outside → re-auth.
-  const accept = request.headers.get('accept') || '';
-  const isDocumentNavigation = accept.includes('text/html');
-  if (isDocumentNavigation && cookie && !isTrustedAdminNavigation(request)) {
-    const response = NextResponse.redirect(new URL('/super-admin/login', request.url));
-    clearSuperCookie(response, request);
-    return response;
   }
 
   if (isDocumentNavigation && !cookie) {

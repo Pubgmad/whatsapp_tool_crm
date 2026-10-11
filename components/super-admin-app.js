@@ -484,8 +484,8 @@ function SuperAdminLogin({ onDone, brandName }) {
     try {
       const rawForm = Object.fromEntries(new FormData(event.currentTarget));
       await postJson("/api/super-admin/login", { email: rawForm.platformOwnerEmail, password: rawForm.platformOwnerSecret, mfaCode: rawForm.mfaCode || '' });
-      // Hard navigate so middleware sees same-origin Sec-Fetch-Site and keeps the new session.
-      window.location.assign('/super-admin');
+      // Full page load so the new HttpOnly session cookie is on the next document request.
+      window.location.href = '/super-admin';
       return;
     } catch (err) {
       if (err.code === 'MFA_REQUIRED') setMfaRequired(true);
