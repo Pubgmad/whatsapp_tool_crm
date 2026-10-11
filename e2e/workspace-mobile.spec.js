@@ -35,14 +35,15 @@ test('authenticated owner navigates core workspace on mobile viewport', async ({
   await page.getByLabel('Password', { exact: true }).fill(account.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/app\/dashboard$/, { timeout: 30000 });
+  const nav = page.locator('.sideRail');
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('button', { name: 'Audience' }).click();
+  await nav.getByRole('button', { name: 'Audience', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Audience' })).toBeVisible();
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('button', { name: 'Campaigns' }).click();
+  await nav.getByRole('button', { name: 'Campaigns', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Campaign builder' })).toBeVisible();
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('button', { name: 'Results' }).click();
+  await nav.getByRole('button', { name: 'Results', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Campaign results' })).toBeVisible();
   await expect(page.getByText(/Campaign operations/i)).toBeVisible();
   } finally {
