@@ -127,7 +127,7 @@ async function seedSuperAdmin(client) {
   const email = clean(process.env.SUPER_ADMIN_EMAIL).toLowerCase();
   const password = String(process.env.SUPER_ADMIN_PASSWORD || "");
   if (!email || !password) return;
-  if (password.length < 8) throw new Error("SUPER_ADMIN_PASSWORD must be at least 8 characters.");
+  if (password.length < 12) throw new Error("SUPER_ADMIN_PASSWORD must be at least 12 characters.");
 
   const existing = await client.query("SELECT id FROM super_admins WHERE email = $1", [email]);
   if (existing.rows[0]) return;

@@ -484,7 +484,9 @@ function SuperAdminLogin({ onDone, brandName }) {
     try {
       const rawForm = Object.fromEntries(new FormData(event.currentTarget));
       await postJson("/api/super-admin/login", { email: rawForm.platformOwnerEmail, password: rawForm.platformOwnerSecret, mfaCode: rawForm.mfaCode || '' });
-      await onDone();
+      // Hard navigate so middleware sees same-origin Sec-Fetch-Site and keeps the new session.
+      window.location.assign('/super-admin');
+      return;
     } catch (err) {
       if (err.code === 'MFA_REQUIRED') setMfaRequired(true);
       setError(err.message);

@@ -25,11 +25,22 @@ function isSameOriginAdminReferer(request) {
   }
 }
 
+/** True for in-app navigations that should keep the Super Admin session. */
+function isTrustedAdminNavigation(request) {
+  if (isSameOriginAdminReferer(request)) return true;
+  // Post-login window.location.replace often has Referer stripped by proxies/browsers.
+  // Typed URLs and external returns use sec-fetch-site: none / cross-site.
+  const site = (request.headers.get('sec-fetch-site') || '').toLowerCase();
+  const mode = (request.headers.get('sec-fetch-mode') || '').toLowerCase();
+  return site === 'same-origin' && (mode === 'navigate' || mode === 'nested-navigate' || mode === '');
+}
+
 /**
  * Super Admin auth rules:
  * 1) Leaving any non-admin page clears the Super Admin cookie.
- * 2) Full document opens of /super-admin* (typed URL, external return, new tab)
- *    without an in-admin referer force login again — even if a cookie still exists.
+ * 2) Full document opens of /super-admin* from outside (typed URL, external return, new tab)
+ *    force login again — even if a cookie still exists.
+ * 3) Same-origin navigations (including post-login redirect) keep the session.
  * Client navigations inside the panel (RSC / fetch) keep the session.
  */
 export function middleware(request) {
@@ -58,7 +69,7 @@ export function middleware(request) {
   if (pathname === '/super-admin/login' || pathname.startsWith('/super-admin/login/')) {
     const accept = request.headers.get('accept') || '';
     const isDocumentNavigation = accept.includes('text/html');
-    if (isDocumentNavigation && cookie && !isSameOriginAdminReferer(request)) {
+    if (isDocumentNavigation && cookie && !isTrustedAdminNavigation(request)) {
       const response = NextResponse.next();
       clearSuperCookie(response, request);
       return response;
@@ -66,10 +77,10 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
-  // Full HTML document navigation into admin without coming from another admin page → re-auth.
+  // Full HTML document navigation into admin from outside → re-auth.
   const accept = request.headers.get('accept') || '';
   const isDocumentNavigation = accept.includes('text/html');
-  if (isDocumentNavigation && cookie && !isSameOriginAdminReferer(request)) {
+  if (isDocumentNavigation && cookie && !isTrustedAdminNavigation(request)) {
     const response = NextResponse.redirect(new URL('/super-admin/login', request.url));
     clearSuperCookie(response, request);
     return response;
