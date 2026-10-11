@@ -80,3 +80,13 @@ DO $$ DECLARE t TEXT; BEGIN
     );
   END LOOP;
 END $$;
+
+-- Ensure the connected DATABASE_URL role can read/write OAuth state tables (42501 without this).
+DO $$ BEGIN
+  GRANT SELECT, INSERT, UPDATE, DELETE ON ads_oauth_states TO CURRENT_USER;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON ads_oauth_pending TO CURRENT_USER;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON meta_leadgen_submissions TO CURRENT_USER;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON whatsapp_ads_insight_snapshots TO CURRENT_USER;
+EXCEPTION WHEN insufficient_privilege THEN
+  NULL;
+END $$;
