@@ -1,7 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ADS_REQUIRED_SCOPES, permissionReportFromScopes } from '../lib/ads-meta-oauth.js';
+import { ADS_REQUIRED_SCOPES, createAdsOAuthState, permissionReportFromScopes, verifyAdsOAuthState } from '../lib/ads-meta-oauth.js';
 import { whatsappAdTargeting, whatsappAdPayload } from '../lib/whatsapp-ads.js';
+
+test('signed Ads OAuth state round-trips without database', () => {
+  const previous = process.env.AUTH_SECRET;
+  process.env.AUTH_SECRET = 'unit-test-auth-secret-for-ads-oauth-state';
+  try {
+    const state = createAdsOAuthState({ businessId: 'biz_123', userId: 'user_456', ttlSeconds: 300 });
+    const parsed = verifyAdsOAuthState(state);
+    assert.deepEqual(parsed, { businessId: 'biz_123', userId: 'user_456' });
+    assert.equal(verifyAdsOAuthState(state.slice(0, -2) + 'xx'), null);
+  } finally {
+    if (previous === undefined) delete process.env.AUTH_SECRET;
+    else process.env.AUTH_SECRET = previous;
+  }
+});
 
 test('permissionReportFromScopes flags missing ads permissions', () => {
   const incomplete = permissionReportFromScopes(['ads_read', 'pages_show_list']);
