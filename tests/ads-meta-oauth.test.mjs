@@ -1,14 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  ADS_CONFIG_CONNECT_SCOPES,
-  ADS_REQUIRED_SCOPES,
-  adsConnectRequiredScopes,
-  adsLoginConfigId,
-  createAdsOAuthState,
-  permissionReportFromScopes,
-  verifyAdsOAuthState
-} from '../lib/ads-meta-oauth.js';
+import { ADS_REQUIRED_SCOPES, createAdsOAuthState, permissionReportFromScopes, verifyAdsOAuthState } from '../lib/ads-meta-oauth.js';
 import { whatsappAdTargeting, whatsappAdPayload } from '../lib/whatsapp-ads.js';
 
 test('signed Ads OAuth state round-trips without database', () => {
@@ -26,41 +18,13 @@ test('signed Ads OAuth state round-trips without database', () => {
 });
 
 test('permissionReportFromScopes flags missing ads permissions', () => {
-  const previous = process.env.META_ADS_LOGIN_CONFIG_ID;
-  try {
-    delete process.env.META_ADS_LOGIN_CONFIG_ID;
-    const incomplete = permissionReportFromScopes(['ads_read', 'pages_show_list']);
-    assert.equal(incomplete.complete, false);
-    assert.ok(incomplete.missing.includes('ads_management'));
-    assert.ok(incomplete.missing.includes('leads_retrieval'));
-    assert.equal(incomplete.loginMode, 'scope');
-    const complete = permissionReportFromScopes(ADS_REQUIRED_SCOPES);
-    assert.equal(complete.complete, true);
-    assert.deepEqual(complete.missing, []);
-  } finally {
-    if (previous === undefined) delete process.env.META_ADS_LOGIN_CONFIG_ID;
-    else process.env.META_ADS_LOGIN_CONFIG_ID = previous;
-  }
-});
-
-test('META_ADS_LOGIN_CONFIG_ID switches connect requirements to CTWA config scopes', () => {
-  const previous = process.env.META_ADS_LOGIN_CONFIG_ID;
-  try {
-    delete process.env.META_ADS_LOGIN_CONFIG_ID;
-    assert.equal(adsLoginConfigId(), '');
-    assert.deepEqual(adsConnectRequiredScopes(), [...ADS_REQUIRED_SCOPES]);
-
-    process.env.META_ADS_LOGIN_CONFIG_ID = '123456789012345';
-    assert.equal(adsLoginConfigId(), '123456789012345');
-    assert.deepEqual(adsConnectRequiredScopes(), [...ADS_CONFIG_CONNECT_SCOPES]);
-    const report = permissionReportFromScopes(ADS_CONFIG_CONNECT_SCOPES);
-    assert.equal(report.complete, true);
-    assert.equal(report.loginMode, 'config_id');
-    assert.ok(report.missingExtended.includes('leads_retrieval'));
-  } finally {
-    if (previous === undefined) delete process.env.META_ADS_LOGIN_CONFIG_ID;
-    else process.env.META_ADS_LOGIN_CONFIG_ID = previous;
-  }
+  const incomplete = permissionReportFromScopes(['ads_read', 'pages_show_list']);
+  assert.equal(incomplete.complete, false);
+  assert.ok(incomplete.missing.includes('ads_management'));
+  assert.ok(incomplete.missing.includes('leads_retrieval'));
+  const complete = permissionReportFromScopes(ADS_REQUIRED_SCOPES);
+  assert.equal(complete.complete, true);
+  assert.deepEqual(complete.missing, []);
 });
 
 test('WhatsApp Status placement adds required Meta targeting keys', () => {
