@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Eye, Plus, Save, Trash2, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Eye, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
 import PublicHtmlBlock from './public-html-block';
 import styles from './cms-site-editor.module.css';
 
@@ -218,6 +218,32 @@ export default function CmsSiteEditor({ api, notify }) {
     }
   };
 
+  const resetToDefaults = async () => {
+    if (!snapshot) return;
+    const confirmed = window.confirm(
+      'Replace the CMS draft with the latest built-in marketing defaults (deep feature pages, Products mega menu)? Theme colors are kept. Brand images are kept. This does not publish until you click Publish.'
+    );
+    if (!confirmed) return;
+    setBusy(true); setError('');
+    try {
+      const next = (await api('/api/super-admin/site', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'reset_defaults', revision: snapshot.revision })
+      })).site;
+      setSnapshot(next);
+      setDocument(next.document);
+      setDirty(false);
+      setPageIndex(0);
+      setSectionIndex(0);
+      setTab('pages');
+      notify('Draft reset to marketing defaults — click Publish to update the live site');
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const upload = async (event, kind) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -253,6 +279,7 @@ export default function CmsSiteEditor({ api, notify }) {
         </div>
         <div className={styles.actions}>
           <a href={publicPath} target="_blank" rel="noreferrer"><Eye size={16} /> Preview path</a>
+          <button type="button" disabled={busy} onClick={resetToDefaults} title="Load built-in deep feature pages into the draft"><RotateCcw size={16} /> Reset to defaults</button>
           <button type="button" disabled={busy || !dirty} onClick={() => persist(false)}><Save size={16} /> Save draft</button>
           <button type="button" className={styles.publish} disabled={busy} onClick={() => persist(true)}><Upload size={16} /> Publish</button>
         </div>

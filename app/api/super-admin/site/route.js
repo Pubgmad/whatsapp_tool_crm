@@ -13,7 +13,8 @@ export async function POST(request){
     const admin=await requireSuperAdmin(request);
     const body=await readOptionalJsonBodyLimited(request,750000);
     const site=await changeSiteDraft(body);
-    await query('INSERT INTO platform_audit_logs(id,super_admin_id,action,metadata) VALUES($1,$2,$3,$4)',[id('pa'),admin.id,body.action==='publish'?'public_site_published':'public_site_draft_saved',JSON.stringify({revision:site.revision})]);
+    const auditAction=body.action==='publish'?'public_site_published':body.action==='reset_defaults'?'public_site_defaults_reset':'public_site_draft_saved';
+    await query('INSERT INTO platform_audit_logs(id,super_admin_id,action,metadata) VALUES($1,$2,$3,$4)',[id('pa'),admin.id,auditAction,JSON.stringify({revision:site.revision})]);
     return json({site});
   }catch(error){return errorJson(error);}
 }
