@@ -107,6 +107,65 @@ export const pageTitles = {
   unsubscribes: 'Suppression list'
 };
 
+/** Short workspace guidance shown under the page title. */
+export const pageIntros = {
+  overview: 'Start from connection health, then jump into inbox, broadcasts, or ads.',
+  setup: 'Connect WhatsApp Business, verify webhooks, and keep the workspace ready.',
+  numbers: 'Review synced phone numbers and connection details for this workspace.',
+  profile: 'Keep the public WhatsApp business profile accurate for customers.',
+  flows: 'Build Meta-hosted forms for capture, booking, and structured intake.',
+  media: 'Upload and reuse Meta media assets for templates and messages.',
+  entry_points: 'Create links and QR codes that open WhatsApp conversations.',
+  journeys: 'Inspect customer journey analytics across WhatsApp touchpoints.',
+  capabilities: 'Review which WhatsApp capabilities are enabled for this account.',
+  groups: 'Manage WhatsApp group messaging when the feature is enabled.',
+  integrations: 'Connect API keys and partner integrations used by automation.',
+  contacts: 'Filter audiences, manage consent, and prepare broadcast segments.',
+  team: 'Invite teammates and assign Owner, Manager, or Agent roles.',
+  billing: 'Manage subscription plan, invoices, and workspace entitlements.',
+  security: 'Review account security and password recovery options.',
+  templates: 'Sync Meta-approved templates before you broadcast or automate.',
+  automation: 'Trigger replies and follow-ups from inbound WhatsApp events.',
+  campaigns: 'Select audience → choose approved template → send or schedule → measure.',
+  commerce: 'Manage catalogs and commerce settings tied to your WhatsApp number.',
+  conversions: 'Track conversion signals connected to WhatsApp conversations.',
+  calling: 'Place and manage WhatsApp calling alongside chat history.',
+  ads: 'Connect Meta assets, create CTWA campaigns, and measure entry chats.',
+  results: 'Review delivery, reads, and retarget opportunities from campaigns.',
+  inbox: 'Assign conversations, reply with templates, and keep shared context.',
+  unsubscribes: 'Honor opt-outs and suppress contacts from marketing sends.'
+};
+
+/** Contextual next-step CTAs for focused feature workspaces. */
+export const pageJourneys = {
+  contacts: { label: 'Open broadcasting', target: 'campaigns', hint: 'Filter your audience, then launch an approved template campaign.' },
+  templates: { label: 'Open broadcasting', target: 'campaigns', hint: 'Keep templates synced, then use them in a broadcast.' },
+  campaigns: { label: 'Open analytics', target: 'results', hint: 'After sending, review delivery and retarget from analytics.' },
+  results: { label: 'Open audience', target: 'contacts', hint: 'Turn campaign outcomes into a retarget audience.' },
+  inbox: { label: 'Open automation', target: 'automation', hint: 'Reduce repetitive replies with automation handoffs.' },
+  automation: { label: 'Open inbox', target: 'inbox', hint: 'Confirm human handoff lands cleanly in the shared inbox.' },
+  ads: { label: 'Open inbox', target: 'inbox', hint: 'CTWA clicks should appear as inbound conversations here.' },
+  calling: { label: 'Open inbox', target: 'inbox', hint: 'Keep voice context next to the customer chat timeline.' },
+  commerce: { label: 'Open WhatsApp setup', target: 'setup', hint: 'Commerce needs a connected number and catalog readiness.' },
+  conversions: { label: 'Open analytics', target: 'results', hint: 'Pair conversion events with campaign performance.' },
+  flows: { label: 'Open automation', target: 'automation', hint: 'Use Flows inside automated reply journeys.' },
+  media: { label: 'Open templates', target: 'templates', hint: 'Attach uploaded media to template headers.' },
+  entry_points: { label: 'Open broadcasting', target: 'campaigns', hint: 'Drive QR and link traffic into follow-up campaigns.' }
+};
+
+export function navGroupLabelForView(view) {
+  const group = navGroups.find((entry) => entry.items.some((item) => item.id === view));
+  return group?.label || 'Workspace';
+}
+
+export function pageIntro(view) {
+  return pageIntros[view] || '';
+}
+
+export function pageJourney(view) {
+  return pageJourneys[view] || null;
+}
+
 /**
  * Grouped sidebar IA. Icons are string keys resolved in the shell.
  * Setup-related items open dedicated routes that mount the existing Setup panels.

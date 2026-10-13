@@ -47,7 +47,10 @@ import {
   canOpenWorkspaceView,
   featureForView,
   flatNavItems,
+  navGroupLabelForView,
   navGroups,
+  pageIntro as workspacePageIntro,
+  pageJourney as workspacePageJourney,
   pageTitle as workspacePageTitle,
   setupSectionByView,
   workspaceLocation,
@@ -452,7 +455,18 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
           <div>
             <p className="kicker">{navItems.find((item) => item.id === activeView)?.label || 'Workspace'}</p>
             <h1>{workspacePageTitle(activeView)}</h1>
-            {setupSectionByView[activeView] ? <p className="pageBreadcrumb"><button type="button" className="textButton" onClick={() => navigate('setup')}>WhatsApp setup</button><span aria-hidden="true"> / </span><span>{workspacePageTitle(activeView)}</span></p> : null}
+            <p className="pageBreadcrumb">
+              <span>{navGroupLabelForView(activeView)}</span>
+              <span aria-hidden="true"> / </span>
+              {setupSectionByView[activeView] && activeView !== 'setup' ? (
+                <>
+                  <button type="button" className="textButton" onClick={() => navigate('setup')}>WhatsApp setup</button>
+                  <span aria-hidden="true"> / </span>
+                </>
+              ) : null}
+              <span>{workspacePageTitle(activeView)}</span>
+            </p>
+            {workspacePageIntro(activeView) ? <p className="pageIntro">{workspacePageIntro(activeView)}</p> : null}
           </div>
           <div className="topActions"><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><button className="iconButton" title="Sign out" onClick={logout}><LogOut size={18} /></button><span className={`statusPill ${state.setup.status === "Connected" ? "good" : "warn"}`}>{state.setup.status}</span></div>
         </header>
@@ -463,6 +477,16 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
             <button className="primaryAction" type="button" onClick={() => navigate('setup')}>Connect WhatsApp</button>
           </div>
         ) : null}
+        {(() => {
+          const journey = workspacePageJourney(activeView);
+          if (!journey || !canOpenWorkspaceView(account.role, journey.target)) return null;
+          return (
+            <div className="workspaceJourney" role="note">
+              <div><strong>Next in this workflow</strong><span>{journey.hint}</span></div>
+              <button className="secondaryAction" type="button" onClick={() => navigate(journey.target)}>{journey.label} <ChevronRight size={16} /></button>
+            </div>
+          );
+        })()}
         {["degraded", "reconnect_required"].includes(state.setup.health?.status) && <div className="connectionAlert" role="alert"><CircleAlert size={19} /><span>{connectionHealthMessage(state.setup.health)}</span>{canOpenWorkspaceView(account.role, "setup") && <button className="secondaryAction" type="button" onClick={() => navigate("setup")}>Open WhatsApp settings</button>}</div>}
         {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is disabled by the platform administrator.'><button className='secondaryAction' type='button' onClick={() => navigate('overview')}>Open dashboard</button></Panel></div> : <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />}
         {children}
