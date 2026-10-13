@@ -13,7 +13,7 @@ function publicPathForPage(page) {
 }
 
 const pageKinds = ['home', 'page', 'feature', 'product', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
-const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'cta-band', 'faq', 'stats', 'rich', 'columns'];
+const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'steps', 'cta-band', 'faq', 'stats', 'rich', 'columns'];
 /** Hint copy shown above the page list for editors building AiSensy-depth feature pages. */
 const FEATURE_PAGE_GUIDANCE = 'Feature pages should explain the problem, how the CRM workflow works, key capabilities, use cases, and a clear signup CTA. Keep claims aligned with implemented product behavior.';
 const backgrounds = ['default', 'muted', 'brand', 'dark', 'accent-soft'];
@@ -106,6 +106,7 @@ const emptySection = () => ({
   id: newId('section'),
   title: 'New section',
   eyebrow: '',
+  summary: '',
   visible: true,
   preset: 'plain',
   align: 'left',
@@ -481,6 +482,7 @@ export default function CmsSiteEditor({ api, notify }) {
                 <label className={styles.check}><input type="checkbox" checked={page.published !== false} onChange={(event) => updatePage({ published: event.target.checked })} /> Published</label>
                 <label className={styles.check}><input type="checkbox" checked={Boolean(page.showInNav)} onChange={(event) => updatePage({ showInNav: event.target.checked })} /> Suggest in nav</label>
               </div>
+              <label>SEO description<textarea rows={2} value={page.seoDescription || ''} onChange={(event) => updatePage({ seoDescription: event.target.value })} placeholder="Search snippet for this page (recommended under 160 characters)" /></label>
               <label>Summary<textarea rows={2} value={page.summary || ''} onChange={(event) => updatePage({ summary: event.target.value })} /></label>
 
               <div className={styles.card}>
@@ -530,6 +532,7 @@ export default function CmsSiteEditor({ api, notify }) {
                       </select>
                     </label>
                   </div>
+                  <label>Section summary<textarea rows={2} value={section.summary || ''} onChange={(event) => updateSection({ summary: event.target.value })} placeholder="Optional supporting sentence under the section headline" /></label>
                   <div className={styles.row}>
                     <label>Align
                       <select value={section.align} onChange={(event) => updateSection({ align: event.target.value })}>

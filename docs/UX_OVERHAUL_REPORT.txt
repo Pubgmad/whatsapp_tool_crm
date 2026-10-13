@@ -1,0 +1,19 @@
+CRM UI/UX Overhaul — comparison report
+Branch target: main (also kept on production_saas)
+AiSensy reference scope: public site / docs / tutorials only (authenticated CRM not audited)
+
+Area | AiSensy public reference | Prior issue | Change | Verification | Status
+-----|--------------------------|-------------|--------|--------------|-------
+Public mega-nav + deep feature pages | aisensy.com Products / feature landings | Thin CMS feature shells | Default CMS products mega-nav + deep featurePage sections (overview / steps / use cases / CTA); marketing steps preset + hero polish | Visit /features/* after Super Admin republish or fresh defaults | Done (republish required for existing CMS DB)
+Homepage / marketing templates | Premium section storytelling | Admin-template marketing | marketing-blocks steps/capability sections; marketing.module.css depth; chrome a11y menu label | Spot-check marketing pages | Done
+Auth / onboarding | Fast WhatsApp connect framing | Split auth chrome | Shared authShell for login/signup/verify/reset; onboarding banner when not Connected | /login /signup /verify /forgot | Done
+CRM IA | Clear module destinations | Flat 16-item rail + Setup mega-tabs | Grouped Engage/Grow/Build/Connect/Workspace nav; dedicated setup routes | Sidebar + direct URLs under /app/settings/whatsapp/* | Done
+Focused workspaces | One feature workspace | Setup dump; weak titles | Dedicated routes + page intros + breadcrumbs + journey next-step CTAs; existing panels reused | Click each nav item; refresh | Done
+CMS Super Admin | Editable feature content | SEO description missing; weak guidance | FEATURE_PAGE_GUIDANCE; seoDescription field; section summary; steps preset | Super Admin CMS editor | Done
+Mobile / a11y | Usable rail + focus | Stale e2e labels; blue focus ring | Teal focus-visible; journey/banner responsive styles; e2e nav labels updated | e2e/workspace-mobile.spec.js + manual mobile | Done (device QA recommended)
+Backend / Meta | N/A | N/A | No OAuth/billing/API changes in this overhaul | Smoke inbox/campaigns/templates/ads/automation from UI | Unchanged by design
+
+Limitations
+- Authenticated AiSensy sidebar/wizards were never accessed; CRM patterns inferred from public tutorials + our real features.
+- Existing published CMS documents need Super Admin republish (or migration merge) to pick up richer default feature copy.
+- Playwright coverage updated for renamed nav labels; full matrix still manual for every setup sub-route.

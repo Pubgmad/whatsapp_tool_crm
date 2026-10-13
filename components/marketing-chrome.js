@@ -196,7 +196,7 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
         <Link href="/" className={styles.brand} onClick={close}>
           {logo?.url ? <img src={logo.url} alt={brandName} width={logo.width} height={logo.height} /> : <span>{brandName}</span>}
         </Link>
-        <button type="button" className={styles.menuToggle} aria-expanded={open} aria-controls="marketing-nav" onClick={() => setOpen((value) => !value)}>
+        <button type="button" className={styles.menuToggle} aria-expanded={open} aria-controls="marketing-nav" aria-label={open ? 'Close navigation menu' : 'Open navigation menu'} onClick={() => setOpen((value) => !value)}>
           {open ? 'Close' : 'Menu'}
         </button>
         <div id="marketing-nav" className={styles.navShell}>

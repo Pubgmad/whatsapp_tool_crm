@@ -79,12 +79,17 @@ function sectionBlocks(section, assets) {
   const image = rest.find((block) => block.type === 'image');
   const copy = rest.filter((block) => block.type !== 'image');
 
-  if (section.preset === 'feature-grid' || section.preset === 'cards') {
+  if (section.preset === 'feature-grid' || section.preset === 'cards' || section.preset === 'steps') {
     return (
       <>
         {copy.length > 0 && <div className={styles.blocks}>{copy.map((block, index) => <MarketingBlock block={block} assets={assets} key={`c-${index}`} />)}</div>}
-        <div className={`${styles.grid} ${section.preset === 'feature-grid' ? styles.gridFeatures : styles.gridCards}`}>
-          {cards.map((block, index) => <MarketingBlock block={block} assets={assets} key={`g-${index}`} />)}
+        <div className={`${styles.grid} ${section.preset === 'feature-grid' ? styles.gridFeatures : section.preset === 'steps' ? styles.gridSteps : styles.gridCards}`}>
+          {cards.map((block, index) => (
+            <div className={section.preset === 'steps' ? styles.stepCard : undefined} key={`g-${index}`}>
+              {section.preset === 'steps' ? <span className={styles.stepIndex} aria-hidden="true">{index + 1}</span> : null}
+              <MarketingBlock block={block} assets={assets} />
+            </div>
+          ))}
         </div>
       </>
     );
@@ -117,7 +122,9 @@ export function MarketingSection({ section, assets }) {
     styles[`pad-${section.padding || 'normal'}`],
     styles[`bg-${section.background || 'default'}`],
     styles[`align-${section.align || 'left'}`],
-    section.preset === 'cta-band' ? styles.ctaBand : ''
+    section.preset === 'cta-band' ? styles.ctaBand : '',
+    section.preset === 'steps' ? styles.stepsSection : '',
+    section.preset === 'feature-grid' ? styles.capabilitySection : ''
   ].filter(Boolean).join(' ');
 
   return (
@@ -127,11 +134,12 @@ export function MarketingSection({ section, assets }) {
           <div className={styles.sectionHead}>
             {section.eyebrow ? <p className={styles.eyebrow}>{section.eyebrow}</p> : null}
             {section.title ? <h2>{section.title}</h2> : null}
+            {section.summary ? <p className={styles.sectionLead}>{section.summary}</p> : null}
           </div>
         )}
         {sectionBlocks(section, assets)}
         {section.ctaLabel && section.ctaHref ? (
-          <p style={{ marginTop: 22 }}>
+          <p className={styles.sectionCta}>
             <Link className={styles.btnPrimary} href={section.ctaHref}>{section.ctaLabel}</Link>
           </p>
         ) : null}
@@ -144,9 +152,10 @@ export function MarketingHero({ page, assets, signupLabel }) {
   const hero = page?.hero;
   if (!hero?.enabled) return null;
   const imageUrl = hero.image === 'custom' ? hero.imageUrl : hero.image === 'hero' ? assets?.hero?.url : '';
+  const isFeature = page?.kind === 'feature';
   return (
     <section
-      className={`${styles.hero} ${imageUrl ? '' : styles.heroSolo}`}
+      className={`${styles.hero} ${imageUrl ? '' : styles.heroSolo} ${isFeature ? styles.heroFeature : ''}`}
       style={imageUrl ? { ['--hero-image']: `url("${imageUrl}")` } : undefined}
     >
       <div>
@@ -156,8 +165,9 @@ export function MarketingHero({ page, assets, signupLabel }) {
         <div className={styles.heroActions}>
           {hero.ctaLabel && hero.ctaHref ? <Link className={styles.btnPrimary} href={hero.ctaHref}>{hero.ctaLabel}</Link> : null}
           <Link className={styles.btnSecondary} href="/login" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.35)', background: 'rgba(255,255,255,.08)' }}>
-            {signupLabel ? 'Sign in' : 'Sign in'}
+            Sign in
           </Link>
+          {isFeature ? <Link className={styles.btnText} href="/features" style={{ color: '#fff' }}>All features</Link> : null}
         </div>
       </div>
       {imageUrl ? <div className={styles.heroPanel} aria-hidden /> : null}
