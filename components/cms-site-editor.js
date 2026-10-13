@@ -14,6 +14,8 @@ function publicPathForPage(page) {
 
 const pageKinds = ['home', 'page', 'feature', 'product', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
 const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'cta-band', 'faq', 'stats', 'rich', 'columns'];
+/** Hint copy shown above the page list for editors building AiSensy-depth feature pages. */
+const FEATURE_PAGE_GUIDANCE = 'Feature pages should explain the problem, how the CRM workflow works, key capabilities, use cases, and a clear signup CTA. Keep claims aligned with implemented product behavior.';
 const backgrounds = ['default', 'muted', 'brand', 'dark', 'accent-soft'];
 const blockTypes = ['heading', 'paragraph', 'list', 'quote', 'button', 'link', 'image', 'card', 'feature-item', 'faq-item', 'stat', 'video', 'html'];
 const iconOptions = ['', 'message', 'phone', 'megaphone', 'bot', 'spark', 'workflow', 'form', 'grid', 'shield', 'integrations', 'products', 'automation'];
@@ -450,6 +452,7 @@ export default function CmsSiteEditor({ api, notify }) {
         <div className={styles.workspace}>
           <aside className={styles.pageList}>
             <h3>Pages</h3>
+            <p style={{ margin: '0 0 10px', color: 'var(--muted)', fontSize: 12, lineHeight: 1.45 }}>{FEATURE_PAGE_GUIDANCE}</p>
             {document.pages.map((item, index) => (
               <button type="button" key={item.id} className={pageIndex === index ? styles.active : ''} onClick={() => { setPageIndex(index); setSectionIndex(0); }}>
                 <strong>{item.title}</strong>

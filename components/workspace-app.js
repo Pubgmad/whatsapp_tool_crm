@@ -43,7 +43,16 @@ import { isSessionFailure, createRequestGate, authFormPasswordError } from '../l
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../lib/password-policy.js';
 import { metaSdkCallback } from '../lib/meta-sdk-callback';
 import { saveConversationDraft, clearSentConversationDraft, canApplySupportSuggestion } from '../lib/inbox-drafts';
-import { canOpenWorkspaceView, featureForView, managerViews, workspaceRoutes } from './workspace/nav-config.js';
+import {
+  canOpenWorkspaceView,
+  featureForView,
+  flatNavItems,
+  navGroups,
+  pageTitle as workspacePageTitle,
+  setupSectionByView,
+  workspaceLocation,
+  workspaceRoutes
+} from './workspace/nav-config.js';
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -54,32 +63,14 @@ import {
   Smartphone, Workflow, RadioTower, Building2, KeyRound, ShoppingBag, Paperclip
 } from "lucide-react";
 
-const navItems = [
-  { id: "overview", label: "Command", icon: LayoutDashboard },
-  { id: "setup", label: "Meta Setup", icon: Settings2 },
-  { id: "contacts", label: "Audience", icon: UsersRound },
-  { id: "team", label: "Team", icon: UserPlus },
-  { id: "billing", label: "Billing", icon: WalletCards },
-  { id: 'security', label: 'Security', icon: ShieldCheck },
-  { id: "templates", label: "Templates", icon: MessageSquareText },
-  { id: "automation", label: "Automation", icon: Bot },
-  { id: "campaigns", label: "Campaigns", icon: Send },
-  { id: 'commerce', label: 'Commerce', icon: ShoppingBag },
-  { id: 'conversions', label: 'Conversions', icon: Activity },
-  { id: 'calling', label: 'Calls', icon: PhoneCall },
-  { id: 'ads', label: 'WhatsApp Ads', icon: RadioTower },
-  { id: "results", label: "Results", icon: BarChart3 },
-  { id: "inbox", label: "Inbox", icon: Inbox },
-  { id: "unsubscribes", label: "Suppression", icon: Ban }
-];
+const NAV_ICONS = {
+  LayoutDashboard, Settings2, UsersRound, UserPlus, WalletCards, ShieldCheck, MessageSquareText, Bot, Send,
+  ShoppingBag, Activity, PhoneCall, RadioTower, BarChart3, Inbox, Ban, Workflow, Paperclip, Link2, Smartphone,
+  Building2, KeyRound, MessageSquare
+};
 
-function workspaceLocation(pathname) {
-  if (pathname?.startsWith("/app/inbox/")) {
-    return { view: "inbox", conversationId: decodeURIComponent(pathname.slice("/app/inbox/".length)) || null };
-  }
-  const entry = Object.entries(workspaceRoutes).find(([, route]) => route === pathname);
-  return { view: entry?.[0] || "overview", conversationId: null };
-}
+const navItems = flatNavItems.map((item) => ({ ...item, icon: NAV_ICONS[item.icon] || LayoutDashboard }));
+
 
 let csrfToken = '';
 const getCsrfToken = async () => {
@@ -433,20 +424,47 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
       <aside className={`sideRail ${mobileNavOpen ? "open" : ""}`}>
         <div className="brandBlock"><div className="brandIcon">{platformConfig.logo_url?<img src={platformConfig.logo_url} alt="" className="platformLogo"/>:<PhoneCall size={22} />}</div><div><strong>{platformConfig.brand_name}</strong><span>{account.business.name}</span></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
         {workspaces.length > 1 && <label className="workspaceSwitcher"><span>Workspace</span><select value={account.business.id} onChange={selectWorkspace}>{workspaces.map((item) => <option key={item.id} value={item.id} disabled={item.status === "suspended"}>{item.name}{item.status === "suspended" ? " (suspended)" : ""}</option>)}</select></label>}
-        <nav className="navList" aria-label="Product sections">
-          {navItems.filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false)).map((item) => { const Icon = item.icon; return <button key={item.id} className={activeView === item.id ? "active" : ""} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
+        <nav className="navList navGrouped" aria-label="Product sections">
+          {navGroups.map((group) => {
+            const items = group.items
+              .map((item) => navItems.find((entry) => entry.id === item.id))
+              .filter(Boolean)
+              .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
+              .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups);
+            if (!items.length) return null;
+            return (
+              <div className="navGroup" key={group.id}>
+                <p className="navGroupLabel">{group.label}</p>
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  return <button key={item.id} type="button" className={activeView === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
+                })}
+              </div>
+            );
+          })}
         </nav>
         <div className="railNote"><ShieldCheck size={18} /><span>{account.user.email}</span></div>
       </aside>
       {mobileNavOpen && <button className="mobileNavScrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" />}
       <section className="workspace">
         <header className="heroBar">
-          <button className="mobileMenuButton" type="button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button><div><p className="kicker">{navItems.find((item) => item.id === activeView)?.label}</p><h1>{pageTitle(activeView)}</h1></div>
+          <button className="mobileMenuButton" type="button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
+          <div>
+            <p className="kicker">{navItems.find((item) => item.id === activeView)?.label || 'Workspace'}</p>
+            <h1>{workspacePageTitle(activeView)}</h1>
+            {setupSectionByView[activeView] ? <p className="pageBreadcrumb"><button type="button" className="textButton" onClick={() => navigate('setup')}>WhatsApp setup</button><span aria-hidden="true"> / </span><span>{workspacePageTitle(activeView)}</span></p> : null}
+          </div>
           <div className="topActions"><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><button className="iconButton" title="Sign out" onClick={logout}><LogOut size={18} /></button><span className={`statusPill ${state.setup.status === "Connected" ? "good" : "warn"}`}>{state.setup.status}</span></div>
         </header>
         {notice && <div className="toast">{notice}</div>}
+        {state.setup.status !== 'Connected' && canOpenWorkspaceView(account.role, 'setup') && activeView !== 'setup' ? (
+          <div className="onboardingBanner" role="status">
+            <div><strong>Finish WhatsApp setup</strong><span>Connect your WhatsApp Business account to unlock inbox, broadcasts, and automation.</span></div>
+            <button className="primaryAction" type="button" onClick={() => navigate('setup')}>Connect WhatsApp</button>
+          </div>
+        ) : null}
         {["degraded", "reconnect_required"].includes(state.setup.health?.status) && <div className="connectionAlert" role="alert"><CircleAlert size={19} /><span>{connectionHealthMessage(state.setup.health)}</span>{canOpenWorkspaceView(account.role, "setup") && <button className="secondaryAction" type="button" onClick={() => navigate("setup")}>Open WhatsApp settings</button>}</div>}
-        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is disabled by the platform administrator.'><button className='secondaryAction' type='button' onClick={() => navigate('overview')}>Open dashboard</button></Panel></div> : <Screens activeView={activeView} {...screenProps} />}
+        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is disabled by the platform administrator.'><button className='secondaryAction' type='button' onClick={() => navigate('overview')}>Open dashboard</button></Panel></div> : <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />}
         {children}
       </section>
     </main>
@@ -512,7 +530,7 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
     }
   };
 
-  return <main className="authShell"><section className="authPanel authPanelPro"><div className="brandBlock dark authBrand"><div className="brandIcon">{platform.logo_url?<img src={platform.logo_url} alt="" className="platformLogo"/>:<PhoneCall size={22} />}</div><div><strong>{platform.brand_name}</strong><span>{platform.product_tagline}</span></div></div><div className="authHeader"><p className="kicker">Secure workspace</p><h1>{isSignup ? platform.signup_heading : platform.signin_heading}</h1><p>{isSignup ? platform.signup_copy : platform.signin_copy}</p></div><form className="formGrid authForm" method="post" onSubmit={submit}>{isSignup && <><Input name="name" label="Your name" autoComplete="name" required /><Input name="businessName" label="Business name" autoComplete="organization" required /></>}<Input name="workspaceEmail" label="Email" type="email" autoComplete="email" required /><PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete={isSignup ? 'new-password' : 'current-password'} required hint={isSignup ? PASSWORD_POLICY_HINT : undefined} />{mfaRequired && !isSignup && <Input name="mfaCode" label="Authenticator or recovery code" autoComplete="one-time-code" required />}{isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}{error && <div className="formError" role="alert">{error}</div>}{verificationDeliveryFailed && <a className="textButton authHelpLink" href="/resend-verification">Request verification email</a>}<button className="primaryAction authSubmit" type="submit" disabled={!hydrated || pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />} <span>{pending ? 'Please wait' : isSignup ? 'Create account' : 'Sign in'}</span></button>{!isSignup && <div className='authHelpLinks'><a className="textButton authHelpLink" href="/forgot-password">Forgot password?</a></div>}</form><div className="authSwitch"><span>{isSignup ? 'Already have a workspace?' : 'New workspace?'}</span><button className="textButton" type="button" onClick={switchMode}>{isSignup ? 'Sign in' : 'Create account'}</button></div></section></main>;
+  return <main className="authShell"><section className="authPanel authPanelPro"><div className="brandBlock dark authBrand"><div className="brandIcon">{platform.logo_url?<img src={platform.logo_url} alt="" className="platformLogo"/>:<PhoneCall size={22} />}</div><div><strong>{platform.brand_name}</strong><span>{platform.product_tagline}</span></div></div><div className="authHeader"><p className="kicker">Secure workspace</p><h1>{isSignup ? platform.signup_heading : platform.signin_heading}</h1><p>{isSignup ? platform.signup_copy : platform.signin_copy}</p></div><ul className="authBenefits" aria-label="Platform benefits"><li>Official WhatsApp Business API workspace for your team</li><li>Broadcasts, inbox, automation, and ads in one place</li><li>Connect your own WhatsApp number after signup</li></ul><form className="formGrid authForm" method="post" onSubmit={submit}>{isSignup && <><Input name="name" label="Your name" autoComplete="name" required /><Input name="businessName" label="Business name" autoComplete="organization" required /></>}<Input name="workspaceEmail" label="Email" type="email" autoComplete="email" required /><PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete={isSignup ? 'new-password' : 'current-password'} required hint={isSignup ? PASSWORD_POLICY_HINT : undefined} />{mfaRequired && !isSignup && <Input name="mfaCode" label="Authenticator or recovery code" autoComplete="one-time-code" required />}{isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}{error && <div className="formError" role="alert">{error}</div>}{verificationDeliveryFailed && <a className="textButton authHelpLink" href="/resend-verification">Request verification email</a>}<button className="primaryAction authSubmit" type="submit" disabled={!hydrated || pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />} <span>{pending ? 'Please wait' : isSignup ? 'Create account' : 'Sign in'}</span></button>{!isSignup && <div className='authHelpLinks'><a className="textButton authHelpLink" href="/forgot-password">Forgot password?</a></div>}</form><div className="authSwitch"><span>{isSignup ? 'Already have a workspace?' : 'New workspace?'}</span><button className="textButton" type="button" onClick={switchMode}>{isSignup ? 'Sign in' : 'Create account'}</button></div></section></main>;
 }
 function SystemSetup({ message, platform }) {
   return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><Settings2 size={22} /></div><div><strong>{platform.brand_name}</strong><span>Production database setup</span></div></div><h1>Connect PostgreSQL</h1><p className="setupCopy">{message}</p><div className="envBox"><code>DATABASE_URL</code><code>AUTH_SECRET</code><code>ENCRYPTION_KEY</code></div></section></main>;
@@ -538,22 +556,39 @@ function SecuritySettings() {
   return <div className='screenGrid'><section className='actionBand'><div><strong>Multi-factor authentication</strong><span>Protect this account with a time-based authenticator and single-use recovery codes.</span></div><Badge kind={status.enabled ? 'good' : 'warn'}>{status.enabled ? 'Enabled' : 'Not enabled'}</Badge></section>{!status.enabled && !setup && <Panel title='Authenticator setup' subtitle='Use Google Authenticator, Microsoft Authenticator, 1Password, or another TOTP app'><button className='primaryAction' type='button' onClick={() => run({ action: 'begin' })}><ShieldCheck size={18} /> Start setup</button></Panel>}{setup && <Panel title='Confirm authenticator' subtitle='The secret is shown once during setup'><div className='envBox'><code>{setup.secret}</code><code>{setup.otpauthUrl}</code></div><form className='formGrid' onSubmit={(event) => { event.preventDefault(); run({ action: 'enable', code: new FormData(event.currentTarget).get('code') }); }}><Input name='code' label='Six-digit code' inputMode='numeric' pattern='[0-9]{6}' required /><button className='primaryAction'><BadgeCheck size={18} /> Enable MFA</button></form></Panel>}{status.enabled && <Panel title='Disable MFA' subtitle='Password and an authenticator or recovery code are required'><form className='formGrid' onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); run({ action: 'disable', password: form.get('password'), code: form.get('code') }); }}><Input name='password' label='Current password' type='password' required /><Input name='code' label='Authenticator or recovery code' required /><button className='secondaryAction dangerSoft'>Disable MFA</button></form></Panel>}{codes.length > 0 && <Panel title='Recovery codes' subtitle='Store these securely. Each code can only be used once'><div className='recoveryCodes'>{codes.map((code) => <code key={code}>{code}</code>)}</div></Panel>}{error && <div className='formError'>{error}</div>}{message && <div className='formSuccess'>{message}</div>}</div>;
 }
 
-function Screens({ activeView, ...props }) {
+function Screens({ activeView, setupSection = null, ...props }) {
   if (!canOpenWorkspaceView(props.role, activeView)) {
     return <Panel title="Workspace access"><p>This section is available to workspace owners{activeView === "billing" ? "" : " and managers"}.</p></Panel>;
   }
-  const screens = { ads: <WhatsAppAds api={api} postJson={postJson} uploadForm={uploadForm} role={props.role} />, calling: <WhatsAppCalling api={api} postJson={postJson} role={props.role} />, conversions: <WhatsAppConversions api={api} postJson={postJson} role={props.role} />, commerce: <><CommerceOpsPanel api={api} role={props.role} /><WhatsAppCommerce api={api} postJson={postJson} role={props.role} /></>, overview: <Overview {...props} />, setup: <Setup {...props} />, contacts: <Contacts {...props} />, team: <Team {...props} />, billing: <Billing {...props} />, security: <SecuritySettings />, templates: <Templates {...props} />, automation: <AutomationFlows {...props} />, campaigns: <Campaigns {...props} />, results: <Results {...props} />, inbox: <InboxView {...props} />, unsubscribes: <Unsubscribes {...props} /> };
+  const setupViews = new Set(Object.keys(setupSectionByView));
+  const screens = {
+    ads: <WhatsAppAds api={api} postJson={postJson} uploadForm={uploadForm} role={props.role} />,
+    calling: <WhatsAppCalling api={api} postJson={postJson} role={props.role} />,
+    conversions: <WhatsAppConversions api={api} postJson={postJson} role={props.role} />,
+    commerce: <><CommerceOpsPanel api={api} role={props.role} /><WhatsAppCommerce api={api} postJson={postJson} role={props.role} /></>,
+    overview: <Overview {...props} />,
+    setup: <Setup {...props} forcedSection={setupSection || 'connection'} hideSectionTabs={Boolean(setupSection && activeView !== 'setup')} onNavigateSection={props.setActiveView} />,
+    contacts: <Contacts {...props} />,
+    team: <Team {...props} />,
+    billing: <Billing {...props} />,
+    security: <SecuritySettings />,
+    templates: <Templates {...props} />,
+    automation: <AutomationFlows {...props} />,
+    campaigns: <Campaigns {...props} />,
+    results: <Results {...props} />,
+    inbox: <InboxView {...props} />,
+    unsubscribes: <Unsubscribes {...props} />
+  };
+  const content = setupViews.has(activeView)
+    ? <Setup {...props} forcedSection={setupSectionByView[activeView]} hideSectionTabs={activeView !== 'setup'} onNavigateSection={props.setActiveView} />
+    : screens[activeView];
   const pageKey = { contacts: "contacts", templates: "templates", automation: "automation", campaigns: "campaigns", results: "results", inbox: "inbox", unsubscribes: "unsubscribes" }[activeView];
   return <>
-    {screens[activeView]}
+    {content}
     {activeView === "inbox" && <Pagination label="Message history" meta={props.state.pagination?.messages} onChange={(page) => props.changePage("messages", page)} />}
     {activeView === "inbox" && <Pagination label="Internal notes" meta={props.state.pagination?.notes} onChange={(page) => props.changePage("notes", page)} />}
     {pageKey && <Pagination label={activeView === "inbox" ? "Conversations" : "Records"} meta={props.state.pagination?.[pageKey] || props.state.pagination?.inbox} onChange={(page) => props.changePage(pageKey, page)} />}
   </>;
-}
-
-function pageTitle(view) {
-  return { overview: "Command center", setup: "Business connection", contacts: "Audience", team: "Team workspace", billing: "Subscription and billing", security: 'Account security', templates: "Template library", automation: "Automation flows", campaigns: "Campaign builder", results: "Campaign results", inbox: "Inbox", unsubscribes: "Suppression list" }[view];
 }
 
 function Billing({ state, role }) {
@@ -632,8 +667,8 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
     { label: "Automation flow", ready: (overview.activeFlows || 0) > 0 }
   ];
   return <div className="screenGrid">
-    <section className="heroPanel"><div><span className="softLabel">{state.setup.mode}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>{platform.workspace_intro}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
-    <section className="actionBand">{canManage && <button className="primaryAction" onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform.primary_cta_label} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button>{canManage && <button className="secondaryAction" onClick={() => setActiveView("results")}><BarChart3 size={18} /> Results</button>}</section>
+    <section className="heroPanel"><div><span className="softLabel">{state.setup.status === 'Connected' ? 'Connected' : 'Setup required'}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>{state.setup.status === 'Connected' ? (platform.workspace_intro || 'Your WhatsApp workspace is ready for inbox, broadcasts, and automation.') : 'Connect WhatsApp first, then import audience and launch your first approved broadcast.'}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
+    <section className="actionBand">{state.setup.status !== 'Connected' && canManage && <button className="primaryAction" type="button" onClick={() => setActiveView('setup')}><Link2 size={18} /> Connect WhatsApp <ChevronRight size={18} /></button>}{canManage && <button className={state.setup.status === 'Connected' ? 'primaryAction' : 'secondaryAction'} onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform.primary_cta_label} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button>{canManage && <button className="secondaryAction" onClick={() => setActiveView("ads")}><RadioTower size={18} /> CTWA Ads</button>}{canManage && <button className="secondaryAction" onClick={() => setActiveView("results")}><BarChart3 size={18} /> Analytics</button>}</section>
     <Panel title="Support queue" subtitle="Live SLA and waiting conversations for every role"><InboxSlaWidget api={api} role={role} onOpenInbox={() => setActiveView("inbox")} onOpenConversation={(conversationId) => { openConversation?.(conversationId); setActiveView("inbox"); }} /></Panel>
     <div className="overviewGrid"><Panel title="Delivery pulse" subtitle="All WhatsApp campaign recipients"><div className="statusGrid"><Metric label="Delivered" value={delivered} /><Metric label="Read" value={read} /><Metric label="Failed" value={failed} /><Metric label="Open chats" value={openConversations} /></div></Panel><Panel title="Workspace readiness" subtitle="Complete these before scaling sends"><div className="readinessList">{setupItems.map((item) => <div key={item.label} className={item.ready ? "ready" : ""}><span>{item.label}</span><Badge kind={item.ready ? "good" : "warn"}>{item.ready ? "Ready" : "Action needed"}</Badge></div>)}</div></Panel></div>
     <Panel title="Subscription usage" subtitle={state.subscription?.plan?.name || "No plan assigned"}><div className="meterGrid usageGrid"><Metric label="Contacts" value={limits.contacts == null ? usage.contacts || 0 : (usage.contacts || 0) + " / " + limits.contacts} /><Metric label="Campaigns" value={limits.campaigns == null ? usage.campaigns || 0 : (usage.campaigns || 0) + " / " + limits.campaigns} /><Metric label="Messages" value={limits.messages == null ? usage.messages || 0 : (usage.messages || 0) + " / " + limits.messages} /><Metric label="Flows" value={limits.automationFlows == null ? usage.automationFlows || 0 : (usage.automationFlows || 0) + " / " + limits.automationFlows} /></div></Panel>
@@ -641,12 +676,15 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   </div>;
 }
 
-function Setup({ state, mutate }) {
+function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
   const signupData = useRef({});
   const signupCompletion = useRef(null);
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
-  const [section, setSection] = useState("connection");
+  const [section, setSection] = useState(forcedSection || "connection");
+  useEffect(() => {
+    if (forcedSection) setSection(forcedSection);
+  }, [forcedSection]);
   const operations = state.whatsappOperations || { accounts: [], phoneNumbers: [], nativeFlows: [], mediaAssets: [], capabilities: [], analytics: [] };
   const activeAccount = operations.accounts.find((item) => item.isDefault) || operations.accounts[0];
   const activePhone = operations.phoneNumbers.find((item) => item.isDefault) || operations.phoneNumbers[0];
@@ -730,13 +768,13 @@ function Setup({ state, mutate }) {
     {!state.meta.embeddedSignupAvailable && <div className="formError">The platform owner must configure META_APP_ID, META_APP_SECRET and META_EMBEDDED_SIGNUP_CONFIG_ID on the server.</div>}
     {signupError && <div className="formError" role="alert">{signupError}</div>}
     <CoexistenceProgress phones={operations.phoneNumbers.filter(phone=>phone.coexistence)} api={api} postJson={postJson}/>
-    <nav className="operationsTabs" aria-label="WhatsApp settings">
+    {!hideSectionTabs && <nav className="operationsTabs" aria-label="WhatsApp settings">
       {[
-        ["connection", Activity, "Connection"], ["numbers", Smartphone, "Numbers"], ["profile", Building2, "Profile"],
-        ["flows", Workflow, "WhatsApp Flows"], ["media", Paperclip, "Media"], ["commerce", ShoppingBag, "Commerce"],
-        ["entry_points", Link2, "Links and QR codes"], ["analytics", BarChart3, "Meta analytics"], ["journeys", Activity, "Customer journeys"], ["capabilities", RadioTower, "Capabilities"], ...(state.featureFlags?.whatsapp_groups ? [["groups", MessageSquare, "Groups"]] : []), ...(["Owner", "Manager"].includes(state.account.role) ? [["integrations", KeyRound, "Integrations"]] : [])
-      ].map(([id, Icon, label]) => <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => setSection(id)}><Icon size={16} /><span>{label}</span></button>)}
-    </nav>
+        ["connection", Activity, "Connection", "setup"], ["numbers", Smartphone, "Numbers", "numbers"], ["profile", Building2, "Profile", "profile"],
+        ["flows", Workflow, "WhatsApp Flows", "flows"], ["media", Paperclip, "Media", "media"], ["commerce", ShoppingBag, "Commerce", "commerce"],
+        ["entry_points", Link2, "Links and QR codes", "entry_points"], ["analytics", BarChart3, "Meta analytics", "setup"], ["journeys", Activity, "Customer journeys", "journeys"], ["capabilities", RadioTower, "Capabilities", "capabilities"], ...(state.featureFlags?.whatsapp_groups ? [["groups", MessageSquare, "Groups", "groups"]] : []), ...(["Owner", "Manager"].includes(state.account.role) ? [["integrations", KeyRound, "Integrations", "integrations"]] : [])
+      ].map(([id, Icon, label, viewId]) => <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => { setSection(id); if (onNavigateSection && viewId) onNavigateSection(viewId); }}><Icon size={16} /><span>{label}</span></button>)}
+    </nav>}
     {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={state.account.role}/>}
     {section === 'flows' && <WhatsAppFlowDesigner api={api} postJson={postJson} flows={operations.nativeFlows} onUploaded={()=>mutate(Promise.resolve({ok:true}), 'Flow uploaded')}/>}
     {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={state.account.role}/>}
