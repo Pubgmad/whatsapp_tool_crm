@@ -70,7 +70,7 @@ export default function WhatsAppRetargetingPanel({
           <span className="retargetIconWrap"><Crosshair size={20} /></span>
           <div>
             <strong>Retarget this broadcast</strong>
-            <p>Build live audiences from delivery, reads, clicks, and replies — like AiSensy-style follow-ups.</p>
+            <p>Create a segment from opens, clicks, or replies.</p>
           </div>
         </div>
         <div className="retargetPanelActions">

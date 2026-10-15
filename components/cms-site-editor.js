@@ -15,7 +15,7 @@ function publicPathForPage(page) {
 const pageKinds = ['home', 'page', 'feature', 'product', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
 const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'steps', 'cta-band', 'faq', 'stats', 'rich', 'columns'];
 /** Hint copy shown above the page list for editors building AiSensy-depth feature pages. */
-const FEATURE_PAGE_GUIDANCE = 'Feature pages should explain the problem, how the CRM workflow works, key capabilities, use cases, and a clear signup CTA. Keep claims aligned with implemented product behavior.';
+const FEATURE_PAGE_GUIDANCE = 'Cover the problem, workflow, capabilities, and a signup CTA—only claim what the product does today.';
 const backgrounds = ['default', 'muted', 'brand', 'dark', 'accent-soft'];
 const blockTypes = ['heading', 'paragraph', 'list', 'quote', 'button', 'link', 'image', 'card', 'feature-item', 'faq-item', 'stat', 'video', 'html'];
 const iconOptions = ['', 'message', 'phone', 'megaphone', 'bot', 'spark', 'workflow', 'form', 'grid', 'shield', 'integrations', 'products', 'automation'];

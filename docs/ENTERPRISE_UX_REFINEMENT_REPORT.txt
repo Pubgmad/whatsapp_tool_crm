@@ -5,20 +5,26 @@ Scope: UI/UX only (no API/backend/schema/permission changes)
 ================================================================================
 MODULE / PAGE | PROBLEMS | IMPROVEMENTS | RESPONSIVE | REGRESSION
 ================================================================================
-Shell (all /app/*) | Triple header copy (title+intro+journey) | Shorter titles/intros; compact journey strip; denser CSS | CSS breakpoints retained | Titles updated in e2e
-Dashboard | Long setup copy | Shorter hero/onboarding text | OK | e2e Dashboard heading
-Inbox / Audience / Broadcasts / Analytics | Inconsistent titles | Unified short pageTitles | Mobile nav e2e updated | e2e Broadcasts/Analytics
-WhatsApp Setup | Live-ops + webhook card clutter | Live-ops removed from Connection; webhook in Advanced details | OK | Handlers unchanged
-Analytics Results | Production hub dumped on page | Primary insights first; go-live tools collapsed | OK | API bundle unchanged
-Ads Manager | (prior pass) | Remains KPI-first dashboard | KPI responsive CSS | Prior commit
-Groups / Integrations | Honest-limits essays | Collapsed eligibility/integration notes | OK | Flags unchanged
-Automation | Live-ops still on Automation (correct) | Connection no longer duplicates it | OK | Keep on Automation
-Super Admin | Engineering panels on home | Quality/certification collapsed; shorter headings | OK | Panels still mount
-Auth / Marketing | Prior authShell + CMS | No backend change this pass | Prior CSS | —
-Design system | Panel vs wa-module inconsistency | Shared saas* / techDetails / compact journey / muted intros | 900/520 CSS | —
+Shell (all /app/*) | Triple header + dual banners | Hide intro when journey shown; one connect OR journey strip | CSS breakpoints retained | Titles in e2e
+Dashboard | Dense actions + usage duplicate | Primary actions trimmed; plan usage collapsed | OK | Handlers unchanged
+Inbox / Audience / Broadcasts / Analytics | Inconsistent titles | Unified short pageTitles/intros | Mobile nav e2e | e2e headings
+WhatsApp Setup | Webhook panel + broken details nesting | Connection health primary; IDs/webhooks in Advanced; JSX fixed | OK | Handlers unchanged
+Integrations | Marketplace + API keys + connectors stacked | Developer API keys/webhooks collapsed; connectors decluttered | OK | APIs unchanged
+Automation | Tutorial hero + simulate always open | Shorter hero; simulate in details; live-ops compact when ready | OK | Simulate API same
+Analytics Results | Webhook ops band | Queue action only; shorter copy | OK | processQueue unchanged
+Ads Manager | (prior pass) | KPI-first dashboard retained | KPI CSS | Prior commit
+Retargeting | Competitor-style essay | One-line segment CTA | OK | Presets unchanged
+Groups / Marketplace | Honest-limits essays | tenantSummary one-liners; operator notes Advanced | OK | Flags unchanged
+AI Support (Team) | Analytics/safety/env essays | Collapsed into techDetails; shorter toggles | OK | Settings APIs same
+Payments / Availability | Webhook essays & URLs | One-line intros; webhooks in details | OK | Forms submit same
+Provider connectors | Delivery URL / secrets in table | Webhook details per row; events collapsed | OK | Actions unchanged
+Super Admin | Engineering panels on home | Quality/cert collapsed (prior) | OK | Panels mount
+Auth / Account access | Verbose helpers | Shorter verification/reset copy | Prior authShell | —
+CMS editor | Long feature guidance | One-sentence guidance | OK | Editor behavior same
+Design system | Panel vs wa-module inconsistency | saasBanner/Empty/Toolbar/SectionTabs; denser intros | 900/520 CSS | —
 
 ================================================================================
-MODIFIED FRONTEND FILES
+MODIFIED FRONTEND FILES (this pass + prior enterprise commits)
 ================================================================================
 components/workspace/nav-config.js
 components/workspace-app.js
@@ -26,26 +32,42 @@ components/workspace-results-manager-shell.js
 components/super-admin-app.js
 components/whatsapp-groups.js
 components/integration-marketplace.js
+components/automation-live-ops-panel.js
+components/whatsapp-retargeting-panel.js
+components/honest-limits-callout.js
+components/ai-support-settings.js
+components/external-availability-settings.js
+components/merchant-payments.js
+components/account-access.js
+components/cms-site-editor.js
+components/provider-connectors.js
+components/whatsapp-ads.js (prior Ads declutter)
 app/globals.css
+lib/honest-product-limits.js (tenantSummary only; payload API preserved)
 e2e/auth-navigation.spec.js
 e2e/workspace-mobile.spec.js
 docs/ENTERPRISE_UX_REFINEMENT_REPORT.txt
-(+ prior Ads declutter already on main)
 
 ================================================================================
 TECHNICAL CONTENT RELOCATED
 ================================================================================
-- Connection webhook card → Advanced "Webhook details"
-- Automation live-ops removed from Setup Connection (kept on Automation)
-- Analytics production/parity/cert → "Go-live and production tools"
-- Super Admin parity/SLO/a11y/backlog → "Platform quality and certification"
-- Groups/Integrations honest-limits → collapsed notes
+- Connection webhook + technical IDs → Advanced panels/details
+- Developer API keys/webhooks → Integrations "Developer API" details
+- Automation simulate path → "Test this flow" details
+- Live-ops webhook URL + product notes → details; ready state = compact banner
+- Honest limits: tenantSummary for tenants; boundary/operatorActions secondary
+- AI analytics/safety/Dialogflow/autonomous notes → techDetails
+- Shopify/payment webhook URLs → techDetails
+- Provider delivery URL/secrets/events → Webhook details / Recent events
+- Dashboard plan usage → collapsed summary
+- Analytics Meta webhook band removed (queue action retained)
 
 ================================================================================
 VERIFICATION
 ================================================================================
-- Syntax/structure reviewed for JSX balance on edited files
-- e2e heading expectations updated for Dashboard / Broadcasts / Analytics
+- Unit tests: production-p2, production-hub, live-meta-readiness — PASS (9/9)
+- JSX structure reviewed on connection/integrations/automation edits
+- e2e heading expectations updated earlier for Dashboard / Broadcasts / Analytics
 - Full Playwright / production build: run on CI after push
 - Browser screenshot matrix: not captured in this session
 

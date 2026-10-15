@@ -12,9 +12,9 @@ function badgeKind(status) {
 }
 
 function summaryLabel(summary) {
-  if (summary === 'ready') return 'Live verified';
-  if (summary === 'blocked') return 'Blocked — fix ops first';
-  return 'Awaiting live verification';
+  if (summary === 'ready') return 'Ready';
+  if (summary === 'blocked') return 'Action needed';
+  return 'Awaiting verification';
 }
 
 export default function AutomationLiveOpsPanel({ api }) {
@@ -38,12 +38,23 @@ export default function AutomationLiveOpsPanel({ api }) {
     load();
   }, [api]);
 
+  if (data?.summary === 'ready' && !error) {
+    return (
+      <section className="saasBanner" role="status" aria-label="Connection readiness">
+        <div><strong>Connection ready</strong><span> WhatsApp and messaging checks passed.</span></div>
+        <button type="button" className="secondaryAction compactAction" disabled={busy} onClick={load}>
+          <RefreshCcw size={16} /> Refresh
+        </button>
+      </section>
+    );
+  }
+
   return (
     <section className="automationLiveOps" aria-label="Connection readiness">
       <header>
         <div>
           <strong>Connection readiness</strong>
-          <span>WhatsApp connection, Flows, and messaging status for this workspace.</span>
+          <span>Fix these items before relying on live automation.</span>
         </div>
         <button type="button" className="secondaryAction" disabled={busy} onClick={load}>
           <RefreshCcw size={16} /> Refresh
@@ -55,28 +66,28 @@ export default function AutomationLiveOpsPanel({ api }) {
           <p role="status">
             Status: <strong>{summaryLabel(data.summary)}</strong>
           </p>
+          <ul className="automationLiveOpsList">
+            {data.checks.map((check) => (
+              <li key={check.id}>
+                <strong>{check.label}</strong>
+                <span className={`badge ${badgeKind(check.status)}`}>{String(check.status).replace(/_/g, ' ')}</span>
+                <small>{check.detail}</small>
+              </li>
+            ))}
+          </ul>
           {data.webhookUrl ? (
             <details className="techDetails">
               <summary>Webhook endpoint</summary>
               <code>{data.webhookUrl}</code>
             </details>
           ) : null}
-          <ul className="automationLiveOpsList">
-            {data.checks.map((check) => (
-              <li key={check.id}>
-                <strong>{check.label}</strong>
-                <span className={`badge ${badgeKind(check.status)}`}>{String(check.status).replace(/_/g, ' ')}</span>
-                <small>
-                  {check.detail}
-                  {check.operatorHint ? ` — ${check.operatorHint}` : ''}
-                </small>
-              </li>
-            ))}
-          </ul>
         </>
       )}
-      <HonestLimitsCallout limitId="in_chat_webview_chrome" compact />
-      <HonestLimitsCallout limitId="automation_visual_canvas" compact />
+      <details className="techDetails">
+        <summary>Product notes</summary>
+        <HonestLimitsCallout limitId="automation_visual_canvas" compact />
+        <HonestLimitsCallout limitId="in_chat_webview_chrome" compact />
+      </details>
     </section>
   );
 }

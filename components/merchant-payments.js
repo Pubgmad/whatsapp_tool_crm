@@ -29,17 +29,17 @@ export default function MerchantPayments({api,postJson,role,orders}) {
     if(saved)setSendId('');
   };
   return <section>
-    <p className='wa-module-note'>Hosted Razorpay checkout opens outside WhatsApp. Native in-chat payments require Meta eligibility and a separate configuration path.</p>
+    <p className='wa-module-note'>Customers pay via hosted Razorpay checkout linked from WhatsApp.</p>
     <header className='commerceToolbar'><h3>Razorpay customer payments</h3><button type='button' className='iconButton' title='Refresh payments' aria-label='Refresh payments' disabled={pending} onClick={()=>load().catch(cause=>setError(cause.message))}><RefreshCcw size={18}/></button></header>
     {error&&<p className='formError' role='alert'>{error}</p>}{result&&<p role='status'>{result}</p>}
     {role==='Owner'&&<form className='formGrid' onSubmit={configure} key={String(data.settings?.updated_at||'new')}>
       <label>Company Razorpay key ID<input name='keyId' autoComplete='off' required={!data.settings}/></label>
       <label>Company Razorpay key secret<input name='keySecret' type='password' autoComplete='new-password' required={!data.settings}/></label>
-      <label>Merchant webhook secret<input name='webhookSecret' type='password' minLength={32} autoComplete='new-password' required={!data.settings}/></label>
       <label className='checkRow'><input name='enabled' type='checkbox' defaultChecked={data.settings?.enabled}/> Enable customer payments</label>
+      <details className='techDetails'><summary>Payment webhooks</summary><label>Merchant webhook secret<input name='webhookSecret' type='password' minLength={32} autoComplete='new-password' required={!data.settings}/></label>{data.webhookUrl&&<label className='fieldGroup'>Merchant webhook URL<input readOnly value={data.webhookUrl}/></label>}</details>
       <div className='formActions'><button type='submit' className='primaryAction' disabled={pending}><Save size={18}/> Save credentials</button>{data.settings?.enabled&&<button type='button' className='secondaryAction' disabled={pending} onClick={()=>act({action:'disable'})}><PowerOff size={18}/> Disable</button>}</div>
     </form>}
-    {data.webhookUrl&&<label className='fieldGroup'>Merchant webhook URL<input readOnly value={data.webhookUrl}/></label>}
+    {role!=='Owner'&&data.webhookUrl&&<details className='techDetails'><summary>Payment webhooks</summary><label className='fieldGroup'>Merchant webhook URL<input readOnly value={data.webhookUrl}/></label></details>}
     <form className='formGrid' onSubmit={event=>{event.preventDefault();act({action:'create',orderId:new FormData(event.currentTarget).get('orderId')});}}>
       <label>Unpaid order<select name='orderId' required><option value=''>Select order</option>{orders.filter(order=>!['captured','partially_refunded','refunded'].includes(order.payment_status)&&order.fulfillment_status!=='cancelled').map(order=><option key={order.id} value={order.id}>{order.id} ({order.total_amount} {order.currency})</option>)}</select></label>
       <button type='submit' className='primaryAction' disabled={pending||!data.settings?.enabled}><Plus size={18}/> Create checkout</button>
