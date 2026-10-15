@@ -34,19 +34,18 @@ export default function WorkspaceResultsManagerShell({ api, postJson }) {
   }, [load]);
 
   if (!bundle && !error) {
-    return <section className="parityPanel"><p>Loading production results…</p></section>;
+    return <section className="parityPanel"><p>Loading analytics tools…</p></section>;
   }
 
   return (
     <div className="workspaceQualityStack">
-      <header className="wa-module-heading">
-        <h2>Production results</h2>
+      <header className="wa-module-heading saasPageHead">
+        <div>
+          <h2>Campaign insights</h2>
+          <p className="wa-module-note">Source performance and journey outcomes for this workspace.</p>
+        </div>
         <div className="wa-module-controls">
-          <label className="checkboxLabel">
-            <input type="checkbox" checked={deepProbe} disabled={busy} onChange={(event) => setDeepProbe(event.target.checked)} />
-            Live Meta probe on refresh
-          </label>
-          <button type="button" title="Refresh" aria-label="Refresh production results" disabled={busy} onClick={load}>
+          <button type="button" title="Refresh" aria-label="Refresh analytics tools" disabled={busy} onClick={load}>
             <RefreshCcw size={18} />
           </button>
         </div>
@@ -56,16 +55,25 @@ export default function WorkspaceResultsManagerShell({ api, postJson }) {
         <>
           <CampaignSourceAnalyticsPanel rows={bundle.campaignSources || []} />
           <JourneyReportPanel api={api} />
-          <WorkspaceProductionHub api={api} hub={bundle.hub} />
-          <WorkspaceOperationsPanel api={api} report={bundle.operations} />
-          <CampaignFailedWorkbench api={api} data={bundle.failures} postJson={postJson} onReload={load} />
-          <WorkspaceProductionCertPanel api={api} certification={bundle.certification} />
-          <ParityReportPanel
-            api={api}
-            report={bundle.parity}
-            title="Workspace capability parity"
-            subtitle="Filtered registry for go-live review."
-          />
+          <details className="techDetails saasAdvancedBlock">
+            <summary>Go-live and production tools</summary>
+            <div className="wa-module-controls">
+              <label className="checkboxLabel">
+                <input type="checkbox" checked={deepProbe} disabled={busy} onChange={(event) => setDeepProbe(event.target.checked)} />
+                Live Meta probe on refresh
+              </label>
+            </div>
+            <WorkspaceProductionHub api={api} hub={bundle.hub} />
+            <WorkspaceOperationsPanel api={api} report={bundle.operations} />
+            <CampaignFailedWorkbench api={api} data={bundle.failures} postJson={postJson} onReload={load} />
+            <WorkspaceProductionCertPanel api={api} certification={bundle.certification} />
+            <ParityReportPanel
+              api={api}
+              report={bundle.parity}
+              title="Capability parity"
+              subtitle="Go-live readiness checklist."
+            />
+          </details>
         </>
       )}
     </div>

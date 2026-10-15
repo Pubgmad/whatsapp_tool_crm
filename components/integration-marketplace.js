@@ -41,7 +41,7 @@ export default function IntegrationMarketplace({ api }) {
         <h2><Plug size={19} /> Integration marketplace</h2>
       </header>
       {error && <p className="wa-module-error" role="alert">{error}</p>}
-      <HonestLimitsCallout limitId="integration_marketplace" />
+      <details className="techDetails"><summary>Integration notes</summary><HonestLimitsCallout limitId="integration_marketplace" compact /></details>
       {filtered?.operatorNote && <p className="wa-module-note">{filtered.operatorNote}</p>}
       <label className="searchBox">
         <Search size={16} />

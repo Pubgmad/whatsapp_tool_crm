@@ -86,15 +86,15 @@ const adminSections = [
 ];
 
 const adminHeadings = {
-  overview: ["Platform command center", "Monitor companies, subscriptions, WhatsApp readiness, and platform status."],
-  plans: ["Subscription plans", "Control pricing, billing periods, features, limits, visibility, and availability."],
-  features: ['Feature controls', 'Enable or disable WhatsApp modules across workspaces.'],
-  'meta-webhooks': ['Meta webhook operations', 'Review delivery failures and replay individual events.'],
-  content: ["Website & product CMS", "Manage pages, feature routes, navigation, branding, and publishable product storytelling."],
-  "privacy-policy": ["Privacy policy", "Draft, preview, publish, and review the public privacy policy."],
-  companies: ["Company management", "Inspect and control tenant status, subscriptions, usage, and WhatsApp readiness."],
-  "data-requests": ["Data requests", "Review workspace and Meta data deletion requests."],
-  security: ['Owner security', 'Protect platform-level access with an authenticator and single-use recovery codes.']
+  overview: ["Platform overview", "Companies, subscriptions, and system health."],
+  plans: ["Subscription plans", "Pricing, limits, and plan availability."],
+  features: ['Feature controls', 'Enable or disable modules for workspaces.'],
+  'meta-webhooks': ['Meta webhooks', 'Delivery failures and event replay.'],
+  content: ["Website CMS", "Pages, navigation, branding, and feature content."],
+  "privacy-policy": ["Privacy policy", "Draft, preview, and publish."],
+  companies: ["Companies", "Tenant status, usage, and WhatsApp readiness."],
+  "data-requests": ["Data requests", "Deletion and Meta data requests."],
+  security: ['Owner security', 'Authenticator and recovery codes.']
 };
 
 export default function SuperAdminApp({ initialSection = "overview", initialCompanyId = "", authOnly = false }) {
@@ -305,7 +305,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
         <Panel title="Subscription mix" subtitle="Live counts by billing state">
           <div className="statusStack">{dashboard.subscriptionStats.map((item) => <div key={item.status}><span>{item.status}</span><strong>{item.count}</strong></div>)}{!dashboard.subscriptionStats.length && <Empty text="No subscription records yet" />}</div>
         </Panel>
-        <Panel title="Platform operations" subtitle="Worker, billing, webhooks, and database posture">
+        <Panel title="Platform operations" subtitle="Worker, billing, and webhook health">
           {dashboard.operations ? <div className="statusStack">
             <div><span>Queue worker</span><strong>{dashboard.operations.worker?.status || 'unknown'}</strong></div>
             <div><span>Razorpay SaaS billing</span><strong>{dashboard.operations.razorpayConfigured ? 'configured' : 'incomplete'}</strong></div>
@@ -314,10 +314,19 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
             <div><span>Calendar fulfillments</span><strong>{dashboard.operations.calendarFulfillment?.needsAttention || 0} need attention</strong></div>
           </div> : <Empty text="Operations snapshot unavailable" />}
         </Panel>
-      </section><ParityReportPanel api={api} /><ImprovementBacklogPanel api={api} /><SloCertificationPanel api={api} postJson={postJson} /><A11yCertificationPanel api={api} /><MetaCreditLines /></>}
+      </section>
+      <details className="techDetails saasAdvancedBlock">
+        <summary>Platform quality and certification</summary>
+        <ParityReportPanel api={api} />
+        <ImprovementBacklogPanel api={api} />
+        <SloCertificationPanel api={api} postJson={postJson} />
+        <A11yCertificationPanel api={api} />
+        <MetaCreditLines />
+      </details>
+      </>}
 
       {initialSection === "plans" && <><section className="superGrid">
-        <Panel title="Plan catalogue" subtitle="Super Admin controlled pricing, features, limits, visibility, and activation">
+        <Panel title="Plan catalogue" subtitle="Pricing, features, and limits">
           <div className="planGrid">{plans.map((plan) => <PlanCard key={plan.id} plan={plan} onDelete={deletePlan} />)}{!plans.length && <Empty text="No plans configured yet" />}</div>
         </Panel>
       </section>

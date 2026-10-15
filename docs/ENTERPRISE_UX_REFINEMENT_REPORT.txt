@@ -1,0 +1,55 @@
+WhatsApp CRM — Enterprise UI/UX Refinement (application-wide)
+Branch workflow: production_saas → main
+Scope: UI/UX only (no API/backend/schema/permission changes)
+
+================================================================================
+MODULE / PAGE | PROBLEMS | IMPROVEMENTS | RESPONSIVE | REGRESSION
+================================================================================
+Shell (all /app/*) | Triple header copy (title+intro+journey) | Shorter titles/intros; compact journey strip; denser CSS | CSS breakpoints retained | Titles updated in e2e
+Dashboard | Long setup copy | Shorter hero/onboarding text | OK | e2e Dashboard heading
+Inbox / Audience / Broadcasts / Analytics | Inconsistent titles | Unified short pageTitles | Mobile nav e2e updated | e2e Broadcasts/Analytics
+WhatsApp Setup | Live-ops + webhook card clutter | Live-ops removed from Connection; webhook in Advanced details | OK | Handlers unchanged
+Analytics Results | Production hub dumped on page | Primary insights first; go-live tools collapsed | OK | API bundle unchanged
+Ads Manager | (prior pass) | Remains KPI-first dashboard | KPI responsive CSS | Prior commit
+Groups / Integrations | Honest-limits essays | Collapsed eligibility/integration notes | OK | Flags unchanged
+Automation | Live-ops still on Automation (correct) | Connection no longer duplicates it | OK | Keep on Automation
+Super Admin | Engineering panels on home | Quality/certification collapsed; shorter headings | OK | Panels still mount
+Auth / Marketing | Prior authShell + CMS | No backend change this pass | Prior CSS | —
+Design system | Panel vs wa-module inconsistency | Shared saas* / techDetails / compact journey / muted intros | 900/520 CSS | —
+
+================================================================================
+MODIFIED FRONTEND FILES
+================================================================================
+components/workspace/nav-config.js
+components/workspace-app.js
+components/workspace-results-manager-shell.js
+components/super-admin-app.js
+components/whatsapp-groups.js
+components/integration-marketplace.js
+app/globals.css
+e2e/auth-navigation.spec.js
+e2e/workspace-mobile.spec.js
+docs/ENTERPRISE_UX_REFINEMENT_REPORT.txt
+(+ prior Ads declutter already on main)
+
+================================================================================
+TECHNICAL CONTENT RELOCATED
+================================================================================
+- Connection webhook card → Advanced "Webhook details"
+- Automation live-ops removed from Setup Connection (kept on Automation)
+- Analytics production/parity/cert → "Go-live and production tools"
+- Super Admin parity/SLO/a11y/backlog → "Platform quality and certification"
+- Groups/Integrations honest-limits → collapsed notes
+
+================================================================================
+VERIFICATION
+================================================================================
+- Syntax/structure reviewed for JSX balance on edited files
+- e2e heading expectations updated for Dashboard / Broadcasts / Analytics
+- Full Playwright / production build: run on CI after push
+- Browser screenshot matrix: not captured in this session
+
+================================================================================
+GIT
+================================================================================
+(filled after commit/push)

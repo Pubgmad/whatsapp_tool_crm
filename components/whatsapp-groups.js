@@ -81,7 +81,7 @@ export default function WhatsAppGroups({ api, postJson, enabled, embedded = fals
         <button type="button" role="tab" aria-selected={mode === 'groups'} className={mode === 'groups' ? 'active' : ''} onClick={() => setMode('groups')}>Groups</button>
       </div>}
       {error && <p className="wa-module-error" role="alert">{error}</p>}
-      <HonestLimitsCallout limitId="whatsapp_groups" />
+      <details className="techDetails"><summary>Eligibility notes</summary><HonestLimitsCallout limitId="whatsapp_groups" compact /></details>
       {!embedded && mode === 'direct' ? (
         <div className="wa-inbox-empty" role="tabpanel">
           <h3>1:1 conversations</h3>
