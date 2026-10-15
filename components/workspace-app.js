@@ -475,7 +475,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
               ) : null}
               <span>{workspacePageTitle(activeView)}</span>
             </p>
-            {workspacePageIntro(activeView) ? <p className="pageIntro">{workspacePageIntro(activeView)}</p> : null}
+            {!workspacePageJourney(activeView) && workspacePageIntro(activeView) ? <p className="pageIntro">{workspacePageIntro(activeView)}</p> : null}
           </div>
           <div className="topActions"><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><button className="iconButton" title="Sign out" onClick={logout}><LogOut size={18} /></button><span className={`statusPill ${(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}`}>{state.setup?.status || "Not connected"}</span></div>
         </header>
@@ -485,8 +485,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
             <div><strong>Connect WhatsApp</strong><span>Finish setup to unlock messaging.</span></div>
             <button className="primaryAction" type="button" onClick={() => navigate('setup')}>Connect WhatsApp</button>
           </div>
-        ) : null}
-        {(() => {
+        ) : (() => {
           const journey = workspacePageJourney(activeView);
           if (!journey || !canOpenWorkspaceView(account.role, journey.target)) return null;
           return (
@@ -701,10 +700,10 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   ];
   return <div className="screenGrid">
     <section className="heroPanel"><div><span className="softLabel">{(state.setup?.status || 'Not connected') === 'Connected' ? 'Connected' : 'Setup required'}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>{(state.setup?.status || 'Not connected') === 'Connected' ? (platform.workspace_intro || 'Ready for inbox, broadcasts, and automation.') : 'Connect WhatsApp to start messaging.'}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
-    <section className="actionBand">{(state.setup?.status || 'Not connected') !== 'Connected' && canManage && <button className="primaryAction" type="button" onClick={() => setActiveView('setup')}><Link2 size={18} /> Connect WhatsApp <ChevronRight size={18} /></button>}{canManage && <button className={state.setup.status === 'Connected' ? 'primaryAction' : 'secondaryAction'} onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform.primary_cta_label} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button>{canManage && <button className="secondaryAction" onClick={() => setActiveView("ads")}><RadioTower size={18} /> CTWA Ads</button>}{canManage && <button className="secondaryAction" onClick={() => setActiveView("results")}><BarChart3 size={18} /> Analytics</button>}</section>
-    <Panel title="Support queue" subtitle="Live SLA and waiting conversations for every role"><InboxSlaWidget api={api} role={role} onOpenInbox={() => setActiveView("inbox")} onOpenConversation={(conversationId) => { openConversation?.(conversationId); setActiveView("inbox"); }} /></Panel>
-    <div className="overviewGrid"><Panel title="Delivery pulse" subtitle="All WhatsApp campaign recipients"><div className="statusGrid"><Metric label="Delivered" value={delivered} /><Metric label="Read" value={read} /><Metric label="Failed" value={failed} /><Metric label="Open chats" value={openConversations} /></div></Panel><Panel title="Workspace readiness" subtitle="Complete these before scaling sends"><div className="readinessList">{setupItems.map((item) => <div key={item.label} className={item.ready ? "ready" : ""}><span>{item.label}</span><Badge kind={item.ready ? "good" : "warn"}>{item.ready ? "Ready" : "Action needed"}</Badge></div>)}</div></Panel></div>
-    <Panel title="Subscription usage" subtitle={state.subscription?.plan?.name || "No plan assigned"}><div className="meterGrid usageGrid"><Metric label="Contacts" value={limits.contacts == null ? usage.contacts || 0 : (usage.contacts || 0) + " / " + limits.contacts} /><Metric label="Campaigns" value={limits.campaigns == null ? usage.campaigns || 0 : (usage.campaigns || 0) + " / " + limits.campaigns} /><Metric label="Messages" value={limits.messages == null ? usage.messages || 0 : (usage.messages || 0) + " / " + limits.messages} /><Metric label="Flows" value={limits.automationFlows == null ? usage.automationFlows || 0 : (usage.automationFlows || 0) + " / " + limits.automationFlows} /></div></Panel>
+    <section className="actionBand">{(state.setup?.status || 'Not connected') !== 'Connected' && canManage && <button className="primaryAction" type="button" onClick={() => setActiveView('setup')}><Link2 size={18} /> Connect WhatsApp <ChevronRight size={18} /></button>}{canManage && <button className={state.setup.status === 'Connected' ? 'primaryAction' : 'secondaryAction'} onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform.primary_cta_label} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button></section>
+    <Panel title="Support queue" subtitle="Waiting conversations and SLA"><InboxSlaWidget api={api} role={role} onOpenInbox={() => setActiveView("inbox")} onOpenConversation={(conversationId) => { openConversation?.(conversationId); setActiveView("inbox"); }} /></Panel>
+    <div className="overviewGrid"><Panel title="Delivery pulse" subtitle="Campaign recipients"><div className="statusGrid"><Metric label="Delivered" value={delivered} /><Metric label="Read" value={read} /><Metric label="Failed" value={failed} /><Metric label="Open chats" value={openConversations} /></div></Panel><Panel title="Workspace readiness" subtitle="Before scaling sends"><div className="readinessList">{setupItems.map((item) => <div key={item.label} className={item.ready ? "ready" : ""}><span>{item.label}</span><Badge kind={item.ready ? "good" : "warn"}>{item.ready ? "Ready" : "Action needed"}</Badge></div>)}</div></Panel></div>
+    <details className="techDetails saasAdvancedBlock"><summary>Plan usage · {state.subscription?.plan?.name || "No plan"}</summary><div className="meterGrid usageGrid"><Metric label="Contacts" value={limits.contacts == null ? usage.contacts || 0 : (usage.contacts || 0) + " / " + limits.contacts} /><Metric label="Campaigns" value={limits.campaigns == null ? usage.campaigns || 0 : (usage.campaigns || 0) + " / " + limits.campaigns} /><Metric label="Messages" value={limits.messages == null ? usage.messages || 0 : (usage.messages || 0) + " / " + limits.messages} /><Metric label="Flows" value={limits.automationFlows == null ? usage.automationFlows || 0 : (usage.automationFlows || 0) + " / " + limits.automationFlows} /></div></details>
     <Panel title="Latest campaign" subtitle={currentCampaign ? formatTime(currentCampaign.createdAt) : "No campaigns"}>{currentCampaign ? <ResultMeters stats={currentCampaign.stats} /> : <EmptyState text="No campaign results yet" />}</Panel>
   </div>;
 }
@@ -792,7 +791,7 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
   const metadata = state.setup.connectionMetadata || {};
   return <div className="screenGrid metaSetupScreen">
     <section className="metaConnectHero">
-      <div><p className="kicker">Official Meta onboarding</p><h2>{state.setup.status === 'Connected' ? 'WhatsApp Business is connected' : 'Connect your WhatsApp Business account'}</h2><span>Choose the connection that matches where your business number is used today.</span></div>
+      <div><p className="kicker">WhatsApp setup</p><h2>{state.setup.status === 'Connected' ? 'WhatsApp Business is connected' : 'Connect WhatsApp Business'}</h2><span>{state.setup.status === 'Connected' ? 'Manage numbers, profile, and messaging tools.' : 'Use Cloud API for a new number, or coexistence for an existing Business App number.'}</span></div>
       <div className="metaConnectActions">
         <button className="primaryAction metaConnectButton" type="button" onClick={() => connectMeta('standard')} disabled={connecting || !state.meta.embeddedSignupAvailable}><Link2 size={18} /> Cloud API number</button>
         <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !state.meta.embeddedSignupAvailable}><Smartphone size={18} /> Existing Business App number</button>
@@ -813,10 +812,35 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
     {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={state.account.role}/>}
     {section === 'journeys' && <WhatsAppJourneyAnalytics api={api}/>}
     {section === 'groups' && <WhatsAppGroups api={api} postJson={postJson} enabled={state.featureFlags?.whatsapp_groups} />}
-    {section === 'integrations' && isWorkspaceManager(state.account.role) && <><IntegrationMarketplace api={api} /><WorkspaceIntegrations api={api} postJson={postJson}/><ProviderConnectors api={api} postJson={postJson} canEdit={state.account.role === 'Owner'} /><TrackedLinks api={api} postJson={postJson} role={state.account.role}/>{state.featureFlags?.webviews&&<WhatsAppWebviews api={api} postJson={postJson}/>} {state.featureFlags?.crm_sync&&state.account.role==='Owner'&&<><HubSpotConnection api={api} postJson={postJson} role={state.account.role}/><HubSpotConnection provider="salesforce" api={api} postJson={postJson} role={state.account.role}/></>}</>}
+    {section === 'integrations' && isWorkspaceManager(state.account.role) && <>
+      <IntegrationMarketplace api={api} />
+      <ProviderConnectors api={api} postJson={postJson} canEdit={state.account.role === 'Owner'} />
+      <TrackedLinks api={api} postJson={postJson} role={state.account.role}/>
+      {state.featureFlags?.webviews&&<WhatsAppWebviews api={api} postJson={postJson}/>}
+      {state.featureFlags?.crm_sync&&state.account.role==='Owner'&&<><HubSpotConnection api={api} postJson={postJson} role={state.account.role}/><HubSpotConnection provider="salesforce" api={api} postJson={postJson} role={state.account.role}/></>}
+      <details className="techDetails saasAdvancedBlock"><summary>Developer API · keys and signed webhooks</summary><WorkspaceIntegrations api={api} postJson={postJson}/></details>
+    </>}
     {section === "connection" && <>
-<div className="contentGrid twoColumns"><Panel title="Connection health" subtitle="WhatsApp connection status for this workspace"><div className="connectionSummary"><div><span>Connection</span><Badge kind={(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}>{state.setup?.status || "Not connected"}</Badge></div><div><span>Onboarding</span><strong>{state.setup.onboardingMethod === 'coexistence' ? 'Business App coexistence' : state.setup.onboardingMethod === 'embedded_signup' ? 'Embedded Signup' : 'Manual'}</strong></div><div><span>Webhook subscription</span><Badge kind={state.setup.webhookSubscribed ? "good" : "warn"}>{state.setup.webhookSubscribed ? "Subscribed" : "Not verified"}</Badge></div><div><span>Business number</span><strong>{state.setup.whatsappNumber || "Not connected"}</strong></div><details className="techDetails"><summary>Technical IDs</summary><div><span>WABA ID</span><strong>{state.setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{state.setup.phoneNumberId || "Not connected"}</strong></div></details><div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div><div><span>Quality rating</span><strong>{metadata.qualityRating || activePhone?.qualityRating || "Unavailable"}</strong></div><div><span>Token health</span><Badge kind={activeAccount?.token.status === "healthy" ? "good" : "warn"}>{activeAccount?.token.status || "Unknown"}</Badge></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Meta health</span><Badge kind={activeAccount?.health?.status === "healthy" ? "good" : "warn"}>{activeAccount?.health?.status === "healthy" ? "Healthy" : activeAccount?.health?.status === "reconnect_required" ? "Reconnect needed" : activeAccount?.health?.status === "degraded" ? "Needs attention" : "Awaiting check"}</Badge></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div><div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={state.setup.status !== "Connected"}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "WhatsApp assets synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={state.setup.status !== "Connected"}><Unplug size={17} /> Disconnect</button></div></Panel><Panel title="Webhook endpoint" subtitle="Subscribe this HTTPS callback to WhatsApp webhook fields"><details className="techDetails saasAdvancedBlock"><summary>Webhook details</summary><div className="webhookCard"><code>{state.setup.webhookUrl || state.meta.webhookUrl || "Configure APP_URL on the server"}</code><div><span>Signature verification</span><Badge kind="good">Server-side</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></Panel></div>
-      </details><details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Embedded Signup is recommended for customer workspaces"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>
+      <div className="contentGrid twoColumns">
+        <Panel title="Connection health" subtitle="Status for this workspace">
+          <div className="connectionSummary">
+            <div><span>Connection</span><Badge kind={(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}>{state.setup?.status || "Not connected"}</Badge></div>
+            <div><span>Onboarding</span><strong>{state.setup.onboardingMethod === 'coexistence' ? 'Business App coexistence' : state.setup.onboardingMethod === 'embedded_signup' ? 'Embedded Signup' : 'Manual'}</strong></div>
+            <div><span>Events</span><Badge kind={state.setup.webhookSubscribed ? "good" : "warn"}>{state.setup.webhookSubscribed ? "Receiving" : "Not verified"}</Badge></div>
+            <div><span>Business number</span><strong>{state.setup.whatsappNumber || "Not connected"}</strong></div>
+            <div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div>
+            <div><span>Quality rating</span><strong>{metadata.qualityRating || activePhone?.qualityRating || "Unavailable"}</strong></div>
+            <div><span>Token health</span><Badge kind={activeAccount?.token.status === "healthy" ? "good" : "warn"}>{activeAccount?.token.status || "Unknown"}</Badge></div>
+            <div><span>Meta health</span><Badge kind={activeAccount?.health?.status === "healthy" ? "good" : "warn"}>{activeAccount?.health?.status === "healthy" ? "Healthy" : activeAccount?.health?.status === "reconnect_required" ? "Reconnect needed" : activeAccount?.health?.status === "degraded" ? "Needs attention" : "Awaiting check"}</Badge></div>
+          </div>
+          <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={state.setup.status !== "Connected"}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "WhatsApp assets synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={state.setup.status !== "Connected"}><Unplug size={17} /> Disconnect</button></div>
+        </Panel>
+        <Panel title="Advanced" subtitle="IDs and webhook diagnostics">
+          <details className="techDetails"><summary>Technical IDs</summary><div className="connectionSummary"><div><span>WABA ID</span><strong>{state.setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{state.setup.phoneNumberId || "Not connected"}</strong></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div></details>
+          <details className="techDetails saasAdvancedBlock"><summary>Webhook details</summary><div className="webhookCard"><code>{state.setup.webhookUrl || state.meta.webhookUrl || "Configure APP_URL on the server"}</code><div><span>Signature verification</span><Badge kind="good">Server-side</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></details>
+        </Panel>
+      </div>
+      <details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Use only if Embedded Signup is unavailable"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>
     </>}
     {section === "numbers" && <Panel title="WhatsApp phone numbers" subtitle="Every number remains isolated to this company; the default number is used by campaigns and inbox replies">
       <div className="assetToolbar"><span>{operations.phoneNumbers.length} connected number{operations.phoneNumbers.length === 1 ? "" : "s"}</span><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "Phone numbers synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync from Meta</button></div>
@@ -1130,30 +1154,32 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
 
   return <div className="screenGrid automationScreen">
     <section className="automationHero">
-      <div><p className="kicker">Automation studio</p><h2>Visual drag-and-drop reply flows</h2><span>Palette → canvas → wire branches. First node is start; inspector edits the selected step. Worker must run for delayed jobs.</span></div>
-      <div className="automationKpis"><Metric label="Flows" value={state.pagination?.automation?.total ?? flows.length} /><Metric label="Active sessions on page" value={analytics.active} /><Metric label="Completed on page" value={analytics.completed} /><Metric label="Pending jobs on page" value={analytics.pending} /></div>
+      <div><p className="kicker">Automation</p><h2>Reply workflows</h2><span>Design triggers and actions on the canvas. Select a node to edit it.</span></div>
+      <div className="automationKpis"><Metric label="Flows" value={state.pagination?.automation?.total ?? flows.length} /><Metric label="Active" value={analytics.active} /><Metric label="Completed" value={analytics.completed} /><Metric label="Pending" value={analytics.pending} /></div>
     </section>
 
     <AutomationLiveOpsPanel api={api} />
 
     <section className="actionBand automationTopbar">
-      <div><strong>{editingId ? "Editing flow" : "New flow"}</strong><span>Drag nodes from the palette, wire next paths, configure the selected node in the inspector.</span></div>
+      <div><strong>{editingId ? "Editing flow" : "New flow"}</strong><span>Add nodes, connect paths, then save.</span></div>
       <div className="actionCluster"><button className="secondaryAction" type="button" onClick={() => addNode("question")}><Plus size={18} /> Add node</button><button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>{editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}</div>
     </section>
 
     <form className="visualFlowShell visualFlowShellCanvas" onSubmit={submit}>
       <div className="automationInspector">
-      <Panel title="Flow settings" subtitle="Stored per company and checked on the server.">
+      <Panel title="Flow settings" subtitle="Name, trigger, and status">
         <div className="formGrid automationForm">
           <Input label="Flow name" value={flowMeta.name} onChange={(event) => updateMeta("name", event.target.value)} placeholder="Flow name" required />
-          <label>Description<textarea rows="3" value={flowMeta.description} onChange={(event) => updateMeta("description", event.target.value)} placeholder="Internal purpose for this flow"></textarea></label>
+          <label>Description<textarea rows="2" value={flowMeta.description} onChange={(event) => updateMeta("description", event.target.value)} placeholder="Optional internal note"></textarea></label>
           <div className="formSplit"><label>Status<select value={flowMeta.status} onChange={(event) => updateMeta("status", event.target.value)}><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select></label><label>Trigger mode<select value={flowMeta.triggerMode} onChange={(event) => updateMeta("triggerMode", event.target.value)}><option value="keywords">Keywords</option><option value="regex">Safe regex</option><option value="any_inbound">Any inbound message</option><option value="manual">Manual only</option></select></label></div>
           <label>{flowMeta.triggerMode === 'regex' ? 'Regex triggers' : 'Trigger keywords'}<textarea rows="3" maxLength="4000" value={flowMeta.triggerKeywords} onChange={(event) => updateMeta("triggerKeywords", event.target.value)} placeholder="Comma or line separated triggers"></textarea></label>
           {formError && <div className="formError" role="alert">{formError}</div>}
-          <div className="formSplit"><label>Dry-run sample reply<input value={simulateText} onChange={(event) => setSimulateText(event.target.value)} placeholder="Text a customer might send" /></label><label>API outcome<select value={simulateApiOutcome} onChange={(event) => setSimulateApiOutcome(event.target.value)}><option value="success">Success</option><option value="timeout">Timeout</option><option value="error">Error</option></select></label></div>
-          <div className="formSplit"><label>API status<input value={simulateApiStatus} onChange={(event) => setSimulateApiStatus(event.target.value)} placeholder="200 or 4xx" /><small>Used when API outcome is success</small></label><label>Advanced node outcome<select value={simulateAdvancedOutcome} onChange={(event) => setSimulateAdvancedOutcome(event.target.value)}><option value="success">Success</option><option value="error">Error</option></select></label></div>
-          <button className="secondaryAction" type="button" onClick={async () => { setFormError(""); try { setSimulateResult(await postJson("/api/automation/simulate", { definition: buildDefinition(), text: simulateText, apiOutcome: simulateApiOutcome, apiStatus: simulateApiStatus, advancedOutcome: simulateAdvancedOutcome })); } catch (error) { setFormError(error.message); setSimulateResult(null); } }}>Simulate path</button>
-          {simulateResult && <ol className="simulateTrail">{simulateResult.steps.map((step) => <li key={step.nodeId}><strong>{step.type}</strong> {step.body || step.detail || ""}</li>)}</ol>}
+          <details className="techDetails"><summary>Test this flow</summary>
+            <div className="formSplit"><label>Sample reply<input value={simulateText} onChange={(event) => setSimulateText(event.target.value)} placeholder="Text a customer might send" /></label><label>API outcome<select value={simulateApiOutcome} onChange={(event) => setSimulateApiOutcome(event.target.value)}><option value="success">Success</option><option value="timeout">Timeout</option><option value="error">Error</option></select></label></div>
+            <div className="formSplit"><label>API status<input value={simulateApiStatus} onChange={(event) => setSimulateApiStatus(event.target.value)} placeholder="200 or 4xx" /></label><label>Advanced node outcome<select value={simulateAdvancedOutcome} onChange={(event) => setSimulateAdvancedOutcome(event.target.value)}><option value="success">Success</option><option value="error">Error</option></select></label></div>
+            <button className="secondaryAction" type="button" onClick={async () => { setFormError(""); try { setSimulateResult(await postJson("/api/automation/simulate", { definition: buildDefinition(), text: simulateText, apiOutcome: simulateApiOutcome, apiStatus: simulateApiStatus, advancedOutcome: simulateAdvancedOutcome })); } catch (error) { setFormError(error.message); setSimulateResult(null); } }}>Simulate path</button>
+            {simulateResult && <ol className="simulateTrail">{simulateResult.steps.map((step) => <li key={step.nodeId}><strong>{step.type}</strong> {step.body || step.detail || ""}</li>)}</ol>}
+          </details>
           <button className="primaryAction" type="submit"><Bot size={18} /> <span>{editingId ? "Update flow" : "Save flow"}</span></button>
         </div>
       </Panel>
@@ -1300,17 +1326,19 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
       {!canManage && (
         <section className="actionBand">
           <div>
-            <strong>Campaign delivery results</strong>
-            <span>Read-only delivery stats. Owners and managers configure campaigns and production operations.</span>
+            <strong>Campaign results</strong>
+            <span>Read-only delivery stats for your role.</span>
           </div>
         </section>
       )}
       {canManage && <WorkspaceResultsManagerShell api={api} postJson={postJson} />}
       {canManage && <WhatsAppReferralReport />}
-      <section className="actionBand">
-        <div><strong>Campaign operations</strong><span>Delivery status updates arrive from Meta webhooks.</span></div>
-        {canManage && <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button>}
-      </section>
+      {canManage && (
+        <section className="actionBand">
+          <div><strong>Campaign queue</strong><span>Process scheduled and retry jobs.</span></div>
+          <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button>
+        </section>
+      )}
       {state.campaigns.map((campaign) => (
         <Panel key={campaign.id} title={campaign.name} subtitle={campaign.scheduledAt ? `Scheduled ${formatTime(campaign.scheduledAt)} | ${campaign.timezone}` : formatTime(campaign.createdAt)}>
           <div className="resultHeader campaignResultActions">
