@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 const RESERVED = new Set([
   'app', 'api', 'login', 'signup', 'super-admin', 'admin', 'about', 'contact', 'features', 'terms',
   'privacy-policy', 'forgot-password', 'reset-password', 'verify-email', 'resend-verification',
-  'invite', 'data-deletion', 'opengraph-image', 'favicon.ico', 'w', 'r'
+  'invite', 'data-deletion', 'opengraph-image', 'favicon.ico', 'w', 'r', 'products'
 ]);
 
 export default async function CmsSlugPage({ params }) {

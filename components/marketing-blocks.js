@@ -1,6 +1,57 @@
 import Link from 'next/link';
+import { Bot, Box, FileText, Grid3x3, Megaphone, MessageCircle, Phone, Puzzle, Shield, Sparkles, Workflow } from 'lucide-react';
 import PublicHtmlBlock from './public-html-block';
 import styles from '../app/marketing.module.css';
+
+const PRODUCT_ICONS = {
+  message: MessageCircle,
+  phone: Phone,
+  megaphone: Megaphone,
+  bot: Bot,
+  spark: Sparkles,
+  workflow: Workflow,
+  form: FileText,
+  grid: Grid3x3,
+  shield: Shield,
+  integrations: Puzzle,
+  products: Box,
+  automation: Workflow
+};
+
+function productExploreHref(product) {
+  if (product.href) return product.href;
+  if (product.slug) return `/products/${product.slug}`;
+  return '/products';
+}
+
+export function MarketingProductShowcase({ products = [], compact = false }) {
+  const visible = (Array.isArray(products) ? products : []).filter((product) => product.visible !== false).sort((a, b) => (a.order || 0) - (b.order || 0));
+  if (!visible.length) return null;
+  return (
+    <div className={`${styles.productShowcase} ${compact ? styles.productShowcaseCompact : ''}`}>
+      <div className={styles.productGrid}>
+        {visible.map((product) => {
+          const Icon = PRODUCT_ICONS[product.icon] || Box;
+          const href = product.ctaHref || productExploreHref(product);
+          const cta = product.ctaLabel || 'Explore';
+          return (
+            <article className={styles.productCard} key={product.id}>
+              <div className={styles.productIcon} aria-hidden><Icon size={22} /></div>
+              <h3>{product.title}</h3>
+              {product.summary ? <p>{product.summary}</p> : null}
+              {Array.isArray(product.benefits) && product.benefits.length > 0 && (
+                <ul className={styles.productBenefits}>
+                  {product.benefits.slice(0, 3).map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              )}
+              <Link className={`${styles.btnSecondary} ${styles.productCta}`} href={href}>{cta}</Link>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function hrefFor(block) {
   return block.href || '#';
@@ -71,7 +122,10 @@ export function MarketingBlock({ block, assets }) {
   return <p>{content}</p>;
 }
 
-function sectionBlocks(section, assets) {
+function sectionBlocks(section, assets, products) {
+  if (section.preset === 'product-showcase') {
+    return <MarketingProductShowcase products={products} />;
+  }
   const cards = section.blocks.filter((block) => block.type === 'card' || block.type === 'feature-item');
   const stats = section.blocks.filter((block) => block.type === 'stat');
   const faqs = section.blocks.filter((block) => block.type === 'faq-item');
@@ -115,7 +169,7 @@ function sectionBlocks(section, assets) {
   return <div className={styles.blocks}>{section.blocks.map((block, index) => <MarketingBlock block={block} assets={assets} key={index} />)}</div>;
 }
 
-export function MarketingSection({ section, assets }) {
+export function MarketingSection({ section, assets, products = [] }) {
   if (!section || section.visible === false) return null;
   const className = [
     styles.section,
@@ -124,7 +178,8 @@ export function MarketingSection({ section, assets }) {
     styles[`align-${section.align || 'left'}`],
     section.preset === 'cta-band' ? styles.ctaBand : '',
     section.preset === 'steps' ? styles.stepsSection : '',
-    section.preset === 'feature-grid' ? styles.capabilitySection : ''
+    section.preset === 'feature-grid' ? styles.capabilitySection : '',
+    section.preset === 'product-showcase' ? styles.productShowcaseSection : ''
   ].filter(Boolean).join(' ');
 
   return (
@@ -137,7 +192,7 @@ export function MarketingSection({ section, assets }) {
             {section.summary ? <p className={styles.sectionLead}>{section.summary}</p> : null}
           </div>
         )}
-        {sectionBlocks(section, assets)}
+        {sectionBlocks(section, assets, products)}
         {section.ctaLabel && section.ctaHref ? (
           <p className={styles.sectionCta}>
             <Link className={styles.btnPrimary} href={section.ctaHref}>{section.ctaLabel}</Link>
@@ -181,6 +236,7 @@ export function MarketingFooter({ brandName, footer, supportEmail }) {
   const columns = footer?.columns || [];
   return (
     <footer className={styles.footer}>
+      <div className={styles.footerAccent} aria-hidden />
       <div className={styles.footerTop}>
         <div>
           <strong>{brandName}</strong>

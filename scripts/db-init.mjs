@@ -210,6 +210,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/production-parity-extensions.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/meta-webhook-queue.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/public-site.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/google-login-oauth.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/inbox-contact-360.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/campaign-source-taxonomy.sql', import.meta.url), 'utf8'));
   await client.query(

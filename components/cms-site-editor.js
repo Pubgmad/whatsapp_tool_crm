@@ -13,7 +13,7 @@ function publicPathForPage(page) {
 }
 
 const pageKinds = ['home', 'page', 'feature', 'product', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
-const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'steps', 'cta-band', 'faq', 'stats', 'rich', 'columns'];
+const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'steps', 'cta-band', 'faq', 'stats', 'rich', 'columns', 'product-showcase'];
 /** Hint copy shown above the page list for editors building AiSensy-depth feature pages. */
 const FEATURE_PAGE_GUIDANCE = 'Cover the problem, workflow, capabilities, and a signup CTA—only claim what the product does today.';
 const backgrounds = ['default', 'muted', 'brand', 'dark', 'accent-soft'];
@@ -25,7 +25,7 @@ function syncProductsMegaNav(products = []) {
   return {
     id: 'nav-products',
     label: 'Products',
-    href: '/features',
+    href: '/products',
     type: 'internal',
     menuStyle: 'mega',
     description: 'Explore products and capabilities',
@@ -67,8 +67,24 @@ const emptyProduct = () => ({
   icon: 'products',
   visible: true,
   order: 100,
-  features: []
+  features: [],
+  benefits: [],
+  useCases: [],
+  ctaLabel: '',
+  ctaHref: '',
+  seoTitle: '',
+  seoDescription: '',
+  heroHeading: '',
+  heroSubheading: ''
 });
+
+function linesFromTextarea(value) {
+  return String(value || '').split('\n').map((line) => line.trim()).filter(Boolean);
+}
+
+function textareaFromLines(lines) {
+  return (Array.isArray(lines) ? lines : []).join('\n');
+}
 const emptyFeature = () => ({
   id: newId('feat'),
   title: 'New feature',
@@ -336,6 +352,20 @@ export default function CmsSiteEditor({ api, notify }) {
                 <button type="button" onClick={() => change({ products: document.products.filter((_, i) => i !== productIndex) })}><Trash2 size={15} /></button>
               </div>
               <label>Summary<textarea rows={2} value={product.summary || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, summary: event.target.value } : item) })} /></label>
+              <label>Benefits (one per line)<textarea rows={3} value={textareaFromLines(product.benefits)} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, benefits: linesFromTextarea(event.target.value) } : item) })} /></label>
+              <label>Use cases (one per line)<textarea rows={3} value={textareaFromLines(product.useCases)} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, useCases: linesFromTextarea(event.target.value) } : item) })} /></label>
+              <div className={styles.row}>
+                <label>CTA label<input value={product.ctaLabel || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, ctaLabel: event.target.value } : item) })} /></label>
+                <label>CTA href<input value={product.ctaHref || ''} placeholder="Optional — defaults to Href" onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, ctaHref: event.target.value } : item) })} /></label>
+              </div>
+              <div className={styles.row}>
+                <label>SEO title<input value={product.seoTitle || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, seoTitle: event.target.value } : item) })} /></label>
+                <label>SEO description<input value={product.seoDescription || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, seoDescription: event.target.value } : item) })} /></label>
+              </div>
+              <div className={styles.row}>
+                <label>Hero heading<input value={product.heroHeading || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, heroHeading: event.target.value } : item) })} /></label>
+                <label>Hero subheading<input value={product.heroSubheading || ''} onChange={(event) => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, heroSubheading: event.target.value } : item) })} /></label>
+              </div>
               <div className={styles.blocksHead}>
                 <h4>Features under {product.title}</h4>
                 <button type="button" onClick={() => change({ products: document.products.map((item, i) => i === productIndex ? { ...item, features: [...(item.features || []), emptyFeature()] } : item) })}><Plus size={14} /> Feature</button>
@@ -371,7 +401,7 @@ export default function CmsSiteEditor({ api, notify }) {
             <div className={styles.card} key={item.id}>
               <div className={styles.row}>
                 <label>Label<input value={item.label} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, label: event.target.value } : nav) })} /></label>
-                <label>Href<input value={item.href || ''} placeholder={item.menuStyle === 'mega' ? '/features (optional overview)' : '/about'} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, href: event.target.value } : nav) })} /></label>
+                <label>Href<input value={item.href || ''} placeholder={item.menuStyle === 'mega' ? '/products (catalog overview)' : '/about'} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, href: event.target.value } : nav) })} /></label>
                 <label>Menu style
                   <select value={item.menuStyle || 'link'} onChange={(event) => change({ navigation: document.navigation.map((nav, i) => i === index ? { ...nav, menuStyle: event.target.value } : nav) })}>
                     <option value="link">link</option>

@@ -193,6 +193,7 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
   return (
     <div className={styles.site}>
       <header className={styles.header}>
+        <div className={styles.headerAccent} aria-hidden />
         <Link href="/" className={styles.brand} onClick={close}>
           {logo?.url ? <img src={logo.url} alt={brandName} width={logo.width} height={logo.height} /> : <span>{brandName}</span>}
         </Link>
