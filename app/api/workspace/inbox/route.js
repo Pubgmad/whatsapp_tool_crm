@@ -1,29 +1,23 @@
-import { workspaceRoute } from '@/lib/workspace-route.ts';
-import { loadWorkspaceInbox } from '@/lib/workspace-inbox-loader.js';
-import { clean } from '@/lib/workspace-mappers.js';
+import { currentAccount } from '@/lib/auth.js';
+import { errorJson, json } from '@/lib/db.js';
+import { loadState, stateOptions } from '@/lib/workspace-state.js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function inboxOptions(request) {
-  const params = new URL(request.url).searchParams;
-  const positiveInteger = (name, fallback, maximum = 100) =>
-    Math.max(1, Math.min(Number.parseInt(params.get(name), 10) || fallback, maximum));
-  return {
-    page: positiveInteger('page', 1, 100000),
-    pageSize: positiveInteger('pageSize', 25, 100),
-    messagePage: positiveInteger('messagePage', 1),
-    notePage: positiveInteger('notePage', 1),
-    conversationId: clean(params.get('conversationId')),
-    q: clean(params.get('q')).slice(0, 120),
-    inboxFilter: clean(params.get('inboxFilter')),
-    cursorUpdatedAt: clean(params.get('cursorUpdatedAt')),
-    cursorId: clean(params.get('cursorId'))
-  };
+/**
+ * Full workspace bootstrap for the Inbox shell.
+ * Must return the same shape as GET /api/workspace/[section] with view=inbox
+ * (including setup, featureFlags, templates, teamMembers). A slim conversations-only
+ * payload previously shadowed [section] and crashed /app/inbox on hard refresh.
+ */
+export async function GET(request) {
+  try {
+    const account = await currentAccount(request);
+    const options = { ...stateOptions(request), view: 'inbox' };
+    if (!options.inboxFilter && account.role === 'Agent') options.inboxFilter = 'mine';
+    return json(await loadState(account, options));
+  } catch (error) {
+    return errorJson(error);
+  }
 }
-
-export const GET = workspaceRoute(async (request, session) => {
-  const options = inboxOptions(request);
-  if (!options.inboxFilter && session.role === 'Agent') options.inboxFilter = 'mine';
-  return loadWorkspaceInbox(session.businessId, options, session);
-});
