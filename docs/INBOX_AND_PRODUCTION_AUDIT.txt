@@ -1,0 +1,156 @@
+WhatsApp CRM — Inbox Fix + Production Audit + Connector Explanation
+Branch: production_saas only (not main)
+Scope: Responsive web app only (no native mobile apps)
+Date: 2026-10-15
+AiSensy reference: public site / docs / tutorials only — authenticated AiSensy CRM was NOT audited
+
+================================================================================
+A. INBOX ERROR REPORT
+================================================================================
+
+Exact error (screenshot)
+- URL: /app/inbox
+- UI: "Unable to load this page"
+- Copy: "Please retry. Your sign-in has not been changed."
+- Source: app/error.js (Next.js App Router segment error boundary)
+
+Root cause
+1. Hard load / refresh of /app/inbox bootstraps via GET /api/workspace/inbox
+2. A dedicated slim route at app/api/workspace/inbox/route.js shadowed
+   app/api/workspace/[section] and returned only contacts/conversations/pagination
+3. Workspace shell then rendered state.setup.status / onboarding banner
+4. state.setup was undefined → TypeError → app/error.js
+5. Client navigation from Dashboard often worked because merge kept prior setup
+
+Files affected / fixed
+- app/api/workspace/inbox/route.js — now returns full loadState(..., view:'inbox')
+  (setup, featureFlags, templates, teamMembers, conversations, etc.)
+- components/workspace-app.js
+  - emptyWorkspaceState.setup defaults + merge preserves setup
+  - optional chaining on setup status/health
+  - setup sub-routes (flows/media/numbers/…) load API view "setup"
+- lib/workspace-inbox-loader.js — Agent listing clamp for all filters except mine/unassigned
+- components/workspace-app.js — mounted previously orphaned CampaignPolicy UI
+- tests/workspace-inbox-bootstrap.test.mjs — contract tests
+
+Tests executed
+- node --test tests/workspace-inbox-bootstrap.test.mjs (pass)
+- node --test tests/workspace-inbox-filters.test.mjs (pass)
+
+Final verification
+- Hard refresh of /app/inbox must receive setup in JSON and render Shared inbox
+- Disconnected WhatsApp shows onboarding banner, not a crash
+- Deploy production_saas to crm.mathstrat-sites.com before expecting live fix
+
+================================================================================
+B. COMPLETE PRODUCTION AUDIT (code-level)
+================================================================================
+
+Evidence limitation: AiSensy comparison uses public materials only.
+
+| Module | Feature | Current Implementation | AiSensy Comparison (public) | Production Gap | Fix Implemented | Test Status |
+|---|---|---|---|---|---|---|
+| Inbox | Bootstrap / hard refresh | Broken (slim API) | Focused live-chat workspace | Crash on /app/inbox | Full loadState inbox API + shell guards | Unit pass |
+| Inbox | Conversations list/search/filter | Implemented | Standard | Agent filter leak on unread/etc. | Agent assignment clamp | Unit pass |
+| Inbox | Reply / template / assignment | Implemented | Standard | No composer media send; no optimistic concurrency from UI | Documented | Existing tests |
+| Inbox | SLA widget | Implemented | Tutorial-backed ops | — | — | Existing |
+| Contacts | CRUD / segments / tags | Implemented | Audience → broadcast journey | — | — | Existing |
+| Templates | Sync / compose | Implemented | Required for broadcast | Needs connected WABA | — | Existing |
+| Broadcasting | Queue campaigns | Implemented | Core | CampaignPolicy UI was unmounted | Mounted CampaignPolicy | Source verified |
+| Campaign drip | Multi-step sequences | Partial | Drip/journey style | Advances after enqueue, not Meta delivery success | Remaining | Needs delivery-gated advance |
+| Automation | Flow builder + queue | Strong core | Strong | AI route simulate≠runtime; Flow resume errors swallowed | Remaining | Existing + gaps |
+| Analytics | Campaign results | Implemented | Campaign analytics | — | — | Existing |
+| Ads CTWA | Create/manage | Partial | CTWA product | Needs Meta OAuth, worker, credits, App Review | Remaining (env/ops) | Partial |
+| AI Agents | Draft / auto-reply | Partial | AI agents public pages | Needs OPENAI_* ; autonomous gated | Remaining (env) | Existing |
+| Commerce | Catalogs / orders | Partial | Commerce workflows | Razorpay/INR-bound native pay; recovery default-off | Remaining | Existing |
+| Calling | Browser WebRTC | Blocked without TURN | Calling features (public) | CALL_RELAY_NOT_CONFIGURED without TURN | Remaining (infra) | Existing |
+| Groups | Sync + text | Default-off / entitlement | Limited public claims | Meta groups eligibility + feature flag | Correctly gated | Existing |
+| Billing | Subscriptions | Razorpay-only | — | No non-Razorpay provider | Remaining | Existing |
+| CMS | Marketing site | Implemented | Deep feature pages | Live DB may be stale until Reset+Publish | Reset-to-defaults already shipped | Existing |
+| Platform | Worker jobs | Required | — | Without worker: webhooks/campaigns stall | Ops requirement | — |
+| Platform | DB RLS / Super Admin MFA | Partial | — | Privileged role / optional MFA | Remaining P0 ops | Health reports |
+| Auth | Login/signup/reset | Implemented | Business-ready auth | — | Prior UX work | Existing |
+| Setup routes | Dedicated WhatsApp panels | UI routes | Module destinations | Subviews called missing APIs | Map to setup API | Unit pass |
+
+================================================================================
+C. CONNECTOR EXPLANATION (no connector code changes in this pass)
+================================================================================
+
+Important: Ordinary businesses can use the WhatsApp CRM fully WITHOUT any ecommerce or CRM connector.
+Connectors are optional add-ons for teams that already run Shopify/Woo/Salesforce/HubSpot.
+
+| Connector | Business Purpose | Data Exchanged | CRM Use Case | Customer Setup Required | Current Implementation Status |
+|---|---|---|---|---|---|
+| Shopify | Connect an online store so WhatsApp can notify and follow up shoppers | Orders, checkouts, refunds, inventory checks, draft orders; webhook events | Order updates, abandoned-checkout recovery (when enabled), catalog/ops handoff | Shopify app OAuth (SHOPIFY_CLIENT_*), feature flag `connectors`; merchant Admin install | Fully implemented (OAuth + webhooks + drafts); privacy topics need Partner config |
+| WooCommerce | Same idea for WordPress stores (Woo is a WP plugin; no Shopify-style SaaS OAuth) | Order created/updated; optional abandoned checkout via extension | Order WhatsApp updates; recovery if cart events are emitted | Store URL + signed webhook secret; point WC webhooks at /api/connectors/events/{id} | Fully implemented for signed webhooks; abandoned cart partial without WC extension |
+| Salesforce | Sync sales CRM records with WhatsApp conversations | Contacts/Leads, Accounts, Opportunities (poll sync) | Sales agents message leads on WhatsApp while SF remains system of record | SALESFORCE_CLIENT_*, feature `crm_sync`, OAuth | Fully implemented (scheduled sync) |
+| HubSpot | Marketing/sales CRM sync similar to Salesforce | Contacts (+ optional companies/deals) | Keep WhatsApp contacts aligned with HubSpot lifecycle | HUBSPOT_CLIENT_*, feature `crm_sync`, OAuth | Fully implemented (scheduled sync) |
+| Google Calendar | Booking availability for WhatsApp Flows | Free/busy + optional event create | Appointment Flows book real calendar slots | GOOGLE_CLIENT_*, calendar mapping | Fully implemented |
+| Workspace API + webhooks | Custom integrations without a named SaaS connector | Contacts/templates/send + outbound events | Zapier/Make/n8n recipes, custom backends | API keys + allowlisted webhook hosts | Fully implemented |
+| Marketplace recipes (Zapier/Make/n8n/…) | Guided recipes over workspace webhooks | Same as workspace webhooks | No-code automation bridges | No native OAuth apps | UI/docs only |
+| Dialogflow CX | Intent bot replies | NLU intents | Auto-reply bots | Dialogflow project + SA JSON | Fully implemented (AI path) |
+| Razorpay (merchant) | Collect payments in WhatsApp commerce | Checkout / payment webhooks | Payment links / native order details (INR) | Merchant credentials | Fully implemented for merchant path |
+| Platform Stripe/Razorpay | SaaS subscription billing | Plan charges | Tenant pays for the CRM itself | Platform secrets | Platform billing (not tenant CRM connector) |
+
+Simple scenarios
+- Shopify: Fashion brand sends “order shipped” and recovers abandoned carts on WhatsApp.
+- WooCommerce: WordPress florist gets order.created webhooks and messages buyers.
+- Salesforce: B2B sales team opens WhatsApp from a Lead synced into the shared inbox.
+- HubSpot: Marketing qualifies leads in HubSpot; WhatsApp nurture continues in CRM.
+- None: Clinic uses only Inbox + Templates + Broadcasts — no store or SF needed.
+
+================================================================================
+D. PRODUCTION READINESS SUMMARY
+================================================================================
+
+Critical issues resolved this pass
+- Inbox hard-load crash (Unable to load this page)
+- Setup sub-route API 404s mapped to setup section load
+- Agent inbox over-visibility under non-mine filters
+- Campaign policy UI now reachable
+
+Remaining implementation / ops gaps (priority)
+1. Run and monitor scripts/worker.mjs in production (hard dependency)
+2. Fail closed on privileged DB role; require Super Admin MFA in prod
+3. Always verify Meta webhook signatures in deployed environments
+4. Campaign drip advance after delivery confirmation
+5. Automation AI simulate/runtime parity + surface Flow resume errors
+6. Configure TURN for Calling; OpenAI for AI; Razorpay for billing/commerce
+7. Meta App Review / entitlements for Ads and Groups where required
+8. Super Admin CMS: Reset to defaults → Publish on live (if marketing still thin)
+
+Features requiring external Meta approval / eligibility
+- Advanced Access scopes, CTWA ads live launch, WhatsApp Groups messaging, some Calling capabilities
+
+Features requiring customer-specific configuration
+- WhatsApp Embedded Signup / number connection
+- Optional Shopify/Woo/SF/HubSpot connectors
+- Template approval inside Meta
+
+Integrations verified live vs contract/mock
+- Code paths are real (not mock stubs) for Shopify/Woo/SF/HubSpot/Google
+- Live verification depends on each deployment’s env credentials and merchant OAuth
+- This audit did not re-run live OAuth against production tenants
+
+Security findings
+- Webhook signature fail-open when secret unset outside strict prod
+- Super Admin MFA optional unless enabled
+- Agent inbox listing gap (fixed this pass)
+
+Test results
+- workspace-inbox-bootstrap + workspace-inbox-filters: pass
+- Broader suite not fully re-run in this session
+
+Remaining production blockers for AiSensy-comparable ops
+- Worker + Meta connection health on the live host
+- Deploy this production_saas commit to crm.mathstrat-sites.com
+- CMS republish if public feature pages still thin
+- Env for AI/Calling/Billing as needed by sold plan
+
+Recommended next priorities
+1. Deploy inbox fix to production host
+2. Confirm /app/inbox hard refresh
+3. Worker health check + webhook signature enforcement
+4. Drip delivery-gated advancement
+5. Automation AI parity
+================================================================================
