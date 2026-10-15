@@ -58,7 +58,7 @@ import {
 } from './workspace/nav-config.js';
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BadgeCheck, Ban, BarChart3, Bot, ChevronRight, CircleAlert, Download, FileText, Image, Inbox, LayoutDashboard,
   Eye, EyeOff, Loader2, LogOut, Menu, MessageSquare, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
@@ -504,6 +504,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
 }
 
 function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) {
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState(initialMode);
   const [error, setError] = useState("");
   const [verificationDeliveryFailed, setVerificationDeliveryFailed] = useState(false);
@@ -512,9 +513,22 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
+  const [googleMfaPending, setGoogleMfaPending] = useState(false);
+  const [prefillEmail, setPrefillEmail] = useState("");
   const isSignup = mode === "signup";
+  const googleLoginEnabled = Boolean(platform?.google_login_enabled);
   useEffect(() => { setHydrated(true); }, []);
   useEffect(() => { setMode(initialMode); }, [initialMode]);
+  useEffect(() => {
+    const authError = searchParams.get("auth_error") || searchParams.get("error");
+    if (authError) setError(authError);
+    if (searchParams.get("mfa_required") === "1") {
+      setGoogleMfaPending(true);
+      setMfaRequired(true);
+      const email = searchParams.get("email");
+      if (email) setPrefillEmail(email);
+    }
+  }, [searchParams]);
 
   const switchMode = () => {
     if (pending) return;
@@ -522,6 +536,8 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
     setVerificationDeliveryFailed(false);
     setShowPassword(false);
     setShowConfirm(false);
+    setGoogleMfaPending(false);
+    setMfaRequired(false);
     const nextMode = isSignup ? "signin" : "signup";
     setMode(nextMode);
     onModeChange?.(nextMode);
@@ -532,6 +548,19 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
     setError("");
     setVerificationDeliveryFailed(false);
     const rawForm = Object.fromEntries(new FormData(event.currentTarget));
+    if (googleMfaPending) {
+      const mfaCode = rawForm.mfaCode;
+      setPending(true);
+      try {
+        await postJson("/api/auth/google/mfa", { mfaCode });
+        await onDone();
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setPending(false);
+      }
+      return;
+    }
     const form = { ...rawForm, email: rawForm.workspaceEmail, password: rawForm.workspacePassword };
 
     if (isSignup && form.password !== form.confirmPassword) {
@@ -562,7 +591,72 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
     }
   };
 
-  return <main className="authShell"><section className="authPanel authPanelPro"><div className="brandBlock dark authBrand"><div className="brandIcon">{platform.logo_url?<img src={platform.logo_url} alt="" className="platformLogo"/>:<PhoneCall size={22} />}</div><div><strong>{platform.brand_name}</strong><span>{platform.product_tagline}</span></div></div><div className="authHeader"><p className="kicker">Secure workspace</p><h1>{isSignup ? platform.signup_heading : platform.signin_heading}</h1><p>{isSignup ? platform.signup_copy : platform.signin_copy}</p></div><ul className="authBenefits" aria-label="Platform benefits"><li>Official WhatsApp Business API workspace for your team</li><li>Broadcasts, inbox, automation, and ads in one place</li><li>Connect your own WhatsApp number after signup</li></ul><form className="formGrid authForm" method="post" onSubmit={submit}>{isSignup && <><Input name="name" label="Your name" autoComplete="name" required /><Input name="businessName" label="Business name" autoComplete="organization" required /></>}<Input name="workspaceEmail" label="Email" type="email" autoComplete="email" required /><PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete={isSignup ? 'new-password' : 'current-password'} required hint={isSignup ? PASSWORD_POLICY_HINT : undefined} />{mfaRequired && !isSignup && <Input name="mfaCode" label="Authenticator or recovery code" autoComplete="one-time-code" required />}{isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}{error && <div className="formError" role="alert">{error}</div>}{verificationDeliveryFailed && <a className="textButton authHelpLink" href="/resend-verification">Request verification email</a>}<button className="primaryAction authSubmit" type="submit" disabled={!hydrated || pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />} <span>{pending ? 'Please wait' : isSignup ? 'Create account' : 'Sign in'}</span></button>{!isSignup && <div className='authHelpLinks'><a className="textButton authHelpLink" href="/forgot-password">Forgot password?</a></div>}</form><div className="authSwitch"><span>{isSignup ? 'Already have a workspace?' : 'New workspace?'}</span><button className="textButton" type="button" onClick={switchMode}>{isSignup ? 'Sign in' : 'Create account'}</button></div></section></main>;
+  const googleStartHref = `/api/auth/google/start?mode=${isSignup ? "signup" : "signin"}`;
+
+  return (
+    <main className="authShell">
+      <section className="authPanel authPanelPro">
+        <div className="brandBlock dark authBrand">
+          <div className="brandIcon">{platform.logo_url ? <img src={platform.logo_url} alt="" className="platformLogo" /> : <PhoneCall size={22} />}</div>
+          <div><strong>{platform.brand_name}</strong><span>{platform.product_tagline}</span></div>
+        </div>
+        <div className="authHeader">
+          <p className="kicker">Secure workspace</p>
+          <h1>{googleMfaPending ? "Confirm sign-in" : isSignup ? platform.signup_heading : platform.signin_heading}</h1>
+          <p>{googleMfaPending ? "Enter your authenticator code to finish Google sign-in." : isSignup ? platform.signup_copy : platform.signin_copy}</p>
+        </div>
+        {!googleMfaPending && (
+          <ul className="authBenefits" aria-label="Platform benefits">
+            <li>Official WhatsApp Business API workspace for your team</li>
+            <li>Broadcasts, inbox, automation, and ads in one place</li>
+            <li>Connect your own WhatsApp number after signup</li>
+          </ul>
+        )}
+        <form className="formGrid authForm" method="post" onSubmit={submit}>
+          {googleMfaPending ? (
+            <>
+              <Input name="workspaceEmail" label="Email" type="email" autoComplete="email" defaultValue={prefillEmail} readOnly />
+              <Input name="mfaCode" label="Authenticator or recovery code" autoComplete="one-time-code" required />
+            </>
+          ) : (
+            <>
+              {isSignup && <>
+                <Input name="name" label="Your name" autoComplete="name" required />
+                <Input name="businessName" label="Business name" autoComplete="organization" required />
+              </>}
+              <Input name="workspaceEmail" label="Email" type="email" autoComplete="email" defaultValue={prefillEmail} required />
+              <PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete={isSignup ? "new-password" : "current-password"} required hint={isSignup ? PASSWORD_POLICY_HINT : undefined} />
+              {mfaRequired && !isSignup && <Input name="mfaCode" label="Authenticator or recovery code" autoComplete="one-time-code" required />}
+              {isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}
+            </>
+          )}
+          {error && <div className="formError" role="alert">{error}</div>}
+          {verificationDeliveryFailed && <a className="textButton authHelpLink" href="/resend-verification">Request verification email</a>}
+          <button className="primaryAction authSubmit" type="submit" disabled={!hydrated || pending}>
+            {pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}
+            <span>{pending ? "Please wait" : googleMfaPending ? "Complete sign-in" : isSignup ? "Create account" : "Sign in"}</span>
+          </button>
+          {!googleMfaPending && !isSignup && (
+            <div className="authHelpLinks"><a className="textButton authHelpLink" href="/forgot-password">Forgot password?</a></div>
+          )}
+        </form>
+        {googleLoginEnabled && !googleMfaPending && (
+          <>
+            <p className="authDivider" aria-hidden="true"><span>or</span></p>
+            <a className="secondaryAction authSubmit authGoogleButton" href={googleStartHref}>
+              Continue with Google
+            </a>
+          </>
+        )}
+        {!googleMfaPending && (
+          <div className="authSwitch">
+            <span>{isSignup ? "Already have a workspace?" : "New workspace?"}</span>
+            <button className="textButton" type="button" onClick={switchMode}>{isSignup ? "Sign in" : "Create account"}</button>
+          </div>
+        )}
+      </section>
+    </main>
+  );
 }
 function SystemSetup({ message, platform }) {
   return <main className="authShell"><section className="authPanel"><div className="brandBlock dark"><div className="brandIcon"><Settings2 size={22} /></div><div><strong>{platform.brand_name}</strong><span>Production database setup</span></div></div><h1>Connect PostgreSQL</h1><p className="setupCopy">{message}</p><div className="envBox"><code>DATABASE_URL</code><code>AUTH_SECRET</code><code>ENCRYPTION_KEY</code></div></section></main>;
