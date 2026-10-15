@@ -74,4 +74,7 @@ VERIFICATION
 ================================================================================
 GIT
 ================================================================================
-(filled after commit/push)
+production_saas: b4e270b Continue enterprise CRM declutter across workspace, integrations, and settings.
+main:           17105d8 Continue enterprise CRM declutter across workspace, integrations, and settings.
+Prior on main:  d657d91 (shell/setup/SA), 590be9a (Ads declutter), 53ec67a (Inbox fix).
+Push to origin/main: succeeded (no force-push).
