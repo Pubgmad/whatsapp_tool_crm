@@ -41,11 +41,11 @@ test('authenticated owner navigates core workspace on mobile viewport', async ({
   await expect(page.getByRole('heading', { name: 'Audience' })).toBeVisible();
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await nav.getByRole('button', { name: 'Broadcasting', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Broadcast campaigns' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Broadcasts' })).toBeVisible();
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await nav.getByRole('button', { name: 'Analytics', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Campaign analytics' })).toBeVisible();
-  await expect(page.getByText(/Campaign operations|delivery|retarget/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible();
+  await expect(page.getByText(/Campaign insights|delivery|retarget|Go-live/i)).toBeVisible();
   } finally {
     const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();
