@@ -101,7 +101,7 @@ export const pageTitles = {
   commerce: 'Commerce and catalogs',
   conversions: 'Conversions',
   calling: 'WhatsApp calling',
-  ads: 'Click-to-WhatsApp ads',
+  ads: 'Ads Manager',
   results: 'Campaign analytics',
   inbox: 'Shared inbox',
   unsubscribes: 'Suppression list'
@@ -130,7 +130,7 @@ export const pageIntros = {
   commerce: 'Manage catalogs and commerce settings tied to your WhatsApp number.',
   conversions: 'Track conversion signals connected to WhatsApp conversations.',
   calling: 'Place and manage WhatsApp calling alongside chat history.',
-  ads: 'Connect Meta assets, create CTWA campaigns, and measure entry chats.',
+  ads: 'Create and manage Click-to-WhatsApp campaigns.',
   results: 'Review delivery, reads, and retarget opportunities from campaigns.',
   inbox: 'Assign conversations, reply with templates, and keep shared context.',
   unsubscribes: 'Honor opt-outs and suppress contacts from marketing sends.'

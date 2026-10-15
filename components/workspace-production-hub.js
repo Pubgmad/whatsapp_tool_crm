@@ -94,7 +94,7 @@ export default function WorkspaceProductionHub({ api, hub: hubProp = null }) {
           {key === 'flowsAutomation' && (
             <div>
               <p>Active automation flows: <strong>{section.automationFlows ?? 0}</strong> · Flow drop-off rows: {section.flowDropOff?.length ?? 0}</p>
-              <p className="wa-module-note">Managed runtime: {section.runtimeUrlReady ? section.managedRuntimeUrl : 'Configure APP_URL for per-screen funnel events.'}</p>
+              <p className="wa-module-note">{section.runtimeUrlReady ? `Runtime: ${section.managedRuntimeUrl}` : 'Runtime URL is not configured yet.'}</p>
             </div>
           )}
           {key === 'aiBots' && (
