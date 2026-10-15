@@ -8,20 +8,23 @@ export default function HonestLimitsCallout({ limitId, compact = false }) {
   if (compact) {
     return (
       <p className="wa-module-note honestLimitCallout" role="note">
-        <strong>Production boundary:</strong> {limit.boundary}
+        {limit.boundary}
       </p>
     );
   }
   return (
-    <aside className="honestLimitCallout" role="note" aria-label={`${limit.title} production boundary`}>
+    <aside className="honestLimitCallout" role="note" aria-label={limit.title}>
       <strong>{limit.title}</strong>
       <p>{limit.boundary}</p>
       {limit.operatorActions?.length > 0 && (
-        <ul>
-          {limit.operatorActions.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ul>
+        <details className="techDetails">
+          <summary>Admin setup notes</summary>
+          <ul>
+            {limit.operatorActions.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ul>
+        </details>
       )}
     </aside>
   );

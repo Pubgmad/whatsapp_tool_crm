@@ -39,13 +39,11 @@ export default function AutomationLiveOpsPanel({ api }) {
   }, [api]);
 
   return (
-    <section className="automationLiveOps" aria-label="Live Meta and worker readiness">
+    <section className="automationLiveOps" aria-label="Connection readiness">
       <header>
         <div>
-          <strong>Live Meta & worker readiness</strong>
-          <span>
-            Code paths are production-shaped. WABA connect, published Flows, and HTTPS webhook verification still require your Meta app + worker process.
-          </span>
+          <strong>Connection readiness</strong>
+          <span>WhatsApp connection, Flows, and messaging status for this workspace.</span>
         </div>
         <button type="button" className="secondaryAction" disabled={busy} onClick={load}>
           <RefreshCcw size={16} /> Refresh
@@ -56,8 +54,13 @@ export default function AutomationLiveOpsPanel({ api }) {
         <>
           <p role="status">
             Status: <strong>{summaryLabel(data.summary)}</strong>
-            {data.webhookUrl ? ` · Webhook ${data.webhookUrl}` : ''}
           </p>
+          {data.webhookUrl ? (
+            <details className="techDetails">
+              <summary>Webhook endpoint</summary>
+              <code>{data.webhookUrl}</code>
+            </details>
+          ) : null}
           <ul className="automationLiveOpsList">
             {data.checks.map((check) => (
               <li key={check.id}>

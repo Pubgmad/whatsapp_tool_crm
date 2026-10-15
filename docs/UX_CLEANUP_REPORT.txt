@@ -1,0 +1,107 @@
+WhatsApp CRM — UI/UX Cleanup Report (UI only)
+Branch: production_saas
+Constraint: No backend / API / schema / permission / integration logic changes
+
+================================================================================
+1. BEFORE / AFTER AUDIT
+================================================================================
+
+Before (CTWA example)
+- Long readiness strip + live verification checklist + Razorpay/env notes
+- Buy credits open by default with long prepaid explanations
+- Funnel provenance tables and App Review-style operator copy above campaigns
+- Manual Meta token fields and env-var instructions prominent
+- Optimization JSON payloads and Meta status dumps inline
+- Campaigns table buried below setup documentation
+
+After
+- Header: Ads Manager + KPI cards (conversations, status, credits, campaigns)
+- Compact setup banner only when blockers exist; Platform checks collapsed
+- Campaigns table elevated as primary work surface + clean empty state
+- Credits / funnel / objectives / experiments / lead sync / optimization collapsed
+- Manual token nested under Advanced; env prose replaced with admin contact line
+- Live Meta JSON behind details
+
+CRM-wide before
+- META_* / APP_URL / webhook URLs / “Production boundary” operator language
+- Duplicate webview caveats; Groups “not simulated” language
+- Capabilities titled “Post-approval activation”
+
+After
+- Tenant-friendly short status copy; technical IDs / webhooks / admin notes in details
+- Softened webhook/env visual weight via .techDetails / muted cards
+
+================================================================================
+2. PAGES / COMPONENTS CHANGED
+================================================================================
+
+- components/whatsapp-ads.js (Ads Manager redesign)
+- components/whatsapp-modules.css (KPI / banner / empty / techDetails)
+- app/globals.css (saas* utilities, muted webhook/env cards)
+- components/workspace-app.js (connect error, capabilities title, technical IDs)
+- components/workspace/nav-config.js (Ads Manager title/intro)
+- components/honest-limits-callout.js
+- components/automation-live-ops-panel.js
+- components/provider-connectors.js
+- components/whatsapp-groups.js
+- components/whatsapp-webviews.js
+- components/workspace-production-hub.js
+- docs/UX_CLEANUP_REPORT.txt
+
+================================================================================
+3. INFORMATION RELOCATION
+================================================================================
+
+| Content | Classification | Treatment |
+|---|---|---|
+| META_APP_ID / SECRET / APP_URL instructions | D | Removed from tenant copy; “contact admin/support” |
+| Live verification checklist | D/C | Collapsed “Platform checks” |
+| Ad credit billing model essays | B | One-line note; history nested |
+| Funnel provenance / notes | B | Nested “Data sources” |
+| Manual long-lived token | C | Advanced details |
+| Optimization JSON / Meta status JSON | D/B | Nested details |
+| Webhook URL in live-ops | C | Collapsed “Webhook endpoint” |
+| Operator actions in honest limits | D/C | “Admin setup notes” details |
+| WABA / Phone Number IDs | C | “Technical IDs” details |
+| WooCommerce cart extension note | B | “Store setup tip” details |
+| Groups Meta entitlement essay | A/E | Short eligibility line |
+
+================================================================================
+4. DESIGN SYSTEM IMPROVEMENTS
+================================================================================
+
+- KPI grid (.wa-ad-kpis / .saasKpiGrid)
+- Compact banners and empty states
+- .techDetails for secondary/config content
+- Muted .webhookCard / .envBox
+- Consistent page head spacing
+- Responsive KPI columns (4 → 2 → 1)
+
+================================================================================
+5. RESPONSIVE VERIFICATION
+================================================================================
+
+- CSS media queries added for KPI grids at 900px / 520px
+- Browser device matrix (desktop / tablet / Android Chrome / iOS Safari): NOT run in this session
+- Recommend visual QA after deploy on production_saas
+
+================================================================================
+6. REGRESSION VERIFICATION
+================================================================================
+
+Preserved (no handler/API changes intended):
+- Ads OAuth start/complete, configure, create, activate/pause/archive, credits buy/reconcile
+- Insight reports, experiments, lead sync, creative/audience/budget editors
+- Workspace setup Embedded Signup path, connectors forms, groups entitlement gate
+
+Checked:
+- Ads <details> open/close count balanced (16/16)
+- Production_saas only
+
+Not fully browser-tested in this session — deploy and click Ads Manager hard refresh recommended.
+
+================================================================================
+7. SCREENSHOTS
+================================================================================
+
+Not captured (no browser automation run this session). Use Ads Manager before/after on /app/ads after deploy.
