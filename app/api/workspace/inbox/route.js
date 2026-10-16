@@ -1,6 +1,6 @@
 import { currentAccount } from '@/lib/auth.js';
-import { errorJson, json } from '@/lib/db.js';
 import { loadState, stateOptions } from '@/lib/workspace-state.js';
+import { workspaceRoute } from '@/lib/workspace-route.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,13 +11,9 @@ export const dynamic = 'force-dynamic';
  * (including setup, featureFlags, templates, teamMembers). A slim conversations-only
  * payload previously shadowed [section] and crashed /app/inbox on hard refresh.
  */
-export async function GET(request) {
-  try {
-    const account = await currentAccount(request);
-    const options = { ...stateOptions(request), view: 'inbox' };
-    if (!options.inboxFilter && account.role === 'Agent') options.inboxFilter = 'mine';
-    return json(await loadState(account, options));
-  } catch (error) {
-    return errorJson(error);
-  }
-}
+export const GET = workspaceRoute(async (request) => {
+  const account = await currentAccount(request);
+  const options = { ...stateOptions(request), view: 'inbox' };
+  if (!options.inboxFilter && account.role === 'Agent') options.inboxFilter = 'mine';
+  return loadState(account, options);
+});

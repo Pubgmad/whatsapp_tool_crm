@@ -186,11 +186,21 @@ function DesktopItem({ item, onNavigate }) {
         aria-expanded={open}
         aria-haspopup="true"
         aria-controls={menuId}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          cancelClose();
+          // Hover already opens on pointer devices; a follow-up click must not instantly close.
+          const hoverCapable = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+          if (hoverCapable) setOpen(true);
+          else setOpen((value) => !value);
+        }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' && !open) {
             event.preventDefault();
             setOpen(true);
+          }
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen((value) => !value);
           }
         }}
       >
