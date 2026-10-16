@@ -48,9 +48,9 @@ html[data-theme="dark"] .site{
   position:sticky;top:0;z-index:40;
   display:flex;align-items:center;gap:20px;flex-wrap:wrap;
   min-height:76px;padding:14px max(20px,calc((100vw - 1120px)/2));
-  background:var(--mk-header-bg);backdrop-filter:blur(12px);
+  background:var(--mk-header-bg);backdrop-filter:blur(14px);
   border-bottom:1px solid var(--mk-header-border);
-  box-shadow:0 1px 0 rgba(15,118,110,.04);
+  box-shadow:0 1px 0 rgba(15,118,110,.04),0 8px 24px rgba(15,23,20,.03);
 }
 .headerAccent,.footerAccent{
   position:absolute;left:0;right:0;top:0;height:3px;
@@ -117,7 +117,7 @@ html[data-theme="dark"] .site{
 .heroSolo{grid-template-columns:1fr;max-width:820px}
 .heroEyebrow,.eyebrow{margin:0 0 10px;font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--mk-accent)}
 .hero .eyebrow{color:#ffd3b0}
-.hero h1{font-size:clamp(2.4rem,5vw,3.8rem);max-width:14ch;margin-bottom:16px}
+.hero h1{font-size:clamp(2.35rem,4.6vw,3.55rem);max-width:min(16ch,100%);margin-bottom:16px;text-wrap:balance}
 .heroLead{font-size:1.12rem;line-height:1.65;max-width:38rem;color:#e7f4f1;margin:0 0 24px}
 .heroActions{display:flex;flex-wrap:wrap;gap:12px}
 .heroPanel{border-radius:24px;min-height:280px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(4px)}
@@ -166,7 +166,8 @@ html[data-theme="dark"] .pricing{background:var(--mk-pricing-bg)}
   background:var(--mk-card);border:1px solid var(--mk-line);border-radius:18px;padding:22px;
   box-shadow:0 8px 24px rgba(20,36,41,.05);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
 }
-.card:hover,.featureCard:hover,.productCard:hover{transform:translateY(-4px);box-shadow:var(--mk-shadow-hover);border-color:rgba(15,118,110,.22)}
+.card:hover,.featureCard:hover,.productCard:hover{transform:translateY(-3px);box-shadow:var(--mk-shadow-hover);border-color:rgba(15,118,110,.28)}
+@media (prefers-reduced-motion:reduce){.card:hover,.featureCard:hover,.productCard:hover,.btnPrimary:hover,.btnSecondary:hover{transform:none}}
 .productShowcaseSection .sectionHead{max-width:680px}
 .productShowcase{margin-top:8px}
 .productGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
