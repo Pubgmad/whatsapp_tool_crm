@@ -65,6 +65,7 @@ import {
   ShieldCheck, Sparkles, Trash2, Upload, UsersRound, X, Search, Clock3, Activity, CheckCheck, Copy, Link2, Pause, Play, Pencil, Save, StickyNote, Unplug, UserPlus, WalletCards,
   Smartphone, Workflow, RadioTower, Building2, KeyRound, ShoppingBag, Paperclip
 } from "lucide-react";
+import ThemeToggle from "./theme-toggle";
 
 const NAV_ICONS = {
   LayoutDashboard, Settings2, UsersRound, UserPlus, WalletCards, ShieldCheck, MessageSquareText, Bot, Send,
@@ -477,13 +478,16 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
             </p>
             {!workspacePageJourney(activeView) && workspacePageIntro(activeView) ? <p className="pageIntro">{workspacePageIntro(activeView)}</p> : null}
           </div>
-          <div className="topActions"><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><button className="iconButton" title="Sign out" onClick={logout}><LogOut size={18} /></button><span className={`statusPill ${(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}`}>{state.setup?.status || "Not connected"}</span></div>
+          <div className="topActions"><ThemeToggle /><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><button className="iconButton" title="Sign out" onClick={logout}><LogOut size={18} /></button><span className={`statusPill ${(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}`}>{state.setup?.status || "Not connected"}</span></div>
         </header>
         {notice && <div className="toast">{notice}</div>}
         {(state.setup?.status || 'Not connected') !== 'Connected' && canOpenWorkspaceView(account.role, 'setup') && activeView !== 'setup' ? (
           <div className="onboardingBanner" role="status">
-            <div><strong>Connect WhatsApp</strong><span>Finish setup to unlock messaging.</span></div>
-            <button className="primaryAction" type="button" onClick={() => navigate('setup')}>Connect WhatsApp</button>
+            <div>
+              <strong>Finish workspace setup</strong>
+              <span>Connect your WhatsApp Business number to unlock inbox, broadcasts, and automation. Optional integrations can wait.</span>
+            </div>
+            <button className="primaryAction" type="button" onClick={() => navigate('setup')}>Continue setup</button>
           </div>
         ) : (() => {
           const journey = workspacePageJourney(activeView);
@@ -595,6 +599,7 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
 
   return (
     <main className="authShell">
+      <div className="authThemeToggle"><ThemeToggle /></div>
       <section className="authPanel authPanelPro">
         <div className="brandBlock dark authBrand">
           <div className="brandIcon">{platform.logo_url ? <img src={platform.logo_url} alt="" className="platformLogo" /> : <PhoneCall size={22} />}</div>

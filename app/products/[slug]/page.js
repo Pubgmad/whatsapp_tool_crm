@@ -1,5 +1,5 @@
-import { notFound, redirect } from 'next/navigation';
-import { findProductBySlug } from '../../../lib/cms-document';
+import { notFound } from 'next/navigation';
+import { buildProductMarketingPage, findProductBySlug } from '../../../lib/cms-document';
 import { loadMarketingContext, MarketingPageView, resolvePage } from '../../../lib/marketing-page';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,9 @@ export default async function ProductSlugPage({ params }) {
   }
 
   const product = findProductBySlug(document, slug);
-  if (product?.href) redirect(product.href);
+  if (product) {
+    return <MarketingPageView {...ctx} page={buildProductMarketingPage(product)} />;
+  }
 
   notFound();
 }

@@ -1,38 +1,37 @@
-/* Neutral surfaces keep long CRM sessions calm; blue marks actions, not data. */
+/* Neutral surfaces keep long CRM sessions calm; brand marks actions, not data. */
 .sideRail,.superRail{color:#e9ebf0;border-right-color:#3c414d;box-shadow:1px 0 0 rgba(27,34,48,.08)}
 .brandBlock span,.superBrand small,.workspaceSwitcher{color:#b8c1d0}
 .navList button,.superNav a{color:#c5ccd8}
 .navList button:hover,.superNav a:hover{background:#393d47;color:#fff}
-.navList button.active,.superNav a.active{background:var(--brand);border-color:#6d8be0;box-shadow:inset 3px 0 0 #a8bafa}
+.navList button.active,.superNav a.active{background:var(--brand);border-color:color-mix(in srgb, var(--brand) 45%, #fff);box-shadow:inset 3px 0 0 color-mix(in srgb, var(--brand) 70%, #fff)}
 .workspaceSwitcher select{background:#343843;border-color:#555c6b}
-.workspaceSwitcher select:focus-visible{outline-color:#a8bafa}
-.heroBar{background:rgba(244,246,249,.96);border-bottom-color:var(--line)}
+.workspaceSwitcher select:focus-visible{outline-color:color-mix(in srgb, var(--brand) 70%, #fff)}
+.heroBar{background:var(--hero-bar-bg);border-bottom-color:var(--hero-bar-border)}
 .heroBar h1,.superHero h1{font-weight:720}
-.primaryAction{box-shadow:0 3px 10px rgba(49,88,187,.17)}
-.primaryAction:hover{box-shadow:0 5px 14px rgba(49,88,187,.22)}
-.secondaryAction:hover,.rowActions button:hover,.iconButton:hover{border-color:#a5b8e8}
-.heroPanel,.automationHero{background:#30333c;border-color:#4a4f5a;color:#f3f4f7;box-shadow:var(--shadow-sm)}
-.heroPanel p,.automationHero span{color:#cbd1dc}
-.softLabel{background:#e8eeff;border-color:#b9c9f6;color:#244795}
-.heroMetrics .metric,.automationKpis .metric{background:#3c404a;border-color:#545a66}
-.statusPill.good,.badge.good{color:#29604b;background:#e6f4ed;border-color:#b9ddca}
-.toast{background:#292b32}
-.readinessList>div.ready{background:#f0f6f3;border-color:#c6ddcf}
-.authShell::before,.superAuthShell::before{background:linear-gradient(90deg,transparent 31px,rgba(74,97,153,.035) 32px,transparent 33px),linear-gradient(transparent 31px,rgba(74,97,153,.035) 32px,transparent 33px);background-size:32px 32px}
-.authPanel,.superAuthPanel{box-shadow:0 16px 44px rgba(30,38,54,.1)}
-.metaSetupScreen .metaConnectHero{background:#30333c;border-color:#4a4f5a;box-shadow:var(--shadow-sm);color:#f3f4f7}
-.metaSetupScreen .metaConnectHero span{color:#cbd1dc}
-.metaSetupScreen .metaConnectHero .kicker{color:#afc3ff}
+.primaryAction{box-shadow:0 3px 10px color-mix(in srgb, var(--brand) 28%, transparent)}
+.primaryAction:hover{box-shadow:0 5px 14px color-mix(in srgb, var(--brand) 32%, transparent)}
+.secondaryAction:hover,.rowActions button:hover,.iconButton:hover{border-color:color-mix(in srgb, var(--brand) 35%, var(--line-strong))}
+.heroPanel,.automationHero{background:var(--nav);border-color:var(--line-strong);color:#eaf4ef;box-shadow:var(--shadow-sm)}
+.heroPanel p,.automationHero span{color:#c6d9d1}
+.softLabel{background:var(--brand-soft);border-color:var(--line-strong);color:var(--brand-dark)}
+.heroMetrics .metric,.automationKpis .metric{background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.12)}
+.toast{background:var(--nav)}
+.readinessList>div.ready{background:var(--brand-soft);border-color:var(--line-strong)}
+.authShell::before,.superAuthShell::before{background:linear-gradient(90deg,transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px),linear-gradient(transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px);background-size:32px 32px}
+.authPanel,.superAuthPanel{box-shadow:var(--shadow-md)}
+.metaSetupScreen .metaConnectHero{background:linear-gradient(115deg,var(--nav),color-mix(in srgb,var(--brand) 38%,var(--nav)));border-color:var(--line-strong);box-shadow:var(--shadow-sm);color:#eaf4ef}
+.metaSetupScreen .metaConnectHero span{color:#c6d9d1}
+.metaSetupScreen .metaConnectHero .kicker{color:#9edac2}
 .metaSetupScreen .metaConnectHero .metaConnectActions{display:grid;flex:0 0 250px;width:250px;gap:10px}
 .metaSetupScreen .metaConnectActions button{min-height:46px;white-space:normal;overflow-wrap:normal}
 .metaSetupScreen .metaConnectButton{background:var(--brand);border-color:var(--brand)}
 .metaSetupScreen .metaConnectButton:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
-.metaSetupScreen .metaConnectActions .secondaryAction{border-color:#818b9d;color:#fff}
-.metaSetupScreen .metaConnectActions .secondaryAction:hover{background:#424956;border-color:#b7c1d4}
-.operationsTabs{background:#e9edf4}
-.phoneAsset.selected{background:#f4f7ff;border-color:#a8bbe9}
-.assetIcon,.capabilityIcon{border-color:#c6d3f3}
-.webhookCard code,.envBox code{border-color:#c6d3f3}
+.metaSetupScreen .metaConnectActions .secondaryAction{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));color:#eaf4ef}
+.metaSetupScreen .metaConnectActions .secondaryAction:hover{background:rgba(255,255,255,.08);border-color:var(--line-strong)}
+.operationsTabs{background:var(--soft)}
+.phoneAsset.selected{background:var(--brand-soft);border-color:var(--line-strong)}
+.assetIcon,.capabilityIcon{border-color:var(--line-strong)}
+.webhookCard code,.envBox code{border-color:var(--line-strong)}
 .metaWebhookToolbar{display:flex;justify-content:flex-end;margin-bottom:14px}
 .metaWebhookList{margin-top:18px;border-top:1px solid var(--line)}
 .metaWebhookEvent{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
@@ -40,7 +39,7 @@
 .metaWebhookEvent strong,.metaWebhookEvent small{overflow-wrap:anywhere}
 .metaWebhookEvent small{color:var(--muted);line-height:1.5}
 .metaWebhookEvent button{flex:none}
-input:not([type=checkbox]):not([type=file]):focus,textarea:focus,select:focus{box-shadow:0 0 0 3px rgba(49,88,187,.13)}
+input:not([type=checkbox]):not([type=file]):focus,textarea:focus,select:focus{box-shadow:0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent)}
 @media(max-width:760px){.metaSetupScreen .metaConnectHero{gap:18px}.metaSetupScreen .metaConnectHero .metaConnectActions{flex:none;width:100%}}
 @media(max-width:520px){.metaWebhookEvent{align-items:stretch;flex-direction:column}.metaWebhookEvent button{align-self:flex-start}}
 .platformLogo{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}

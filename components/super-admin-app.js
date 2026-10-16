@@ -18,6 +18,7 @@ import SloCertificationPanel from './slo-certification-panel';
 import A11yCertificationPanel from './a11y-certification-panel';
 import ImprovementBacklogPanel from './improvement-backlog-panel';
 import { isSessionFailure } from '../lib/auth-navigation';
+import ThemeToggle from './theme-toggle';
 
 const emptyPlan = {
   id: "",
@@ -289,7 +290,10 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
           <h1>{heading[0]}</h1>
           <p>{heading[1]}</p>
         </div>
-        <button className="iconButton" type="button" onClick={refresh} title="Refresh"><RefreshCcw size={18} /></button>
+        <div className="topActions">
+          <ThemeToggle />
+          <button className="iconButton" type="button" onClick={refresh} title="Refresh"><RefreshCcw size={18} /></button>
+        </div>
       </header>
 
       {notice && <div className="toast">{notice}</div>}
@@ -504,7 +508,28 @@ function SuperAdminLogin({ onDone, brandName }) {
     }
   };
 
-  return <main className="superAuthShell"><section className="superAuthPanel"><div className="superBrand dark"><span><LockKeyhole size={22} /></span><div><strong>{brandName}</strong><small>Super Admin</small></div></div><div><p className="kicker">Platform owner access</p><h1>Sign in</h1><p>Use the secure admin credentials configured on the server.</p></div><form className="formGrid" method="post" onSubmit={submit}><label>Email<input name="platformOwnerEmail" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /></label><div className='fieldGroup'><label htmlFor='platformOwnerSecret'>Password</label><span className="passwordWrap"><input id='platformOwnerSecret' name="platformOwnerSecret" type={showPassword ? "text" : "password"} autoComplete="new-password" data-lpignore="true" data-form-type="other" minLength="12" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></span></div>{mfaRequired && <label>Authenticator or recovery code<input name="mfaCode" autoComplete="one-time-code" required /></label>}{error && <div className="formError" role="alert">{error}</div>}<button className="primaryAction" type="submit" disabled={!hydrated || pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}<span>{pending ? "Checking" : "Sign in"}</span></button></form></section></main>;
+  return (
+    <main className="superAuthShell">
+      <div className="authThemeToggle"><ThemeToggle /></div>
+      <section className="superAuthPanel">
+        <div className="superBrand dark"><span><LockKeyhole size={22} /></span><div><strong>{brandName}</strong><small>Super Admin</small></div></div>
+        <div><p className="kicker">Platform owner access</p><h1>Sign in</h1><p>Use the secure admin credentials configured on the server.</p></div>
+        <form className="formGrid" method="post" onSubmit={submit}>
+          <label>Email<input name="platformOwnerEmail" type="email" autoComplete="off" data-lpignore="true" data-form-type="other" required /></label>
+          <div className="fieldGroup">
+            <label htmlFor="platformOwnerSecret">Password</label>
+            <span className="passwordWrap">
+              <input id="platformOwnerSecret" name="platformOwnerSecret" type={showPassword ? "text" : "password"} autoComplete="new-password" data-lpignore="true" data-form-type="other" minLength="12" required />
+              <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+            </span>
+          </div>
+          {mfaRequired && <label>Authenticator or recovery code<input name="mfaCode" autoComplete="one-time-code" required /></label>}
+          {error && <div className="formError" role="alert">{error}</div>}
+          <button className="primaryAction" type="submit" disabled={!hydrated || pending}>{pending ? <Loader2 className="spin" size={18} /> : <ShieldCheck size={18} />}<span>{pending ? "Checking" : "Sign in"}</span></button>
+        </form>
+      </section>
+    </main>
+  );
 }
 
 function SuperAdminSecurity({ notify }) {

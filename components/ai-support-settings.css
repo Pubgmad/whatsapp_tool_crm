@@ -12,7 +12,7 @@
 .aiSupportProposal p{margin:8px 0;overflow-wrap:anywhere}
 .aiSupportProposal pre{max-width:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
 @media(max-width:600px){.aiSupportActions button{flex:1 1 auto}.aiSupportDocuments article{padding:10px}}
-.aiReplyComposer{display:grid;gap:8px;padding:10px 16px;background:#fff;border-top:1px solid var(--line);min-width:0}
+.aiReplyComposer{display:grid;gap:8px;padding:10px 16px;background:var(--inbox-header-bg);border-top:1px solid var(--line);min-width:0}
 .aiReplyComposer .composer{padding:0;border:0;background:transparent}
 .aiReplyComposer>.secondaryAction{justify-self:start}
 .aiReplyComposer>small{overflow-wrap:anywhere;color:var(--muted)}

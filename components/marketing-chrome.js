@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Grid3x3, MessageCircle, Phone, Megaphone, Bot, Sparkles, Workflow, FileText, Shield, Puzzle, Box } from 'lucide-react';
 import styles from '../app/marketing.module.css';
+import ThemeToggle from './theme-toggle';
 
 const ICONS = {
   message: MessageCircle,
@@ -43,7 +44,7 @@ function NavAnchor({ item, className, onNavigate, children }) {
 function MegaPanel({ item, onNavigate }) {
   const groups = (item.children || []).filter((child) => child.visible !== false);
   return (
-    <div className={styles.megaPanel} role="menu">
+    <div className={styles.megaPanelInner} role="menu">
       <div className={styles.megaGrid}>
         {groups.map((group) => {
           const features = (group.children || []).filter((child) => child.visible !== false);
@@ -77,7 +78,7 @@ function MegaPanel({ item, onNavigate }) {
 function DropdownPanel({ item, onNavigate }) {
   const children = (item.children || []).filter((child) => child.visible !== false);
   return (
-    <div className={styles.dropPanel} role="menu">
+    <div className={styles.dropPanelInner} role="menu">
       {children.map((child) => (
         <NavAnchor key={child.id} item={child} className={styles.dropItem} onNavigate={onNavigate}>
           {child.label}
@@ -87,11 +88,65 @@ function DropdownPanel({ item, onNavigate }) {
   );
 }
 
+function useFixedMenuPosition(open, ref, isMega) {
+  const [panelStyle, setPanelStyle] = useState(null);
+
+  useEffect(() => {
+    if (!open || !ref.current) {
+      setPanelStyle(null);
+      return undefined;
+    }
+    const update = () => {
+      const trigger = ref.current?.querySelector('button') || ref.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const margin = 16;
+      const panelWidth = isMega ? Math.min(720, Math.round(window.innerWidth * 0.72)) : Math.min(320, window.innerWidth - margin * 2);
+      let left = rect.left + rect.width / 2 - panelWidth / 2;
+      left = Math.max(margin, Math.min(left, window.innerWidth - panelWidth - margin));
+      const spaceBelow = Math.max(160, window.innerHeight - rect.bottom - margin);
+      const maxHeight = Math.min(560, Math.round(window.innerHeight * 0.7), spaceBelow);
+      setPanelStyle({
+        position: 'fixed',
+        top: rect.bottom + 8,
+        left,
+        width: isMega ? panelWidth : undefined,
+        minWidth: isMega ? undefined : panelWidth,
+        maxHeight
+      });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open, isMega]);
+
+  return panelStyle;
+}
+
 function DesktopItem({ item, onNavigate }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const closeTimer = useRef(null);
   const menuId = useId();
-  const hasMenu = item.menuStyle === 'mega' || item.menuStyle === 'dropdown';
+  const isMega = item.menuStyle === 'mega';
+  const hasMenu = isMega || item.menuStyle === 'dropdown';
+  const panelStyle = useFixedMenuPosition(open, ref, isMega);
+
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
+  };
 
   useEffect(() => {
     if (!open) return undefined;
@@ -106,6 +161,7 @@ function DesktopItem({ item, onNavigate }) {
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('mousedown', onClick);
+      cancelClose();
     };
   }, [open]);
 
@@ -121,8 +177,8 @@ function DesktopItem({ item, onNavigate }) {
     <div
       className={`${styles.navItem} ${styles.hasMenu} ${open ? styles.menuOpen : ''}`}
       ref={ref}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseEnter={() => { cancelClose(); setOpen(true); }}
+      onMouseLeave={scheduleClose}
     >
       <button
         type="button"
@@ -131,13 +187,25 @@ function DesktopItem({ item, onNavigate }) {
         aria-haspopup="true"
         aria-controls={menuId}
         onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' && !open) {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
       >
         {item.label}
         <ChevronDown size={15} aria-hidden />
       </button>
       {open ? (
-        <div id={menuId}>
-          {item.menuStyle === 'mega'
+        <div
+          id={menuId}
+          className={isMega ? styles.megaPanel : styles.dropPanel}
+          style={panelStyle || undefined}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+        >
+          {isMega
             ? <MegaPanel item={item} onNavigate={() => { setOpen(false); onNavigate?.(); }} />
             : <DropdownPanel item={item} onNavigate={() => { setOpen(false); onNavigate?.(); }} />}
         </div>
@@ -185,7 +253,7 @@ function MobileItem({ item, onNavigate }) {
   );
 }
 
-export default function MarketingChrome({ brandName, logo, navigation = [], signInLabel = 'Sign in', signupLabel = 'Create workspace', children }) {
+export default function MarketingChrome({ brandName, logo, navigation = [], signInLabel = 'Sign in', signupLabel = 'Create workspace', authenticated = false, children }) {
   const [open, setOpen] = useState(false);
   const items = (navigation || []).filter((item) => item.visible !== false);
   const close = () => setOpen(false);
@@ -209,8 +277,15 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
           </nav>
         </div>
         <div className={styles.headerActions}>
-          <Link className={styles.btnSecondary} href="/login" onClick={close}>{signInLabel}</Link>
-          <Link className={styles.btnPrimary} href="/signup" onClick={close}>{signupLabel}</Link>
+          <ThemeToggle className={styles.themeToggle} />
+          {authenticated ? (
+            <Link className={styles.btnPrimary} href="/app/dashboard" onClick={close}>Open dashboard</Link>
+          ) : (
+            <>
+              <Link className={styles.btnSecondary} href="/login" onClick={close}>{signInLabel}</Link>
+              <Link className={styles.btnPrimary} href="/signup" onClick={close}>{signupLabel}</Link>
+            </>
+          )}
         </div>
       </header>
       {children}
