@@ -266,6 +266,16 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     }
     if (!scopeGate.current.current(request)) return null;
     setState((current) => mergeWorkspaceState(current, nextState));
+    if (location.view === 'inbox') {
+      const appliedFilter = nextState.pagination?.inbox?.appliedFilter;
+      if (appliedFilter) {
+        setPages((current) => ({
+          ...current,
+          inboxFilter: appliedFilter,
+          inboxQ: overrides.inboxQ ?? current.inboxQ ?? ''
+        }));
+      }
+    }
     if (updatePlatform && nextState.platform) setPlatform((current) => ({ ...current, ...nextState.platform }));
     return nextState;
   }, [pathname]);
@@ -436,7 +446,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
   const latestCampaign = state.campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const screenProps = { state, mutate, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || "", inboxQ: pages.inboxQ || "" };
+  const screenProps = { state, mutate, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
 
   return (
     <main className="shell">
@@ -1546,7 +1556,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const teamMembers = state.teamMembers || [];
   const currentUserId = state.account?.user?.id || "";
   const [search, setSearch] = useState(serverQ);
-  const [inboxFilter, setInboxFilter] = useState(serverFilter || "all");
+  const [inboxFilter, setInboxFilter] = useState(serverFilter || state?.pagination?.inbox?.appliedFilter || "all");
   const [inboxSurface, setInboxSurface] = useState("direct");
   const [replyDrafts, setReplyDrafts] = useState({});
   const [suggesting, setSuggesting] = useState(false);

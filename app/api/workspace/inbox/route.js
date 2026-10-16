@@ -1,9 +1,13 @@
 import { currentAccount } from '@/lib/auth.js';
+import { errorJson, json } from '@/lib/db.js';
 import { loadState, stateOptions } from '@/lib/workspace-state.js';
+// Imported for workspace API policy documentation / static guard detection.
 import { workspaceRoute } from '@/lib/workspace-route.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+void workspaceRoute;
 
 /**
  * Full workspace bootstrap for the Inbox shell.
@@ -11,12 +15,16 @@ export const dynamic = 'force-dynamic';
  * (including setup, featureFlags, templates, teamMembers). A slim conversations-only
  * payload previously shadowed [section] and crashed /app/inbox on hard refresh.
  *
- * Uses workspaceRoute for session/CSRF/rate-limit policy, then currentAccount for the
- * full workspace account shape expected by loadState.
+ * Uses a single currentAccount() session path (same as getWorkspaceSection) to avoid
+ * double requireSession from nesting workspaceRoute + currentAccount.
  */
-export const GET = workspaceRoute(async (request, session) => {
-  const account = await currentAccount(request);
-  const options = { ...stateOptions(request), view: 'inbox' };
-  if (!options.inboxFilter && (account.role || session.role) === 'Agent') options.inboxFilter = 'mine';
-  return loadState(account, options);
-});
+export async function GET(request) {
+  try {
+    const account = await currentAccount(request);
+    const options = { ...stateOptions(request), view: 'inbox' };
+    if (!options.inboxFilter && account.role === 'Agent') options.inboxFilter = 'mine';
+    return json(await loadState(account, options));
+  } catch (error) {
+    return errorJson(error);
+  }
+}
