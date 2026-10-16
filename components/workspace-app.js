@@ -57,7 +57,7 @@ import {
   workspaceRoutes
 } from './workspace/nav-config.js';
 
-import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
+import { Children, cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BadgeCheck, Ban, BarChart3, Bot, ChevronRight, CircleAlert, Download, FileText, Image, Inbox, LayoutDashboard,
@@ -215,6 +215,8 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [workspaces, setWorkspaces] = useState([]);
   const scopeGate = useRef(null);
   const inboxRevisionRef = useRef(0);
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
   if (!scopeGate.current) scopeGate.current = createRequestGate();
 
   const approvedTemplates = useMemo(() => state?.templates.filter((template) => template.status === "Approved") || [], [state]);
@@ -243,6 +245,40 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     setActiveView(location.view);
     setActiveConversationId(location.conversationId);
   }, [authMode, pathname]);
+  const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2600); };
+
+  const loadScope = useCallback(async (location = workspaceLocation(pathname), updatePlatform = true, overrides = {}) => {
+    const request = scopeGate.current.begin();
+    const currentPages = pagesRef.current;
+    const page = overrides.page || currentPages[location.view] || 1;
+    const messagePage = overrides.messagePage || currentPages.messages || 1;
+    const notePage = overrides.notePage || currentPages.notes || 1;
+    const inboxFilter = overrides.inboxFilter ?? currentPages.inboxFilter ?? "";
+    const inboxQ = overrides.inboxQ ?? currentPages.inboxQ ?? "";
+    let nextState;
+    try {
+      nextState = await api(stateUrl(location.view, {
+        page, messagePage, notePage, conversationId: location.conversationId || "", inboxFilter, q: inboxQ
+      }));
+    } catch (error) {
+      if (scopeGate.current.current(request)) throw error;
+      return null;
+    }
+    if (!scopeGate.current.current(request)) return null;
+    setState((current) => mergeWorkspaceState(current, nextState));
+    if (updatePlatform && nextState.platform) setPlatform((current) => ({ ...current, ...nextState.platform }));
+    return nextState;
+  }, [pathname]);
+
+  const reloadInbox = useCallback(async ({ inboxFilter, inboxQ, page = 1 } = {}) => {
+    const location = workspaceLocation(pathname);
+    const nextFilter = inboxFilter ?? pagesRef.current.inboxFilter ?? "";
+    const nextQ = inboxQ ?? pagesRef.current.inboxQ ?? "";
+    setPages((current) => ({ ...current, inbox: page, inboxFilter: nextFilter, inboxQ: nextQ }));
+    try { await loadScope(location, false, { page, inboxFilter: nextFilter, inboxQ: nextQ }); }
+    catch (error) { notify(error.message); }
+  }, [pathname, loadScope]);
+
   useEffect(() => {
     if (!account || authMode) return;
     const location = workspaceLocation(pathname);
@@ -253,7 +289,8 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
         if (isSessionFailure(error)) setAccount(null);
         setBootstrapError(error);
       });
-  }, [account, authMode, pathname]);
+  }, [account, authMode, pathname, loadScope]);
+
   useEffect(() => {
     if (!account) return undefined;
     let cancelled = false;
@@ -287,13 +324,11 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
         if (error?.name === "AbortError") return;
         if (isSessionFailure(error)) { setBootstrapError(error); setAccount(null); return; }
       }
-      if (!cancelled) timer = window.setTimeout(poll, location.view === "inbox" ? 250 : 15000);
+      if (!cancelled) timer = window.setTimeout(poll, location.view === "inbox" ? 2500 : 15000);
     };
     timer = window.setTimeout(poll, 1000);
     return () => { cancelled = true; controller.abort(); window.clearTimeout(timer); };
-  }, [account, pages, pathname]);
-
-  const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2600); };
+  }, [account, pathname, loadScope]);
 
   const bootstrap = async () => {
     const request = scopeGate.current.begin();
@@ -325,26 +360,6 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     }
   };
 
-  const loadScope = async (location = workspaceLocation(pathname), updatePlatform = true, overrides = {}) => {
-    const request = scopeGate.current.begin();
-    const page = overrides.page || pages[location.view] || 1;
-    const messagePage = overrides.messagePage || pages.messages || 1;
-    const notePage = overrides.notePage || pages.notes || 1;
-    const inboxFilter = overrides.inboxFilter ?? pages.inboxFilter ?? "";
-    const inboxQ = overrides.inboxQ ?? pages.inboxQ ?? "";
-    let nextState;
-    try {
-      nextState = await api(stateUrl(location.view, {
-        page, messagePage, notePage, conversationId: location.conversationId || "", inboxFilter, q: inboxQ
-      }));
-    }
-    catch (error) { if (scopeGate.current.current(request)) throw error; return null; }
-    if (!scopeGate.current.current(request)) return null;
-    setState((current) => mergeWorkspaceState(current, nextState));
-    if (updatePlatform && nextState.platform) setPlatform((current) => ({ ...current, ...nextState.platform }));
-    return nextState;
-  };
-
   const refresh = async () => {
     try { await loadScope(); }
     catch (error) { notify(error.message); if (isSessionFailure(error)) { setBootstrapError(error); setAccount(null); } }
@@ -361,15 +376,6 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     const overrides = key === "messages" ? { messagePage: nextPage } : key === "notes" ? { notePage: nextPage } : { page: nextPage };
     setPages((current) => ({ ...current, [key]: nextPage, ...(["messages", "notes"].includes(key) ? {} : { [location.view]: nextPage }) }));
     try { await loadScope(location, false, overrides); }
-    catch (error) { notify(error.message); }
-  };
-
-  const reloadInbox = async ({ inboxFilter, inboxQ, page = 1 } = {}) => {
-    const location = workspaceLocation(pathname);
-    const nextFilter = inboxFilter ?? pages.inboxFilter ?? "";
-    const nextQ = inboxQ ?? pages.inboxQ ?? "";
-    setPages((current) => ({ ...current, inbox: page, inboxFilter: nextFilter, inboxQ: nextQ }));
-    try { await loadScope(location, false, { page, inboxFilter: nextFilter, inboxQ: nextQ }); }
     catch (error) { notify(error.message); }
   };
 
@@ -1567,14 +1573,17 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   }, [state.featureFlags?.ai_agent]);
   useEffect(() => { setSuggestionError(''); }, [activeConversation?.id]);
   const skipSearchReload = useRef(true);
+  const reloadInboxRef = useRef(reloadInbox);
+  reloadInboxRef.current = reloadInbox;
   useEffect(() => { setSearch(serverQ); setInboxFilter(serverFilter || "all"); }, [serverFilter, serverQ]);
   useEffect(() => {
-    if (!reloadInbox || skipSearchReload.current) { skipSearchReload.current = false; return undefined; }
+    if (!reloadInboxRef.current || skipSearchReload.current) { skipSearchReload.current = false; return undefined; }
     const handle = window.setTimeout(() => {
-      reloadInbox({ inboxFilter, inboxQ: search.trim(), page: 1 });
+      reloadInboxRef.current({ inboxFilter, inboxQ: search.trim(), page: 1 });
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [search, reloadInbox]);
+    // inboxFilter changes reload via the select handler; only debounce free-text search here.
+  }, [search]);
   const filteredConversations = state.conversations;
   const assignedUser = teamMembers.find((member) => member.id === activeConversation?.assignedUserId);
   const workflowAction = (action, extra = {}) => { if (!activeConversation) return; mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, { action, ...extra }, "PATCH"), action === "note" ? "Note added" : "Conversation updated"); };

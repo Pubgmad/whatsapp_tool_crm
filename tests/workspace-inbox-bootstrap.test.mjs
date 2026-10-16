@@ -17,6 +17,15 @@ test('workspace shell guards missing setup and maps setup subviews to setup API'
   assert.match(source, /state\.setup\?\.status/);
 });
 
+test('inbox reload and poll effects stay stable (no pages-driven thrash)', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'components/workspace-app.js'), 'utf8');
+  assert.match(source, /const loadScope = useCallback/);
+  assert.match(source, /const reloadInbox = useCallback/);
+  assert.match(source, /pagesRef\.current = pages/);
+  assert.doesNotMatch(source, /\}, \[account, pages, pathname\]\)/);
+  assert.match(source, /location\.view === "inbox" \? 2500 : 15000/);
+});
+
 test('agent inbox listing clamps assignment for non-mine filters', () => {
   const source = fs.readFileSync(path.join(process.cwd(), 'lib/workspace-inbox-loader.js'), 'utf8');
   assert.match(source, /filter !== 'mine' && filter !== 'unassigned'/);
