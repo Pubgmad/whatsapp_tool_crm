@@ -1,9 +1,12 @@
+import Script from "next/script";
 import "./globals.css";
 import "./route-navigation.css";
 import "./template-picker.css";
 import "./visual-refresh.css";
 import "./crm-vibrant-theme.css";
 import { getPublicPlatformConfig } from "../lib/platform";
+
+const themeInitScript = `(function(){var k='wcrm_theme';try{var s=localStorage.getItem(k)||'system';var d=document.documentElement;if(s==='dark')d.setAttribute('data-theme','dark');else if(s==='light')d.setAttribute('data-theme','light');else d.setAttribute('data-theme',window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');}catch(e){}})();`;
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +47,13 @@ export async function generateMetadata() {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <Script id="wcrm-theme-init" strategy="beforeInteractive">
+          {themeInitScript}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }

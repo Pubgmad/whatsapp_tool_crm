@@ -207,7 +207,7 @@ export function MarketingHero({ page, assets, signupLabel }) {
   const hero = page?.hero;
   if (!hero?.enabled) return null;
   const imageUrl = hero.image === 'custom' ? hero.imageUrl : hero.image === 'hero' ? assets?.hero?.url : '';
-  const isFeature = page?.kind === 'feature';
+  const isFeature = page?.kind === 'feature' || page?.kind === 'product';
   return (
     <section
       className={`${styles.hero} ${imageUrl ? '' : styles.heroSolo} ${isFeature ? styles.heroFeature : ''}`}
@@ -219,9 +219,35 @@ export function MarketingHero({ page, assets, signupLabel }) {
         {hero.subtitle ? <p className={styles.heroLead}>{hero.subtitle}</p> : page.summary ? <p className={styles.heroLead}>{page.summary}</p> : null}
         <div className={styles.heroActions}>
           {hero.ctaLabel && hero.ctaHref ? <Link className={styles.btnPrimary} href={hero.ctaHref}>{hero.ctaLabel}</Link> : null}
-          <Link className={styles.btnSecondary} href="/login" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.35)', background: 'rgba(255,255,255,.08)' }}>
-            Sign in
-          </Link>
+          {(() => {
+            const secondaryStyle = { color: '#fff', borderColor: 'rgba(255,255,255,.35)', background: 'rgba(255,255,255,.08)' };
+            if (hero.secondaryCTA?.href) {
+              return (
+                <Link className={styles.btnSecondary} href={hero.secondaryCTA.href} style={secondaryStyle}>
+                  {hero.secondaryCTA.label || 'Learn more'}
+                </Link>
+              );
+            }
+            if (page?.kind === 'product' || page?.kind === 'feature') {
+              return (
+                <Link className={styles.btnSecondary} href="/signup" style={secondaryStyle}>
+                  {signupLabel || 'Get started'}
+                </Link>
+              );
+            }
+            if (page?.kind === 'home') {
+              return (
+                <Link className={styles.btnSecondary} href="/products" style={secondaryStyle}>
+                  Explore products
+                </Link>
+              );
+            }
+            return (
+              <Link className={styles.btnSecondary} href="/login" style={secondaryStyle}>
+                Sign in
+              </Link>
+            );
+          })()}
           {isFeature ? <Link className={styles.btnText} href="/features" style={{ color: '#fff' }}>All features</Link> : null}
         </div>
       </div>

@@ -27,55 +27,40 @@
   gap: 0.75rem 1rem;
   padding: 0.85rem 1.1rem;
   border-radius: 14px;
-  background: linear-gradient(90deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.1));
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--brand) 14%, transparent), color-mix(in srgb, var(--blue) 12%, transparent));
+  border: 1px solid var(--line-strong);
 }
 
 .actionBand span {
   display: block;
   font-size: 0.86rem;
-  color: var(--muted, #64748b);
+  color: var(--muted);
 }
 
 .superShell .settingGroup {
   padding: 1rem 1.1rem;
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.95), rgba(241, 245, 249, 0.85));
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: var(--soft);
+  border: 1px solid var(--line);
 }
 
 .superShell .settingGroup h3 {
   text-transform: capitalize;
   letter-spacing: 0.02em;
-  color: #4338ca;
+  color: var(--brand-dark);
 }
 
 .campaignLayout .panel:first-child {
   border-top: 3px solid transparent;
-  border-image: linear-gradient(90deg, #6366f1, #ec4899, #22c55e) 1;
-}
-
-.badge.good {
-  background: rgba(34, 197, 94, 0.15);
-  color: #15803d;
-}
-
-.badge.warn {
-  background: rgba(245, 158, 11, 0.18);
-  color: #b45309;
-}
-
-.badge.bad {
-  background: rgba(239, 68, 68, 0.15);
-  color: #b91c1c;
+  border-image: linear-gradient(90deg, var(--brand), #ec4899, #22c55e) 1;
 }
 
 .parityPanel {
   margin: 1.25rem 0 2rem;
   padding: 1.1rem 1.25rem;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: var(--surface, #fff);
+  border: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .paritySummary {
@@ -84,7 +69,7 @@
   gap: 0.75rem 1.25rem;
   margin: 0.75rem 0 1rem;
   font-size: 0.9rem;
-  color: var(--muted, #64748b);
+  color: var(--muted);
 }
 
 .parityTableWrap {
@@ -100,7 +85,7 @@
 .parityTable th,
 .parityTable td {
   padding: 0.55rem 0.65rem;
-  border-bottom: 1px solid var(--line, #e2e8f0);
+  border-bottom: 1px solid var(--line);
   vertical-align: top;
   text-align: left;
 }
@@ -108,15 +93,15 @@
 .parityTable small {
   display: block;
   margin-top: 0.25rem;
-  color: var(--muted, #64748b);
+  color: var(--muted);
 }
 
 .opsPanel {
   margin: 1rem 0 1.25rem;
   padding: 1rem 1.1rem;
   border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: var(--surface, #fff);
+  border: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .opsGrid {
@@ -131,7 +116,7 @@
   gap: 0.25rem;
   padding: 0.75rem;
   border-radius: 10px;
-  background: rgba(248, 250, 252, 0.9);
+  background: var(--soft);
   font-size: 0.88rem;
 }
 
@@ -167,13 +152,13 @@
   gap: 0.2rem;
   padding: 0.65rem 0.75rem;
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid var(--line);
+  background: var(--soft);
 }
 
 .inboxSlaMetrics article.warn {
-  border-color: rgba(220, 38, 38, 0.45);
-  background: rgba(254, 242, 242, 0.9);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: var(--danger-soft);
 }
 
 .inboxSlaWaitingList {
@@ -190,11 +175,11 @@
   gap: 0.15rem 0.75rem;
   padding: 0.5rem 0.65rem;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  border: 1px solid var(--line);
 }
 
 .inboxSlaWaitingList li.breached {
-  border-color: rgba(220, 38, 38, 0.4);
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
 }
 
 .inboxSlaConversationLink {
