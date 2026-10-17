@@ -9,10 +9,12 @@ function publicPathForPage(page) {
   if (!page) return '/';
   if (page.kind === 'home') return '/';
   if (page.kind === 'feature') return `/features/${page.slug}`;
+  if (page.kind === 'solution') return `/solutions/${page.slug}`;
+  if (page.kind === 'product' && page.slug) return `/products/${page.slug}`;
   return `/${page.slug}`;
 }
 
-const pageKinds = ['home', 'page', 'feature', 'product', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
+const pageKinds = ['home', 'page', 'feature', 'product', 'solution', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
 const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'steps', 'cta-band', 'faq', 'stats', 'rich', 'columns', 'product-showcase'];
 /** Hint copy shown above the page list for editors building AiSensy-depth feature pages. */
 const FEATURE_PAGE_GUIDANCE = 'Cover the problem, workflow, capabilities, and a signup CTA—only claim what the product does today.';
@@ -28,32 +30,21 @@ function syncProductsMegaNav(products = []) {
     href: '/products',
     type: 'internal',
     menuStyle: 'mega',
-    description: 'Explore products and capabilities',
+    description: 'Explore product suites',
     icon: 'products',
     visible: true,
     openInNewTab: false,
     children: visible.map((product) => ({
       id: `nav-product-${product.id}`,
       label: product.title,
-      href: product.href || '/features',
+      href: product.href || `/products/${product.slug || ''}`,
       type: 'internal',
-      menuStyle: 'dropdown',
+      menuStyle: 'link',
       description: product.summary || '',
       icon: product.icon || 'grid',
       visible: true,
       openInNewTab: false,
-      children: (product.features || []).filter((feature) => feature.visible !== false).map((feature) => ({
-        id: `nav-feature-${feature.id}`,
-        label: feature.title,
-        href: feature.href || '/features',
-        type: 'internal',
-        menuStyle: 'link',
-        description: feature.summary || '',
-        icon: feature.icon || '',
-        visible: true,
-        openInNewTab: false,
-        children: []
-      }))
+      children: []
     }))
   };
 }
