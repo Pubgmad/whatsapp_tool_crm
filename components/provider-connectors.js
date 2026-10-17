@@ -31,7 +31,14 @@ export default function ProviderConnectors({ api, postJson, canEdit = true }) {
     </tr>)}</tbody></table></div>
     <h3>Checkout recovery</h3>
     {data?.analytics&&<p className="wa-module-note" role="status">Last {data.analytics.days}d: {data.analytics.detected} abandoned, {data.analytics.queued} queued, {data.analytics.recovered} recovered{data.analytics.recoveredRevenue&&data.analytics.recoveredRevenue!=='0'?`, ${data.analytics.recoveredRevenue} ${data.analytics.recoveredCurrency}`:''} ({data.analytics.conversionRate}% conv.).</p>}
-    <details className="techDetails"><summary>Store setup tip</summary><p className="wa-module-note">Shopify webhooks register on OAuth; WooCommerce carts need a signed extension webhook.</p></details>
+    <details className="techDetails" open={provider==='woocommerce'||data?.connectors?.some(item=>item.provider==='woocommerce')}><summary>WooCommerce webhook setup</summary>
+      <p className="wa-module-note">Shopify webhooks register on OAuth. WooCommerce is a signed HTTPS webhook connector — not a native WordPress plugin.</p>
+      {data?.woocommerce&&<>
+        <ul className="wa-module-note">{data.woocommerce.requirements.map((item)=><li key={item}>{item}</li>)}</ul>
+        <p className="wa-module-note">Signature header: <code>{data.woocommerce.signatureHeader}</code> · Topics: {data.woocommerce.topics.join(', ')}</p>
+        <p className="wa-module-note">Delivery path: <code>{data.woocommerce.deliveryPath}</code></p>
+      </>}
+    </details>
     <div className="wa-module-table"><table><thead><tr><th>Store</th><th>Checkout</th><th>Customer phone</th><th>Value</th><th>Attempts</th><th>Last update</th><th>Status</th><th>Action</th></tr></thead><tbody>{data?.recoveryCandidates?.map(candidate=><tr key={candidate.connector_id+':'+candidate.external_id}><td>{data.connectors.find(item=>item.id===candidate.connector_id)?.name||candidate.connector_id}</td><td>{candidate.external_id}</td><td>{candidate.data.phone||'Unavailable'}</td><td>{candidate.data.amount} {candidate.data.currency}</td><td>{candidate.recovery_attempts||0}/{candidate.recovery_max_attempts||1}</td><td>{new Date(candidate.occurred_at).toLocaleString()}</td><td>{candidate.recovery_reason||candidate.session_status||candidate.recovery_status}</td><td>{candidate.recovery_status==='skipped'&&<button type="button" disabled={busy} onClick={()=>run(()=>postJson('/api/connectors',{action:'retry_recovery',id:candidate.connector_id,checkoutId:candidate.external_id}))}>Retry</button>}</td></tr>)}</tbody></table></div>
     {data?.recoveryCandidates?.length===0&&<p>No open checkouts are due for review.</p>}
     <a href="/api/connectors/calendar"><Download size={16}/>Order calendar (.ics)</a>

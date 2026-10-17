@@ -1677,7 +1677,8 @@ function TeamMembers({ state, mutate }) {
   const canManage = ["Owner", "Manager"].includes(state.account?.role);
   const [invitations, setInvitations] = useState([]);
   const [inviteUrl, setInviteUrl] = useState("");
-  useEffect(() => { if (canManage) api("/api/team/invitations").then((result) => setInvitations(result.invitations || [])).catch(() => setInvitations([])); }, [canManage]);
+  const refreshInvites = () => { if (!canManage) return; api("/api/team/invitations").then((result) => setInvitations(result.invitations || [])).catch(() => setInvitations([])); };
+  useEffect(() => { refreshInvites(); }, [canManage, members.length]);
   const invite = async (event) => { event.preventDefault(); const form = event.currentTarget; try { const result = await postJson("/api/team/invitations", Object.fromEntries(new FormData(form))); setInvitations(result.invitations || []); setInviteUrl(result.inviteUrl || ""); form.reset(); } catch (error) { mutate(Promise.reject(error)); } };
   const copyInvite = async () => { if (inviteUrl) await navigator.clipboard.writeText(inviteUrl); };
   const updateMember = (member, role) => mutate(postJson(`/api/team/members/${member.id}`, { role }, "PATCH"), "Team role updated");
