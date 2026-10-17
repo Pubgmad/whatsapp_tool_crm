@@ -10,11 +10,12 @@ function publicPathForPage(page) {
   if (page.kind === 'home') return '/';
   if (page.kind === 'feature') return `/features/${page.slug}`;
   if (page.kind === 'solution') return `/solutions/${page.slug}`;
+  if (page.kind === 'resource') return `/resources/${page.slug}`;
   if (page.kind === 'product' && page.slug) return `/products/${page.slug}`;
   return `/${page.slug}`;
 }
 
-const pageKinds = ['home', 'page', 'feature', 'product', 'solution', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
+const pageKinds = ['home', 'page', 'feature', 'product', 'solution', 'resource', 'about', 'contact', 'faq', 'pricing', 'legal', 'integrations', 'security'];
 const presets = ['plain', 'split-media', 'feature-grid', 'cards', 'steps', 'cta-band', 'faq', 'stats', 'rich', 'columns', 'product-showcase'];
 /** Hint copy shown above the page list for editors building AiSensy-depth feature pages. */
 const FEATURE_PAGE_GUIDANCE = 'Cover the problem, workflow, capabilities, and a signup CTA—only claim what the product does today.';
@@ -470,7 +471,41 @@ export default function CmsSiteEditor({ api, notify }) {
             </div>
           ))}
           <h3>Footer</h3>
-          <label>Blurb<textarea rows={3} value={document.footer?.blurb || ''} onChange={(event) => change({ footer: { ...document.footer, blurb: event.target.value } })} /></label>
+          <p className={styles.help}>Multi-column footer navigation. Columns and legal links are validated against published routes when you save.</p>
+          <label>Brand blurb<textarea rows={3} value={document.footer?.blurb || ''} onChange={(event) => change({ footer: { ...document.footer, blurb: event.target.value } })} /></label>
+          <div className={styles.row}>
+            <label>Pre-footer CTA label<input value={document.footer?.ctaLabel || ''} onChange={(event) => change({ footer: { ...document.footer, ctaLabel: event.target.value } })} /></label>
+            <label>CTA href<input value={document.footer?.ctaHref || ''} onChange={(event) => change({ footer: { ...document.footer, ctaHref: event.target.value } })} /></label>
+          </div>
+          <label>CTA supporting text<textarea rows={2} value={document.footer?.ctaText || ''} onChange={(event) => change({ footer: { ...document.footer, ctaText: event.target.value } })} /></label>
+          <label>Copyright override<input value={document.footer?.copyright || ''} placeholder="Leave blank for © year brand" onChange={(event) => change({ footer: { ...document.footer, copyright: event.target.value } })} /></label>
+
+          <h4>Columns</h4>
+          {(document.footer?.columns || []).map((column, colIndex) => (
+            <div className={styles.card} key={column.id || `col-${colIndex}`} style={{ marginBottom: 12, padding: 12, border: '1px solid var(--line, #d7e0dd)', borderRadius: 12 }}>
+              <div className={styles.row}>
+                <label>Column title<input value={column.title || ''} onChange={(event) => change({ footer: { ...document.footer, columns: document.footer.columns.map((item, i) => i === colIndex ? { ...item, title: event.target.value } : item) } })} /></label>
+                <label>Visible
+                  <select value={column.visible === false ? 'no' : 'yes'} onChange={(event) => change({ footer: { ...document.footer, columns: document.footer.columns.map((item, i) => i === colIndex ? { ...item, visible: event.target.value === 'yes' } : item) } })}>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </label>
+                <button type="button" onClick={() => change({ footer: { ...document.footer, columns: document.footer.columns.filter((_, i) => i !== colIndex) } })}><Trash2 size={15} /></button>
+              </div>
+              {(column.links || []).map((link, linkIndex) => (
+                <div className={styles.row} key={`${colIndex}-${linkIndex}`}>
+                  <label>Label<input value={link.label} onChange={(event) => change({ footer: { ...document.footer, columns: document.footer.columns.map((item, i) => i === colIndex ? { ...item, links: item.links.map((l, li) => li === linkIndex ? { ...l, label: event.target.value } : l) } : item) } })} /></label>
+                  <label>Href<input value={link.href} onChange={(event) => change({ footer: { ...document.footer, columns: document.footer.columns.map((item, i) => i === colIndex ? { ...item, links: item.links.map((l, li) => li === linkIndex ? { ...l, href: event.target.value } : l) } : item) } })} /></label>
+                  <button type="button" onClick={() => change({ footer: { ...document.footer, columns: document.footer.columns.map((item, i) => i === colIndex ? { ...item, links: item.links.filter((_, li) => li !== linkIndex) } : item) } })}><Trash2 size={14} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => change({ footer: { ...document.footer, columns: document.footer.columns.map((item, i) => i === colIndex ? { ...item, links: [...(item.links || []), { label: 'New link', href: '/about' }] } : item) } })}><Plus size={14} /> Column link</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => change({ footer: { ...document.footer, columns: [...(document.footer.columns || []), { id: `footer-col-${Date.now()}`, title: 'New column', visible: true, links: [{ label: 'Link', href: '/about' }] }] } })}><Plus size={15} /> Footer column</button>
+
+          <h4>Legal / bottom links</h4>
           {(document.footer?.links || []).map((link, index) => (
             <div className={styles.row} key={`${link.href}-${index}`}>
               <label>Label<input value={link.label} onChange={(event) => change({ footer: { ...document.footer, links: document.footer.links.map((item, i) => i === index ? { ...item, label: event.target.value } : item) } })} /></label>
@@ -478,7 +513,17 @@ export default function CmsSiteEditor({ api, notify }) {
               <button type="button" onClick={() => change({ footer: { ...document.footer, links: document.footer.links.filter((_, i) => i !== index) } })}><Trash2 size={15} /></button>
             </div>
           ))}
-          <button type="button" onClick={() => change({ footer: { ...document.footer, links: [...(document.footer.links || []), { label: 'Link', href: '/about' }] } })}><Plus size={15} /> Footer link</button>
+          <button type="button" onClick={() => change({ footer: { ...document.footer, links: [...(document.footer.links || []), { label: 'Link', href: '/privacy-policy' }] } })}><Plus size={15} /> Legal link</button>
+
+          <h4>Social links (https only)</h4>
+          {(document.footer?.socialLinks || []).map((link, index) => (
+            <div className={styles.row} key={`social-${index}`}>
+              <label>Label<input value={link.label} onChange={(event) => change({ footer: { ...document.footer, socialLinks: document.footer.socialLinks.map((item, i) => i === index ? { ...item, label: event.target.value } : item) } })} /></label>
+              <label>URL<input value={link.href} onChange={(event) => change({ footer: { ...document.footer, socialLinks: document.footer.socialLinks.map((item, i) => i === index ? { ...item, href: event.target.value } : item) } })} /></label>
+              <button type="button" onClick={() => change({ footer: { ...document.footer, socialLinks: document.footer.socialLinks.filter((_, i) => i !== index) } })}><Trash2 size={15} /></button>
+            </div>
+          ))}
+          <button type="button" onClick={() => change({ footer: { ...document.footer, socialLinks: [...(document.footer.socialLinks || []), { label: 'LinkedIn', href: 'https://www.linkedin.com/' }] } })}><Plus size={15} /> Social link</button>
         </div>
       )}
 

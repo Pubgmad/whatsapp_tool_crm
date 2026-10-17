@@ -51,7 +51,7 @@ export default async function ProductsDiscoveryPage() {
           </div>
         </section>
 
-        <MarketingFooter brandName={platform.brand_name} footer={site.document.footer} supportEmail={platform.support_email} />
+        <MarketingFooter brandName={platform.brand_name} footer={site.document.footer} supportEmail={platform.support_email} logo={assets.logo} />
       </MarketingChrome>
     </div>
   );

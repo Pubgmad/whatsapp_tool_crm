@@ -295,38 +295,60 @@ export function MarketingHero({ page, assets }) {
   );
 }
 
-export function MarketingFooter({ brandName, footer, supportEmail }) {
+export function MarketingFooter({ brandName, footer, supportEmail, logo }) {
   const links = footer?.links || [];
   const social = footer?.socialLinks || [];
-  const columns = footer?.columns || [];
+  const columns = (footer?.columns || []).filter((column) => column.visible !== false && Array.isArray(column.links) && column.links.length);
+  const year = new Date().getFullYear();
+  const copyright = footer?.copyright || `© ${year} ${brandName}. All rights reserved.`;
+  const showCta = Boolean(footer?.ctaLabel && footer?.ctaHref);
+
   return (
     <footer className={styles.footer}>
       <div className={styles.footerAccent} aria-hidden />
-      <div className={styles.footerTop}>
-        <div>
-          <strong>{brandName}</strong>
+      {showCta ? (
+        <div className={styles.footerCta}>
+          <div className={styles.footerCtaCopy}>
+            <strong>{footer.ctaLabel}</strong>
+            {footer.ctaText ? <p>{footer.ctaText}</p> : null}
+          </div>
+          <Link className={styles.btnPrimary} href={footer.ctaHref}>{footer.ctaLabel}</Link>
+        </div>
+      ) : null}
+      <div className={styles.footerTop} style={{ ['--footer-cols']: Math.max(2, columns.length + 1) }}>
+        <div className={styles.footerBrand}>
+          {logo?.url ? (
+            <img className={styles.footerLogo} src={logo.url} alt={brandName} width={logo.width} height={logo.height} />
+          ) : (
+            <strong className={styles.footerBrandName}>{brandName}</strong>
+          )}
           {footer?.blurb ? <p>{footer.blurb}</p> : null}
+          {supportEmail ? <a className={styles.footerSupport} href={`mailto:${supportEmail}`}>{supportEmail}</a> : null}
+          {social.length > 0 ? (
+            <div className={styles.social}>
+              {social.map((link) => (
+                <a href={link.href} key={link.href} rel="noopener noreferrer" target="_blank">{link.label}</a>
+              ))}
+            </div>
+          ) : null}
         </div>
         {columns.map((column) => (
-          <div key={column.title}>
+          <nav className={styles.footerCol} key={column.id || column.title} aria-label={column.title}>
             <strong>{column.title}</strong>
-            {column.links?.map((link) => <Link href={link.href} key={link.href + link.label}>{link.label}</Link>)}
-          </div>
+            {column.links.map((link) => (
+              link.href.startsWith('http')
+                ? <a href={link.href} key={link.href + link.label} rel="noopener noreferrer" target="_blank">{link.label}</a>
+                : <Link href={link.href} key={link.href + link.label}>{link.label}</Link>
+            ))}
+          </nav>
         ))}
-        <div>
-          <strong>Explore</strong>
-          {links.map((link) => <Link href={link.href} key={link.href + link.label}>{link.label}</Link>)}
-          <Link href="/login">Sign in</Link>
-          {supportEmail ? <a href={`mailto:${supportEmail}`}>Contact</a> : null}
-        </div>
       </div>
       <div className={styles.footerBottom}>
-        {social.length > 0 && (
-          <div className={styles.social}>
-            {social.map((link) => <a href={link.href} key={link.href} rel="noopener noreferrer" target="_blank">{link.label}</a>)}
-          </div>
-        )}
-        <small>{brandName}</small>
+        <small>{copyright}</small>
+        <div className={styles.footerLegal}>
+          {links.map((link) => <Link href={link.href} key={link.href + link.label}>{link.label}</Link>)}
+          <Link href="/login">Sign in</Link>
+        </div>
       </div>
     </footer>
   );
