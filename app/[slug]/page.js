@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 const RESERVED = new Set([
   'app', 'api', 'login', 'signup', 'super-admin', 'admin', 'about', 'contact', 'features', 'terms',
   'privacy-policy', 'forgot-password', 'reset-password', 'verify-email', 'resend-verification',
-  'invite', 'data-deletion', 'opengraph-image', 'favicon.ico', 'w', 'r', 'products'
+  'invite', 'data-deletion', 'opengraph-image', 'favicon.ico', 'w', 'r', 'products', 'solutions', 'integrations'
 ]);
 
 export default async function CmsSlugPage({ params }) {
@@ -14,6 +14,6 @@ export default async function CmsSlugPage({ params }) {
   if (!slug || RESERVED.has(slug)) notFound();
   const ctx = await loadMarketingContext();
   const page = resolvePage(ctx.site.document, { slug });
-  if (!page || page.kind === 'home' || page.kind === 'feature') notFound();
+  if (!page || page.kind === 'home' || page.kind === 'feature' || page.kind === 'product' || page.kind === 'solution') notFound();
   return <MarketingPageView {...ctx} page={page} />;
 }

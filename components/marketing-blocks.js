@@ -203,14 +203,68 @@ export function MarketingSection({ section, assets, products = [] }) {
   );
 }
 
-export function MarketingHero({ page, assets, signupLabel }) {
+function resolveHeroImageUrl(hero, assets) {
+  if (!hero) return '';
+  if (hero.image === 'custom') return String(hero.imageUrl || '').trim();
+  if (hero.image === 'hero') return String(assets?.hero?.url || '').trim();
+  return '';
+}
+
+function resolveSecondaryHeroCta(page, hero) {
+  if (hero?.secondaryCTA?.href) {
+    return {
+      href: hero.secondaryCTA.href,
+      label: hero.secondaryCTA.label || 'Learn more'
+    };
+  }
+  const kind = page?.kind;
+  if (kind === 'feature') return { href: '/features', label: 'Browse features' };
+  if (kind === 'product') return { href: '/products', label: 'All products' };
+  if (kind === 'integrations' || kind === 'integration') return { href: '/integrations', label: 'All integrations' };
+  if (kind === 'solution') return { href: '/solutions', label: 'All solutions' };
+  if (kind === 'home') return { href: '/products', label: 'Explore products' };
+  if (kind === 'pricing') return { href: '/contact', label: 'Talk to us' };
+  return { href: '/login', label: 'Sign in' };
+}
+
+function HeroShowcase({ kind, title }) {
+  const label = kind === 'solution' ? 'Use case' : kind === 'product' ? 'Product suite' : kind === 'integrations' ? 'Connector' : 'Capability';
+  return (
+    <div className={styles.heroVisual} aria-hidden="true">
+      <div className={styles.heroVisualFrame}>
+        <div className={styles.heroVisualBar}>
+          <span /><span /><span />
+          <em>{label}</em>
+        </div>
+        <div className={styles.heroVisualBody}>
+          <strong>{title || 'WhatsApp CRM'}</strong>
+          <div className={styles.heroVisualRows}>
+            <i /><i /><i />
+          </div>
+          <div className={styles.heroVisualCards}>
+            <b /><b /><b />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function MarketingHero({ page, assets }) {
   const hero = page?.hero;
   if (!hero?.enabled) return null;
-  const imageUrl = hero.image === 'custom' ? hero.imageUrl : hero.image === 'hero' ? assets?.hero?.url : '';
-  const isFeature = page?.kind === 'feature' || page?.kind === 'product';
+  const imageUrl = resolveHeroImageUrl(hero, assets);
+  // Custom uploaded images get a photo panel; site "hero" assets only tint the background.
+  const showPhotoPanel = hero.image === 'custom' && Boolean(imageUrl);
+  const isDetail = ['feature', 'product', 'solution', 'integrations', 'integration'].includes(page?.kind);
+  // Detail pages always keep a right-column visual so solo heroes are not a left strip + void.
+  const showVisual = showPhotoPanel || isDetail;
+  const secondary = resolveSecondaryHeroCta(page, hero);
+  const primaryHref = String(hero.ctaHref || '').trim();
+  const showSecondary = secondary.href && secondary.href !== primaryHref;
   return (
     <section
-      className={`${styles.hero} ${imageUrl ? '' : styles.heroSolo} ${isFeature ? styles.heroFeature : ''}`}
+      className={`${styles.hero} ${showVisual ? '' : styles.heroSolo} ${isDetail ? styles.heroFeature : ''}`}
       style={imageUrl ? { ['--hero-image']: `url("${imageUrl}")` } : undefined}
     >
       <div>
@@ -218,40 +272,25 @@ export function MarketingHero({ page, assets, signupLabel }) {
         <h1>{hero.title || page.title}</h1>
         {hero.subtitle ? <p className={styles.heroLead}>{hero.subtitle}</p> : page.summary ? <p className={styles.heroLead}>{page.summary}</p> : null}
         <div className={styles.heroActions}>
-          {hero.ctaLabel && hero.ctaHref ? <Link className={styles.btnPrimary} href={hero.ctaHref}>{hero.ctaLabel}</Link> : null}
-          {(() => {
-            const secondaryStyle = { color: '#fff', borderColor: 'rgba(255,255,255,.35)', background: 'rgba(255,255,255,.08)' };
-            if (hero.secondaryCTA?.href) {
-              return (
-                <Link className={styles.btnSecondary} href={hero.secondaryCTA.href} style={secondaryStyle}>
-                  {hero.secondaryCTA.label || 'Learn more'}
-                </Link>
-              );
-            }
-            if (page?.kind === 'product' || page?.kind === 'feature') {
-              return (
-                <Link className={styles.btnSecondary} href="/signup" style={secondaryStyle}>
-                  {signupLabel || 'Get started'}
-                </Link>
-              );
-            }
-            if (page?.kind === 'home') {
-              return (
-                <Link className={styles.btnSecondary} href="/products" style={secondaryStyle}>
-                  Explore products
-                </Link>
-              );
-            }
-            return (
-              <Link className={styles.btnSecondary} href="/login" style={secondaryStyle}>
-                Sign in
-              </Link>
-            );
-          })()}
-          {isFeature ? <Link className={styles.btnText} href="/features" style={{ color: '#fff' }}>All features</Link> : null}
+          {hero.ctaLabel && primaryHref ? (
+            <Link className={styles.btnPrimary} href={primaryHref}>{hero.ctaLabel}</Link>
+          ) : null}
+          {showSecondary ? (
+            <Link
+              className={styles.btnSecondary}
+              href={secondary.href}
+              style={{ color: '#fff', borderColor: 'rgba(255,255,255,.35)', background: 'rgba(255,255,255,.08)' }}
+            >
+              {secondary.label}
+            </Link>
+          ) : null}
         </div>
       </div>
-      {imageUrl ? <div className={styles.heroPanel} aria-hidden /> : null}
+      {showPhotoPanel ? (
+        <div className={styles.heroPanel} aria-hidden />
+      ) : isDetail ? (
+        <HeroShowcase kind={page.kind} title={hero.title || page.title} />
+      ) : null}
     </section>
   );
 }

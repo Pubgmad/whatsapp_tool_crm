@@ -30,8 +30,8 @@ export default async function ProductsDiscoveryPage() {
             </p>
             <div className={styles.heroActions}>
               <Link className={styles.btnPrimary} href="#catalog">Explore catalog</Link>
-              <Link className={styles.btnSecondary} href="/signup" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.35)', background: 'rgba(255,255,255,.08)' }}>
-                {platform.public_signup_label || 'Get started'}
+              <Link className={styles.btnSecondary} href="/features" style={{ color: '#fff', borderColor: 'rgba(255,255,255,.35)', background: 'rgba(255,255,255,.08)' }}>
+                Browse features
               </Link>
             </div>
           </div>

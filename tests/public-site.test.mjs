@@ -20,7 +20,14 @@ test('default CMS document validates with feature routes', () => {
   const productsNav = doc.navigation.find((item) => item.menuStyle === 'mega');
   assert.ok(productsNav);
   assert.ok(productsNav.children.length >= 1);
-  assert.ok(productsNav.children[0].children.some((feature) => feature.href.includes('whatsapp-calling')));
+  assert.ok(productsNav.children.every((product) => !(product.children || []).length));
+  const featuresNav = doc.navigation.find((item) => item.id === 'nav-features');
+  assert.ok(featuresNav);
+  assert.ok(featuresNav.children.some((feature) => feature.href.includes('whatsapp-calling')));
+  const solutionsNav = doc.navigation.find((item) => item.id === 'nav-solutions');
+  assert.ok(solutionsNav);
+  assert.ok(doc.pages.some((page) => page.kind === 'solution' && page.slug === 'customer-support'));
+  assert.ok(doc.navigation.some((item) => item.id === 'nav-integrations' && item.href === '/integrations'));
 });
 
 test('legacy section documents migrate into pages', () => {
