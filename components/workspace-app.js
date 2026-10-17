@@ -58,7 +58,7 @@ import {
   workspaceRoutes
 } from './workspace/nav-config.js';
 
-import { Children, cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Children, cloneElement, isValidElement, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BadgeCheck, Ban, BarChart3, Bot, ChevronRight, CircleAlert, Download, FileText, Image, Inbox, LayoutDashboard,
@@ -221,9 +221,9 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   pagesRef.current = pages;
   if (!scopeGate.current) scopeGate.current = createRequestGate();
 
-  const approvedTemplates = useMemo(() => state?.templates.filter((template) => template.status === "Approved") || [], [state]);
-  const marketableContacts = useMemo(() => state?.contacts.filter((contact) => contact.marketingPermission && !contact.unsubscribed) || [], [state]);
-  const suppressedContacts = useMemo(() => state?.contacts.filter((contact) => contact.unsubscribed || !contact.marketingPermission) || [], [state]);
+  const approvedTemplates = useMemo(() => (state?.templates || []).filter((template) => template.status === "Approved"), [state]);
+  const marketableContacts = useMemo(() => (state?.contacts || []).filter((contact) => contact.marketingPermission && !contact.unsubscribed), [state]);
+  const suppressedContacts = useMemo(() => (state?.contacts || []).filter((contact) => contact.unsubscribed || !contact.marketingPermission), [state]);
 
   useEffect(() => { if (!authMode) bootstrap(); return () => scopeGate.current.invalidate(); }, []);
   useEffect(() => {
@@ -449,15 +449,17 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   if (!account && !authMode && bootstrapError && !isSessionFailure(bootstrapError)) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && authMode) {
     return (
-      <AuthScreen
-        onDone={(nextPath) => window.location.replace(safeAuthReturnPath(nextPath, DEFAULT_POST_AUTH_PATH))}
-        platform={platform}
-        initialMode={authMode}
-        onModeChange={(mode, nextPath) => {
-          const base = mode === "signup" ? "/signup" : "/login";
-          router.push(withAuthReturn(base, nextPath));
-        }}
-      />
+      <Suspense fallback={<main className="loading"><Loader2 className="spin" size={30} /><p>Opening sign in</p></main>}>
+        <AuthScreen
+          onDone={(nextPath) => window.location.replace(safeAuthReturnPath(nextPath, DEFAULT_POST_AUTH_PATH))}
+          platform={platform}
+          initialMode={authMode}
+          onModeChange={(mode, nextPath) => {
+            const base = mode === "signup" ? "/signup" : "/login";
+            router.push(withAuthReturn(base, nextPath));
+          }}
+        />
+      </Suspense>
     );
   }
   if (!account) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening sign in</p></main>;
