@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { errorJson, json } from '@/lib/db';
+import { DEFAULT_POST_AUTH_PATH } from '@/lib/auth-return.js';
 import { googleLoginConfigured, startGoogleLogin } from '@/lib/google-login-oauth.js';
 
 export const runtime = 'nodejs';
@@ -15,7 +16,7 @@ export async function GET(request) {
     const { requestIp } = await import('@/lib/security');
     await enforceRequestRateLimit(request, `google-start:${requestIp(request)}`, 'login', { identityOnly: true });
     const mode = url.searchParams.get('mode') === 'signup' ? 'signup' : 'signin';
-    const nextPath = url.searchParams.get('next') || '/app/dashboard';
+    const nextPath = url.searchParams.get('next') || DEFAULT_POST_AUTH_PATH;
     const started = await startGoogleLogin({ mode, nextPath });
     return NextResponse.redirect(started.url, { status: 302 });
   } catch (error) {

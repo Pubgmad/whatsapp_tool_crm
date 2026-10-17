@@ -40,6 +40,7 @@ import ApprovedTemplatePicker from './approved-template-picker';
 import SearchableOptionPicker from './searchable-option-picker';
 import AiSupportSettings from './ai-support-settings';
 import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation';
+import { DEFAULT_POST_AUTH_PATH, DEFAULT_WORKSPACE_PATH, safeAuthReturnPath, withAuthReturn } from '../lib/auth-return.js';
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../lib/password-policy.js';
 import { metaSdkCallback } from '../lib/meta-sdk-callback';
 import { saveConversationDraft, clearSentConversationDraft, canApplySupportSuggestion } from '../lib/inbox-drafts';
@@ -407,7 +408,9 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
     if (businessId === account.business.id) return;
     try {
       await postJson("/api/workspaces", { businessId });
-      window.location.assign("/app/dashboard");
+      const current = typeof window !== 'undefined' ? window.location.pathname : '';
+      const stay = current.startsWith('/app/') ? current : DEFAULT_WORKSPACE_PATH;
+      window.location.assign(stay);
     } catch (error) {
       event.target.value = account.business.id;
       notify(error.message);
@@ -435,7 +438,19 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   if (!authMode && isSessionFailure(bootstrapError)) return <main className='loading'><Loader2 className='spin' size={30} /><p>Opening sign in</p></main>;
   if (account && !state && bootstrapError) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
   if (!account && !authMode && bootstrapError && !isSessionFailure(bootstrapError)) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
-  if (!account && authMode) return <AuthScreen onDone={() => window.location.replace('/app/dashboard')} platform={platform} initialMode={authMode} onModeChange={(mode) => router.push(mode === "signup" ? "/signup" : "/login")} />;
+  if (!account && authMode) {
+    return (
+      <AuthScreen
+        onDone={(nextPath) => window.location.replace(safeAuthReturnPath(nextPath, DEFAULT_POST_AUTH_PATH))}
+        platform={platform}
+        initialMode={authMode}
+        onModeChange={(mode, nextPath) => {
+          const base = mode === "signup" ? "/signup" : "/login";
+          router.push(withAuthReturn(base, nextPath));
+        }}
+      />
+    );
+  }
   if (!account) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening sign in</p></main>;
   if (authMode) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening workspace</p></main>;
   if (!state) return <main className="loading"><Sparkles size={32} /><p>Preparing workspace</p></main>;
@@ -516,7 +531,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
           );
         })()}
         {["degraded", "reconnect_required"].includes(state.setup?.health?.status) && <div className="connectionAlert" role="alert"><CircleAlert size={19} /><span>{connectionHealthMessage(state.setup?.health)}</span>{canOpenWorkspaceView(account.role, "setup") && <button className="secondaryAction" type="button" onClick={() => navigate("setup")}>Open WhatsApp settings</button>}</div>}
-        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is disabled by the platform administrator.'><button className='secondaryAction' type='button' onClick={() => navigate('overview')}>Open dashboard</button></Panel></div> : <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />}
+        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is disabled by the platform administrator.'><button className='secondaryAction' type='button' onClick={() => navigate('inbox')}>Open inbox</button></Panel></div> : <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />}
         {children}
       </section>
     </main>
@@ -537,6 +552,7 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
   const [prefillEmail, setPrefillEmail] = useState("");
   const isSignup = mode === "signup";
   const googleLoginEnabled = Boolean(platform?.google_login_enabled);
+  const returnPath = safeAuthReturnPath(searchParams.get("next"), DEFAULT_POST_AUTH_PATH);
   useEffect(() => { setHydrated(true); }, []);
   useEffect(() => { setMode(initialMode); }, [initialMode]);
   useEffect(() => {
@@ -560,7 +576,11 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
     setMfaRequired(false);
     const nextMode = isSignup ? "signin" : "signup";
     setMode(nextMode);
-    onModeChange?.(nextMode);
+    onModeChange?.(nextMode, returnPath);
+  };
+
+  const finishAuth = async () => {
+    await onDone(returnPath);
   };
 
   const submit = async (event) => {
@@ -573,7 +593,7 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
       setPending(true);
       try {
         await postJson("/api/auth/google/mfa", { mfaCode });
-        await onDone();
+        await finishAuth();
       } catch (err) {
         setError(err.message);
       } finally {
@@ -601,7 +621,7 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
     try {
       const result = await postJson(isSignup ? '/api/auth/register' : '/api/auth/login', form);
       if (result.verificationRequired) { setVerificationDeliveryFailed(Boolean(result.deliveryFailed)); setError(result.deliveryFailed ? 'Your account was created, but verification email could not be sent. Request a new link when delivery is available.' : 'Check your email and verify the account before signing in.'); return; }
-      await onDone();
+      await finishAuth();
     } catch (err) {
       if (err.code === 'MFA_REQUIRED') setMfaRequired(true);
       if (err.code === 'EMAIL_NOT_VERIFIED') setVerificationDeliveryFailed(true);
@@ -611,7 +631,7 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
     }
   };
 
-  const googleStartHref = `/api/auth/google/start?mode=${isSignup ? "signup" : "signin"}`;
+  const googleStartHref = withAuthReturn(`/api/auth/google/start?mode=${isSignup ? "signup" : "signin"}`, returnPath);
 
   return (
     <main className="authShell">
