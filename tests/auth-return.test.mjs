@@ -36,6 +36,7 @@ test('feature slugs map to dedicated CRM workspaces', () => {
   assert.equal(workspacePathForSlug('whatsapp-broadcasting'), '/app/campaigns');
   assert.equal(workspacePathForSlug('shared-inbox'), '/app/inbox');
   assert.equal(workspacePathForSlug('whatsapp-analytics'), '/app/analytics');
+  assert.equal(workspacePathForSlug('whatsapp-ai-agents'), '/app/automations');
 });
 
 test('resolveLaunchCta is auth-aware for feature pages', () => {
