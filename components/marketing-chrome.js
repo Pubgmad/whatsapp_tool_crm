@@ -263,7 +263,7 @@ function MobileItem({ item, onNavigate }) {
   );
 }
 
-export default function MarketingChrome({ brandName, logo, navigation = [], signInLabel = 'Sign in', signupLabel = 'Create workspace', authenticated = false, children }) {
+export default function MarketingChrome({ brandName, logo, navigation = [], signInLabel = 'Sign in', signupLabel = 'Get started', authenticated = false, children }) {
   const [open, setOpen] = useState(false);
   const items = (navigation || []).filter((item) => item.visible !== false);
   const close = () => setOpen(false);
@@ -289,11 +289,14 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
         <div className={styles.headerActions}>
           <ThemeToggle className={styles.themeToggle} />
           {authenticated ? (
-            <Link className={styles.btnPrimary} href="/app/dashboard" onClick={close}>Open Dashboard</Link>
+            <>
+              <Link className={styles.btnSecondary} href="/app/inbox" onClick={close}>Workspace</Link>
+              <Link className={styles.btnPrimary} href="/app/settings/billing" onClick={close}>Account</Link>
+            </>
           ) : (
             <>
               <Link className={styles.btnSecondary} href="/login" onClick={close}>{signInLabel}</Link>
-              <Link className={styles.btnPrimary} href="/signup" onClick={close}>{signupLabel}</Link>
+              <Link className={styles.btnPrimary} href="/signup" onClick={close}>{signupLabel || 'Get started'}</Link>
             </>
           )}
         </div>

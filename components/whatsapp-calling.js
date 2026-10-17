@@ -61,7 +61,7 @@ export default function WhatsAppCalling({api,postJson,role}){
   });
   const end=call=>perform(async()=>{await postJson('/api/whatsapp/calling',{action:call.direction==='USER_INITIATED'&&call.status==='ringing'?'reject':'terminate',callId:call.id});if(call.id===liveId)cleanup();});
   const toggleMute=()=>{streamRef.current?.getAudioTracks().forEach(t=>t.enabled=muted);setMuted(!muted);};
-  return <section className="wa-module"><header className="wa-module-heading"><h2>WhatsApp Calls</h2><button type="button" title="Refresh calls" aria-label="Refresh calls" onClick={()=>perform(load)} disabled={busy}><RefreshCcw size={18}/></button></header>
+  return <section className="wa-module" aria-label="WhatsApp Calling"><header className="wa-module-heading saasPageHeadToolbar"><span className="wa-module-toolbarLabel">Call activity</span><button type="button" title="Refresh calls" aria-label="Refresh calls" onClick={()=>perform(load)} disabled={busy}><RefreshCcw size={18}/></button></header>
     {error&&<p role="alert" className="wa-module-error">{error}</p>}
     {data?.readiness?.blockedReason&&<p role="status" className="wa-module-note honestLimitCallout">{data.readiness.blockedReason}</p>}
     {data?.readiness&&!data.readiness.blockedReason&&<p role="status" className="wa-module-note">Calling ready for this workspace: {data.readiness.connectedNumbers} connected number{data.readiness.connectedNumbers===1?'':'s'}, TURN relay configured. Meta call eligibility still applies per contact permission.</p>}

@@ -523,7 +523,9 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
           <div className="topActions"><ThemeToggle /><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><button className="iconButton" title="Sign out" onClick={logout}><LogOut size={18} /></button><span className={`statusPill ${(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}`}>{state.setup?.status || "Not connected"}</span></div>
         </header>
         {notice && <div className="toast">{notice}</div>}
-        {(state.setup?.status || 'Not connected') !== 'Connected' && canOpenWorkspaceView(account.role, 'setup') && activeView !== 'setup' ? (
+        {(state.setup?.status || 'Not connected') !== 'Connected'
+          && canOpenWorkspaceView(account.role, 'setup')
+          && activeView === 'overview' ? (
           <div className="onboardingBanner" role="status">
             <div>
               <strong>Finish workspace setup</strong>

@@ -18,7 +18,7 @@ export default async function ProductsDiscoveryPage() {
         logo={assets.logo}
         navigation={site.document.navigation}
         signInLabel={platform.public_signin_label || 'Sign in'}
-        signupLabel={platform.public_signup_label || 'Create workspace'}
+        signupLabel={platform.public_signup_label || 'Get started'}
         authenticated={authenticated}
       >
         <section className={`${styles.hero} ${styles.heroSolo}`}>
