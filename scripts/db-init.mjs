@@ -6,6 +6,7 @@ import pg from "pg";
 import { seedPlatformSettings } from "../lib/platform.js";
 import { DEFAULT_PRIVACY_POLICY } from "../lib/privacy-policy.js";
 import { databaseSslConfig } from "../lib/db.js";
+import { builtInSubscriptionPlans, DEFAULT_FREE_PLAN_CODE } from "../lib/default-plans.js";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -43,10 +44,17 @@ function optionalNumber(...values) {
 
 function parsePlans() {
   const raw = clean(process.env.SUBSCRIPTION_PLANS_JSON);
-  if (!raw) return [];
+  if (!raw) return builtInSubscriptionPlans();
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) throw new Error("not array");
+    // Always ensure Free Forever exists even when custom JSON is provided.
+    const codes = new Set(parsed.map((plan) => clean(plan.code).toLowerCase()).filter(Boolean));
+    const merged = [...parsed];
+    for (const plan of builtInSubscriptionPlans()) {
+      if (!codes.has(plan.code)) merged.push(plan);
+    }
+    return merged;
   } catch {
     throw new Error("SUBSCRIPTION_PLANS_JSON must be a valid JSON array.");
   }
@@ -99,28 +107,64 @@ async function seedSubscriptionPlans(client) {
 }
 
 async function backfillSubscriptions(client) {
-  const defaultCode = clean(process.env.DEFAULT_SUBSCRIPTION_PLAN_CODE).toLowerCase();
-  const plan = defaultCode
-    ? (await client.query("SELECT id, trial_days FROM subscription_plans WHERE code = $1 AND is_active = TRUE AND visible = TRUE LIMIT 1", [defaultCode])).rows[0]
-    : null;
+  const defaultCode = clean(process.env.DEFAULT_SUBSCRIPTION_PLAN_CODE || DEFAULT_FREE_PLAN_CODE).toLowerCase();
+  const plan = (
+    await client.query(
+      `SELECT id, code, trial_days, monthly_price_cents, yearly_price_cents
+         FROM subscription_plans
+        WHERE code = $1 AND is_active = TRUE AND visible = TRUE
+        LIMIT 1`,
+      [defaultCode]
+    )
+  ).rows[0]
+    || (
+      await client.query(
+        `SELECT id, code, trial_days, monthly_price_cents, yearly_price_cents
+           FROM subscription_plans
+          WHERE code = $1 AND is_active = TRUE AND visible = TRUE
+          LIMIT 1`,
+        [DEFAULT_FREE_PLAN_CODE]
+      )
+    ).rows[0]
+    || null;
+
+  const isFree = plan && (plan.code === DEFAULT_FREE_PLAN_CODE || (Number(plan.monthly_price_cents || 0) <= 0 && Number(plan.trial_days || 0) <= 0));
+  const status = !plan ? 'pending' : isFree ? 'active' : 'trialing';
+  const trialDays = isFree ? 0 : Number(plan?.trial_days || 0);
 
   await client.query(
     `INSERT INTO business_subscriptions (id, business_id, plan_id, status, payment_status, starts_at, trial_ends_at, current_period_start, current_period_end, renews_at)
      SELECT 'sub_' || substr(md5(b.id || clock_timestamp()::text), 1, 16),
             b.id,
             $1,
-            CASE WHEN $1::text IS NULL THEN 'pending' ELSE 'trialing' END,
+            $2,
             'none',
             NOW(),
-            CASE WHEN $1::text IS NULL THEN NULL ELSE NOW() + ($2 || ' days')::interval END,
+            CASE WHEN $2 = 'trialing' THEN NOW() + ($3 || ' days')::interval ELSE NULL END,
             NOW(),
-            NOW() + INTERVAL '1 month',
-            NOW() + INTERVAL '1 month'
+            CASE WHEN $2 = 'active' AND $4::boolean THEN NULL ELSE NOW() + INTERVAL '1 month' END,
+            CASE WHEN $2 = 'active' AND $4::boolean THEN NULL ELSE NOW() + INTERVAL '1 month' END
      FROM businesses b
      WHERE b.review_access = FALSE
        AND NOT EXISTS (SELECT 1 FROM business_subscriptions bs WHERE bs.business_id = b.id)`,
-    [plan?.id || null, String(plan?.trial_days || 0)]
+    [plan?.id || null, status, String(trialDays), Boolean(isFree)]
   );
+
+  // Heal workspaces that never received a plan (missing Free Forever seed).
+  if (plan?.id && isFree) {
+    await client.query(
+      `UPDATE business_subscriptions bs
+          SET plan_id = $1,
+              status = 'active',
+              trial_ends_at = NULL,
+              current_period_end = NULL,
+              renews_at = NULL,
+              updated_at = NOW()
+        WHERE bs.plan_id IS NULL
+          AND bs.status IN ('pending', 'incomplete', 'unpaid', 'trialing')`,
+      [plan.id]
+    );
+  }
 }
 
 async function seedSuperAdmin(client) {
@@ -295,6 +339,14 @@ try {
   );
   await client.query(await fs.readFile(new URL('../db/template-ownership.sql', import.meta.url), 'utf8'));
   await seedPlatformSettings(client);
+  // Migrate legacy marketing CTA copy only when it still matches the old product default.
+  await client.query(
+    `UPDATE platform_settings
+        SET value = $1::jsonb, updated_at = NOW()
+      WHERE key = 'public_signup_label'
+        AND value = $2::jsonb`,
+    [JSON.stringify('Get started'), JSON.stringify('Create workspace')]
+  );
   const privacySettings = (await client.query("SELECT key,value FROM platform_settings WHERE key IN ('privacy_intro','privacy_last_updated')")).rows;
   const privacyValues = Object.fromEntries(privacySettings.map((row) => [row.key, row.value]));
   const initialPolicy = { ...DEFAULT_PRIVACY_POLICY, intro: String(privacyValues.privacy_intro || DEFAULT_PRIVACY_POLICY.intro) };

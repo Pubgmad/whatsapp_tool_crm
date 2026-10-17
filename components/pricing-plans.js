@@ -11,10 +11,17 @@ function formatMoney(cents, currency) {
   }
 }
 
+function isFreePlan(plan) {
+  const code = String(plan.code || plan.name || '').toLowerCase();
+  const monthly = Number(plan.monthly_price_cents) || 0;
+  const yearly = Number(plan.yearly_price_cents) || 0;
+  return monthly <= 0 && yearly <= 0 && (code.includes('free') || code === 'trial');
+}
+
 /**
  * Public pricing cards with monthly/annual toggle.
  * Amounts come from Super Admin subscription_plans (visible + active only).
- * Zero-priced plans are shown as draft/contact rather than invented commercial rates.
+ * Free Forever shows ₹0. Other zero-priced visible plans show as draft/contact.
  */
 export default function PricingPlans({ plans = [], ctaHref = '/signup', ctaLabel = 'Get started' }) {
   const [interval, setInterval] = useState('monthly');
@@ -26,8 +33,7 @@ export default function PricingPlans({ plans = [], ctaHref = '/signup', ctaLabel
   if (!plans.length) {
     return (
       <p className={styles.sectionLead}>
-        No public plans are published yet. Super Admin can create and publish plans from the platform console.
-        Draft commercial prices must be approved before they appear here.
+        No public plans are published yet. Run database initialization to seed Free Forever, or publish plans in Super Admin.
       </p>
     );
   }
@@ -61,24 +67,25 @@ export default function PricingPlans({ plans = [], ctaHref = '/signup', ctaLabel
           const useYearly = interval === 'yearly' && yearly > 0;
           const amount = useYearly ? yearly : monthly;
           const period = useYearly ? ' / year' : ' / month';
-          const isDraftPrice = amount <= 0;
+          const free = isFreePlan(plan);
+          const isDraftPaid = !free && amount <= 0;
           return (
-            <article className={styles.plan} key={plan.id}>
+            <article className={`${styles.plan}${free ? ` ${styles.planFeatured}` : ''}`} key={plan.id}>
               <h3>{plan.name}</h3>
               {plan.description ? <p>{plan.description}</p> : null}
               <strong>
-                {isDraftPrice ? 'Contact for pricing' : formatMoney(amount, plan.currency)}
-                {!isDraftPrice ? <small>{period}</small> : null}
+                {free ? formatMoney(0, plan.currency) : isDraftPaid ? 'Contact for pricing' : formatMoney(amount, plan.currency)}
+                {free || !isDraftPaid ? <small>{free ? ' / forever' : period}</small> : null}
               </strong>
-              {isDraftPrice ? (
+              {isDraftPaid ? (
                 <p className={styles.sectionLead}>
-                  Platform fee is configured by Super Admin. This card is visible for structure only until commercial rates are published.
+                  Commercial rates are set by Super Admin. This card is visible for structure only until prices are published.
                 </p>
               ) : null}
               {Array.isArray(plan.features) && plan.features.length > 0 ? (
                 <ul>{plan.features.map((feature, index) => <li key={index}>{feature}</li>)}</ul>
               ) : null}
-              <a className={styles.btnPrimary} href={ctaHref}>{ctaLabel}</a>
+              <a className={styles.btnPrimary} href={ctaHref}>{free ? 'Get started free' : ctaLabel}</a>
             </article>
           );
         })}
