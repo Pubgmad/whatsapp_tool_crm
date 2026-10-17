@@ -72,6 +72,9 @@ test('authenticated route suite', async ({ page }) => {
   await page.getByLabel('Password', { exact: true }).fill(process.env.E2E_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe('/');
+  await page.getByRole('link', { name: 'Open Dashboard' }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe('/app/dashboard');
+  await expect(page.getByText('Unable to load this page')).toHaveCount(0);
   await page.goto('/app/inbox');
   await expect(page).toHaveURL('/app/inbox');
   for (const path of ['/app/contacts', '/app/templates', '/app/campaigns', '/app/automations', '/app/inbox', '/app/settings/billing', '/app/settings/security']) {

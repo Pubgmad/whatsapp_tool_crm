@@ -49,10 +49,17 @@ test('a verified owner signs in and reaches the platform root',async({page,conte
     await page.getByLabel('Password',{exact:true}).fill(password);
     await page.getByRole('button',{name:'Sign in'}).click();
     await expect.poll(()=>new URL(page.url()).pathname).toBe('/');
-    await expect(page.getByRole('link',{name:'Open workspace'})).toBeVisible();
+    await expect(page.getByRole('link',{name:'Open Dashboard'})).toBeVisible();
+    await page.getByRole('link',{name:'Open Dashboard'}).click();
+    await expect.poll(()=>new URL(page.url()).pathname).toBe('/app/dashboard');
+    await expect(page.getByRole('heading',{name:'Overview'})).toBeVisible({timeout:30000});
+    await expect(page.getByText('Unable to load this page')).toHaveCount(0);
     await page.goto('/login?next=/app/calling');
     await expect.poll(()=>new URL(page.url()).pathname).toBe('/app/calling');
     await expect(page.getByRole('heading',{name:'Calling'})).toBeVisible();
+    await page.goto('/app/dashboard');
+    await expect(page.getByRole('heading',{name:'Overview'})).toBeVisible();
+    await expect(page.getByText('Unable to load this page')).toHaveCount(0);
     const session=(await context.cookies()).find(cookie=>cookie.name==='wcrm_session');
     expect(session?.httpOnly).toBe(true);
     await expect.poll(async()=> (await page.request.get('/api/me')).status()).toBe(200);
