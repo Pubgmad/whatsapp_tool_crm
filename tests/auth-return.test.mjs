@@ -6,8 +6,10 @@ import {
   resolveLaunchCta,
   safeAuthReturnPath,
   withAuthReturn,
+  workspacePathForPublicHref,
   workspacePathForSlug
 } from '../lib/auth-return.js';
+import { PRICING_ARCHITECTURE } from '../lib/pricing-architecture.js';
 
 test('safeAuthReturnPath defaults to root and blocks open redirects', () => {
   assert.equal(safeAuthReturnPath(''), DEFAULT_POST_AUTH_PATH);
@@ -37,7 +39,25 @@ test('feature slugs map to dedicated CRM workspaces', () => {
   assert.equal(workspacePathForSlug('shared-inbox'), '/app/inbox');
   assert.equal(workspacePathForSlug('whatsapp-analytics'), '/app/analytics');
   assert.equal(workspacePathForSlug('whatsapp-ai-agents'), '/app/ai-agents');
-  assert.equal(workspacePathForSlug('whatsapp-calling'), '/app/calling');
+  assert.equal(workspacePathForSlug('whatsapp-ads'), '/app/ads');
+  assert.equal(workspacePathForSlug('click-to-whatsapp-ads'), '/app/ads');
+  assert.equal(workspacePathForSlug('broadcasting'), '/app/campaigns');
+  assert.equal(workspacePathForSlug('ads-commerce'), '/app/ads');
+});
+
+test('public feature and product hrefs map to workspaces', () => {
+  assert.equal(workspacePathForPublicHref('/features/whatsapp-ads'), '/app/ads');
+  assert.equal(workspacePathForPublicHref('/features/whatsapp-calling'), '/app/calling');
+  assert.equal(workspacePathForPublicHref('/products/broadcasting'), '/app/campaigns');
+  assert.equal(workspacePathForPublicHref('/features'), '');
+  assert.equal(workspacePathForPublicHref('/pricing'), '');
+});
+
+test('pricing architecture stays draft and separates charge layers', () => {
+  assert.equal(PRICING_ARCHITECTURE.status, 'draft');
+  assert.ok(PRICING_ARCHITECTURE.chargeLayers.some((layer) => layer.id === 'platform'));
+  assert.ok(PRICING_ARCHITECTURE.chargeLayers.some((layer) => layer.id === 'messaging'));
+  assert.ok(PRICING_ARCHITECTURE.draftPlanCodes.includes('enterprise'));
 });
 
 test('resolveLaunchCta is auth-aware for feature pages', () => {

@@ -27,7 +27,8 @@ function readStoredMode() {
   } catch {
     /* ignore */
   }
-  return 'system';
+  // Light is the product default; users can still opt into system or dark.
+  return 'light';
 }
 
 const MODE_LABELS = {
@@ -37,7 +38,7 @@ const MODE_LABELS = {
 };
 
 export default function ThemeToggle({ className = 'iconButton' }) {
-  const [mode, setMode] = useState('system');
+  const [mode, setMode] = useState('light');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

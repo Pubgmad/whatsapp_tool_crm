@@ -2,6 +2,8 @@
 .wa-module-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .wa-module-heading h2{font-size:22px;letter-spacing:0;margin:0}
 .wa-module-heading.saasPageHead{margin-bottom:18px}
+.saasPageHeadToolbar{margin-bottom:12px;padding:0;min-height:0}
+.wa-module-toolbarLabel{color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .wa-module-note{margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.45;max-width:52rem}
 .wa-module-controls{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:16px 0}
 
