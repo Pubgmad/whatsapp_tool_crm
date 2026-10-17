@@ -28,6 +28,12 @@ test('default CMS document validates with feature routes', () => {
   assert.ok(solutionsNav);
   assert.ok(doc.pages.some((page) => page.kind === 'solution' && page.slug === 'customer-support'));
   assert.ok(doc.navigation.some((item) => item.id === 'nav-integrations' && item.href === '/integrations'));
+  assert.ok(doc.navigation.some((item) => item.id === 'nav-resources'));
+  assert.ok(doc.navigation.some((item) => item.id === 'nav-company'));
+  assert.ok(Array.isArray(doc.footer.columns) && doc.footer.columns.length >= 4);
+  assert.ok(doc.footer.columns.some((column) => column.title === 'Products' && column.links?.length));
+  assert.ok(doc.pages.some((page) => page.kind === 'resource' && page.slug === 'getting-started'));
+  assert.ok(doc.pages.some((page) => page.slug === 'how-it-works'));
 });
 
 test('legacy section documents migrate into pages', () => {
