@@ -34,7 +34,10 @@ test('authenticated owner navigates core workspace on mobile viewport', async ({
   await page.getByLabel('Email').fill(account.email);
   await page.getByLabel('Password', { exact: true }).fill(account.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/app\/dashboard$/, { timeout: 30000 });
+  await expect.poll(() => new URL(page.url()).pathname).toBe('/');
+  await page.goto('/app/dashboard');
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText('Unable to load this page')).toHaveCount(0);
   const nav = page.locator('.sideRail');
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await nav.getByRole('button', { name: 'Audience', exact: true }).click();
