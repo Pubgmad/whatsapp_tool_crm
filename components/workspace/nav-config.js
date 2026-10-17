@@ -80,7 +80,7 @@ export const setupSectionByView = {
 };
 
 export const pageTitles = {
-  overview: 'Dashboard',
+  overview: 'Overview',
   setup: 'WhatsApp connection',
   numbers: 'Phone numbers',
   profile: 'Business profile',
@@ -109,7 +109,7 @@ export const pageTitles = {
 
 /** One-line captions under page titles (keep short for premium density). */
 export const pageIntros = {
-  overview: 'Workspace overview and quick actions.',
+  overview: 'Optional cross-module overview. Open a feature workspace for day-to-day work.',
   setup: 'Connect and verify your WhatsApp Business account.',
   numbers: 'Phone numbers linked to this workspace.',
   profile: 'Public WhatsApp business profile.',
@@ -172,54 +172,54 @@ export function pageJourney(view) {
  */
 export const navGroups = [
   {
-    id: 'engage',
-    label: 'Engage',
+    id: 'communication',
+    label: 'Communication',
     items: [
-      { id: 'overview', label: 'Dashboard', icon: 'LayoutDashboard' },
       { id: 'inbox', label: 'Inbox', icon: 'Inbox' },
-      { id: 'contacts', label: 'Audience', icon: 'UsersRound' },
-      { id: 'calling', label: 'Calling', icon: 'PhoneCall' }
+      { id: 'calling', label: 'Calling', icon: 'PhoneCall' },
+      { id: 'contacts', label: 'Audience', icon: 'UsersRound' }
     ]
   },
   {
-    id: 'grow',
-    label: 'Grow',
+    id: 'marketing',
+    label: 'Marketing',
     items: [
       { id: 'campaigns', label: 'Broadcasting', icon: 'Send' },
       { id: 'templates', label: 'Templates', icon: 'MessageSquareText' },
       { id: 'ads', label: 'CTWA Ads', icon: 'RadioTower' },
-      { id: 'results', label: 'Analytics', icon: 'BarChart3' },
-      { id: 'conversions', label: 'Conversions', icon: 'Activity' }
+      { id: 'entry_points', label: 'Entry points', icon: 'Link2' }
     ]
   },
   {
-    id: 'build',
-    label: 'Build',
+    id: 'automation',
+    label: 'Automation & AI',
     items: [
       { id: 'automation', label: 'Automation', icon: 'Bot' },
       { id: 'flows', label: 'Flows', icon: 'Workflow' },
-      { id: 'commerce', label: 'Commerce', icon: 'ShoppingBag' },
-      { id: 'entry_points', label: 'Entry points', icon: 'Link2' },
       { id: 'media', label: 'Media', icon: 'Paperclip' }
     ]
   },
   {
-    id: 'connect',
-    label: 'Connect',
+    id: 'commerce',
+    label: 'Commerce & integrations',
     items: [
+      { id: 'commerce', label: 'Commerce', icon: 'ShoppingBag' },
+      { id: 'integrations', label: 'Integrations', icon: 'KeyRound' },
       { id: 'setup', label: 'WhatsApp setup', icon: 'Settings2' },
       { id: 'numbers', label: 'Numbers', icon: 'Smartphone' },
-      { id: 'profile', label: 'Profile', icon: 'Building2' },
-      { id: 'integrations', label: 'Integrations', icon: 'KeyRound' },
-      { id: 'journeys', label: 'Journeys', icon: 'Activity' },
-      { id: 'capabilities', label: 'Capabilities', icon: 'RadioTower' },
-      { id: 'groups', label: 'Groups', icon: 'MessageSquare' }
+      { id: 'profile', label: 'Profile', icon: 'Building2' }
     ]
   },
   {
-    id: 'admin',
-    label: 'Workspace',
+    id: 'insights',
+    label: 'Insights & admin',
     items: [
+      { id: 'overview', label: 'Overview', icon: 'LayoutDashboard' },
+      { id: 'results', label: 'Analytics', icon: 'BarChart3' },
+      { id: 'conversions', label: 'Conversions', icon: 'Activity' },
+      { id: 'journeys', label: 'Journeys', icon: 'Activity' },
+      { id: 'capabilities', label: 'Capabilities', icon: 'RadioTower' },
+      { id: 'groups', label: 'Groups', icon: 'MessageSquare' },
       { id: 'team', label: 'Team', icon: 'UserPlus' },
       { id: 'billing', label: 'Billing', icon: 'WalletCards' },
       { id: 'security', label: 'Security', icon: 'ShieldCheck' },

@@ -64,8 +64,10 @@ test('googleLoginRedirectUri uses APP_URL callback path', () => {
 
 test('safeGoogleNextPath blocks open redirects and admin paths', () => {
   assert.equal(safeGoogleNextPath('/app/inbox'), '/app/inbox');
-  assert.equal(safeGoogleNextPath('https://evil.example'), '/app/dashboard');
-  assert.equal(safeGoogleNextPath('//evil.example'), '/app/dashboard');
-  assert.equal(safeGoogleNextPath('/super-admin'), '/app/dashboard');
-  assert.equal(safeGoogleNextPath('/api/auth/login'), '/app/dashboard');
+  assert.equal(safeGoogleNextPath('https://evil.example'), '/');
+  assert.equal(safeGoogleNextPath('//evil.example'), '/');
+  assert.equal(safeGoogleNextPath('/super-admin'), '/');
+  assert.equal(safeGoogleNextPath('/api/auth/login'), '/');
+  assert.equal(safeGoogleNextPath(''), '/');
+  assert.equal(safeGoogleNextPath('/app/calling'), '/app/calling');
 });

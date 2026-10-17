@@ -29,7 +29,7 @@ test('an invalid workspace cookie reaches login once and stays there',async({pag
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test('a verified owner signs in and reaches the dashboard',async({page,context,baseURL})=>{
+test('a verified owner signs in and reaches the platform root',async({page,context,baseURL})=>{
   test.skip(!['127.0.0.1','localhost'].includes(new URL(baseURL).hostname),'Local database fixture only');
   nextEnv.loadEnvConfig(process.cwd());
   test.skip(!process.env.DATABASE_URL,'Local database is unavailable');
@@ -48,8 +48,11 @@ test('a verified owner signs in and reaches the dashboard',async({page,context,b
     await page.getByLabel('Email').fill(email);
     await page.getByLabel('Password',{exact:true}).fill(password);
     await page.getByRole('button',{name:'Sign in'}).click();
-    await expect(page).toHaveURL(/\/app\/dashboard$/,{timeout:30000});
-    await expect(page.getByRole('heading',{name:'Dashboard'})).toBeVisible();
+    await expect.poll(()=>new URL(page.url()).pathname).toBe('/');
+    await expect(page.getByRole('link',{name:'Open workspace'})).toBeVisible();
+    await page.goto('/login?next=/app/calling');
+    await expect.poll(()=>new URL(page.url()).pathname).toBe('/app/calling');
+    await expect(page.getByRole('heading',{name:'Calling'})).toBeVisible();
     const session=(await context.cookies()).find(cookie=>cookie.name==='wcrm_session');
     expect(session?.httpOnly).toBe(true);
     await expect.poll(async()=> (await page.request.get('/api/me')).status()).toBe(200);
