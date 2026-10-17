@@ -71,7 +71,7 @@ import ThemeToggle from "./theme-toggle";
 const NAV_ICONS = {
   LayoutDashboard, Settings2, UsersRound, UserPlus, WalletCards, ShieldCheck, MessageSquareText, Bot, Send,
   ShoppingBag, Activity, PhoneCall, RadioTower, BarChart3, Inbox, Ban, Workflow, Paperclip, Link2, Smartphone,
-  Building2, KeyRound, MessageSquare
+  Building2, KeyRound, MessageSquare, Sparkles
 };
 
 const navItems = flatNavItems.map((item) => ({ ...item, icon: NAV_ICONS[item.icon] || LayoutDashboard }));
@@ -216,6 +216,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   const [workspaces, setWorkspaces] = useState([]);
   const scopeGate = useRef(null);
   const inboxRevisionRef = useRef(0);
+  const bootstrappedPathRef = useRef('');
   const pagesRef = useRef(pages);
   pagesRef.current = pages;
   if (!scopeGate.current) scopeGate.current = createRequestGate();
@@ -293,6 +294,12 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
   useEffect(() => {
     if (!account || authMode) return;
     const location = workspaceLocation(pathname);
+    // Bootstrap already loaded this path — avoid a competing scopeGate begin() that
+    // can discard the first paint's state and leave Overview mid-render incomplete.
+    if (bootstrappedPathRef.current === pathname) {
+      bootstrappedPathRef.current = '';
+      return;
+    }
     if (location.view === "inbox") setPages((current) => ({ ...current, messages: 1, notes: 1 }));
     loadScope(location, true, location.view === "inbox" ? { messagePage: 1, notePage: 1 } : {})
       .then(result => { if (result) setBootstrapError(null); })
@@ -355,12 +362,14 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
       const location = authMode ? { view: "overview", conversationId: "" } : workspaceLocation(pathname);
       const nextState = await api(stateUrl(location.view, { conversationId: location.conversationId || "" }));
       if (!scopeGate.current.current(request)) return;
+      bootstrappedPathRef.current = pathname;
       setState(mergeWorkspaceState(null, nextState));
       setAccount(me);
       setPlatform({ ...fallbackPlatform, ...(nextState.platform || publicConfig.platform || {}) });
       setConfigError("");
     } catch (error) {
       if (!scopeGate.current.current(request)) return;
+      bootstrappedPathRef.current = '';
       setState(null);
       if (isSessionFailure(error)) setAccount(null);
       else if (verifiedAccount) setAccount(verifiedAccount);
@@ -737,6 +746,7 @@ function Screens({ activeView, setupSection = null, ...props }) {
     setup: <Setup {...props} forcedSection={setupSection || 'connection'} hideSectionTabs={Boolean(setupSection && activeView !== 'setup')} onNavigateSection={props.setActiveView} />,
     contacts: <Contacts {...props} />,
     team: <Team {...props} />,
+    ai_agents: <AiAgentsWorkspace {...props} />,
     billing: <Billing {...props} />,
     security: <SecuritySettings />,
     templates: <Templates {...props} />,
@@ -817,7 +827,9 @@ function Billing({ state, role }) {
 
 function Overview({ state, approvedTemplates, marketableContacts, latestCampaign, setActiveView, platform, role, openConversation }) {
   const canManage = isWorkspaceManager(role);
-  const overview = state.overview || {};
+  const overview = state?.overview || {};
+  const setup = state?.setup || {};
+  const meta = state?.meta || {};
   const delivered = overview.delivered || 0;
   const read = overview.read || 0;
   const failed = overview.failed || 0;
@@ -825,17 +837,18 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   const marketableCount = overview.marketableContacts || 0;
   const campaignCount = overview.campaignCount || 0;
   const currentCampaign = overview.latestCampaign || latestCampaign;
-  const usage = state.subscription?.usage || {};
-  const limits = state.subscription?.limits || {};
+  const usage = state?.subscription?.usage || {};
+  const limits = state?.subscription?.limits || {};
+  const setupStatus = setup.status || 'Not connected';
   const setupItems = [
-    { label: "WhatsApp connection", ready: state.meta.liveMetaReady },
+    { label: "WhatsApp connection", ready: Boolean(meta.liveMetaReady) },
     { label: "Approved template", ready: (overview.approvedTemplates || 0) > 0 },
     { label: "Opted-in audience", ready: marketableCount > 0 },
     { label: "Automation flow", ready: (overview.activeFlows || 0) > 0 }
   ];
   return <div className="screenGrid">
-    <section className="heroPanel"><div><span className="softLabel">{(state.setup?.status || 'Not connected') === 'Connected' ? 'Connected' : 'Setup required'}</span><h2>{state.setup.businessName || "Workspace"}</h2><p>{(state.setup?.status || 'Not connected') === 'Connected' ? (platform.workspace_intro || 'Ready for inbox, broadcasts, and automation.') : 'Connect WhatsApp to start messaging.'}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
-    <section className="actionBand">{(state.setup?.status || 'Not connected') !== 'Connected' && canManage && <button className="primaryAction" type="button" onClick={() => setActiveView('setup')}><Link2 size={18} /> Connect WhatsApp <ChevronRight size={18} /></button>}{canManage && <button className={state.setup.status === 'Connected' ? 'primaryAction' : 'secondaryAction'} onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform.primary_cta_label} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button></section>
+    <section className="heroPanel"><div><span className="softLabel">{setupStatus === 'Connected' ? 'Connected' : 'Setup required'}</span><h2>{setup.businessName || "Workspace"}</h2><p>{setupStatus === 'Connected' ? (platform?.workspace_intro || 'Ready for inbox, broadcasts, and automation.') : 'Connect WhatsApp to start messaging.'}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
+    <section className="actionBand">{setupStatus !== 'Connected' && canManage && <button className="primaryAction" type="button" onClick={() => setActiveView('setup')}><Link2 size={18} /> Connect WhatsApp <ChevronRight size={18} /></button>}{canManage && <button className={setupStatus === 'Connected' ? 'primaryAction' : 'secondaryAction'} onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform?.primary_cta_label || 'Broadcast'} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button></section>
     <Panel title="Support queue" subtitle="Waiting conversations and SLA"><InboxSlaWidget api={api} role={role} onOpenInbox={() => setActiveView("inbox")} onOpenConversation={(conversationId) => { openConversation?.(conversationId); setActiveView("inbox"); }} /></Panel>
     <div className="overviewGrid"><Panel title="Delivery pulse" subtitle="Campaign recipients"><div className="statusGrid"><Metric label="Delivered" value={delivered} /><Metric label="Read" value={read} /><Metric label="Failed" value={failed} /><Metric label="Open chats" value={openConversations} /></div></Panel><Panel title="Workspace readiness" subtitle="Before scaling sends"><div className="readinessList">{setupItems.map((item) => <div key={item.label} className={item.ready ? "ready" : ""}><span>{item.label}</span><Badge kind={item.ready ? "good" : "warn"}>{item.ready ? "Ready" : "Action needed"}</Badge></div>)}</div></Panel></div>
     <details className="techDetails saasAdvancedBlock"><summary>Plan usage · {state.subscription?.plan?.name || "No plan"}</summary><div className="meterGrid usageGrid"><Metric label="Contacts" value={limits.contacts == null ? usage.contacts || 0 : (usage.contacts || 0) + " / " + limits.contacts} /><Metric label="Campaigns" value={limits.campaigns == null ? usage.campaigns || 0 : (usage.campaigns || 0) + " / " + limits.campaigns} /><Metric label="Messages" value={limits.messages == null ? usage.messages || 0 : (usage.messages || 0) + " / " + limits.messages} /><Metric label="Flows" value={limits.automationFlows == null ? usage.automationFlows || 0 : (usage.automationFlows || 0) + " / " + limits.automationFlows} /></div></details>
@@ -1688,8 +1701,36 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
     <InboxContact360 contactId={activeContact?.id || null} api={api} />
   </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>}</>;
 }
+function AiAgentsWorkspace({ state }) {
+  const role = state?.account?.role;
+  const canManage = ['Owner', 'Manager'].includes(role);
+  if (!state?.featureFlags?.ai_agent) {
+    return (
+      <div className="contentGrid">
+        <Panel title="AI Agents unavailable" subtitle="This feature is disabled for your workspace or plan.">
+          <p>Ask your workspace owner or platform administrator to enable AI Agents.</p>
+        </Panel>
+      </div>
+    );
+  }
+  if (!canManage) {
+    return (
+      <div className="contentGrid">
+        <Panel title="AI Agents" subtitle="Configuration is limited to owners and managers.">
+          <p>You can still use AI reply suggestions in the inbox when they are enabled for this workspace.</p>
+        </Panel>
+      </div>
+    );
+  }
+  return (
+    <div className="screenGrid">
+      <AiSupportSettings api={api} postJson={postJson} uploadForm={uploadForm} role={role} />
+    </div>
+  );
+}
+
 function Team({ state, mutate }) {
-  return <><TeamMembers state={state} mutate={mutate}/>{['Owner','Manager'].includes(state.account?.role)&&<SupportPolicy endpoint="/api/team/support-policy" canEdit={state.account.role==='Owner'} api={api} postJson={postJson}/>} {state.featureFlags?.ai_agent && ['Owner','Manager'].includes(state.account?.role) && <AiSupportSettings api={api} postJson={postJson} uploadForm={uploadForm} role={state.account.role} />}</>;
+  return <><TeamMembers state={state} mutate={mutate}/>{['Owner','Manager'].includes(state.account?.role)&&<SupportPolicy endpoint="/api/team/support-policy" canEdit={state.account.role==='Owner'} api={api} postJson={postJson}/>}{/* AI Agents have a dedicated workspace at /app/ai-agents */}</>;
 }
 
 function TeamMembers({ state, mutate }) {
@@ -1793,4 +1834,17 @@ function DataTable({ headers, children }) {
   });
   return <div className="tableWrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows}</tbody></table></div>;
 }
-function ResultMeters({ stats }) { return <div className="meterGrid"><Metric label="Total" value={stats.total} /><Metric label="Queued" value={stats.queued} /><Metric label="Sent" value={stats.sent} /><Metric label="Delivered" value={stats.delivered} /><Metric label="Read" value={stats.read} /><Metric label="Replies" value={stats.replied || 0} /><Metric label="Failed" value={stats.failed} /></div>; }
+function ResultMeters({ stats }) {
+  const safe = stats && typeof stats === 'object' ? stats : {};
+  return (
+    <div className="meterGrid">
+      <Metric label="Total" value={safe.total || 0} />
+      <Metric label="Queued" value={safe.queued || 0} />
+      <Metric label="Sent" value={safe.sent || 0} />
+      <Metric label="Delivered" value={safe.delivered || 0} />
+      <Metric label="Read" value={safe.read || 0} />
+      <Metric label="Replies" value={safe.replied || 0} />
+      <Metric label="Failed" value={safe.failed || 0} />
+    </div>
+  );
+}

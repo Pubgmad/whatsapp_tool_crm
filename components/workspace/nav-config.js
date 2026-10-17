@@ -15,7 +15,8 @@ export const managerViews = new Set([
   'capabilities',
   'groups',
   'numbers',
-  'profile'
+  'profile',
+  'ai_agents'
 ]);
 
 export const featureForView = {
@@ -33,7 +34,8 @@ export const featureForView = {
   entry_points: 'campaigns',
   integrations: 'automation',
   journeys: 'automation',
-  groups: 'inbox'
+  groups: 'inbox',
+  ai_agents: 'ai_agent'
 };
 
 /** Primary workspace routes (view id → pathname). */
@@ -62,7 +64,8 @@ export const workspaceRoutes = {
   ads: '/app/ads',
   results: '/app/analytics',
   inbox: '/app/inbox',
-  unsubscribes: '/app/suppression'
+  unsubscribes: '/app/suppression',
+  ai_agents: '/app/ai-agents'
 };
 
 /** Map setup subpaths to Setup() section ids (keeps existing panel components). */
@@ -104,7 +107,8 @@ export const pageTitles = {
   ads: 'Ads Manager',
   results: 'Analytics',
   inbox: 'Inbox',
-  unsubscribes: 'Suppression'
+  unsubscribes: 'Suppression',
+  ai_agents: 'AI Agents'
 };
 
 /** One-line captions under page titles (keep short for premium density). */
@@ -133,7 +137,8 @@ export const pageIntros = {
   ads: 'Click-to-WhatsApp campaign management.',
   results: 'Delivery, engagement, and retargeting.',
   inbox: 'Shared conversations and agent replies.',
-  unsubscribes: 'Opt-outs and suppressed contacts.'
+  unsubscribes: 'Opt-outs and suppressed contacts.',
+  ai_agents: 'Knowledge-aware assistants, testing, and escalation rules.'
 };
 
 /** Optional next-step CTAs — short hints only. */
@@ -195,6 +200,7 @@ export const navGroups = [
     label: 'Automation & AI',
     items: [
       { id: 'automation', label: 'Automation', icon: 'Bot' },
+      { id: 'ai_agents', label: 'AI Agents', icon: 'Sparkles' },
       { id: 'flows', label: 'Flows', icon: 'Workflow' },
       { id: 'media', label: 'Media', icon: 'Paperclip' }
     ]

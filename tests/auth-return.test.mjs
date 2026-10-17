@@ -36,7 +36,8 @@ test('feature slugs map to dedicated CRM workspaces', () => {
   assert.equal(workspacePathForSlug('whatsapp-broadcasting'), '/app/campaigns');
   assert.equal(workspacePathForSlug('shared-inbox'), '/app/inbox');
   assert.equal(workspacePathForSlug('whatsapp-analytics'), '/app/analytics');
-  assert.equal(workspacePathForSlug('whatsapp-ai-agents'), '/app/automations');
+  assert.equal(workspacePathForSlug('whatsapp-ai-agents'), '/app/ai-agents');
+  assert.equal(workspacePathForSlug('whatsapp-calling'), '/app/calling');
 });
 
 test('resolveLaunchCta is auth-aware for feature pages', () => {
@@ -49,4 +50,6 @@ test('resolveLaunchCta is auth-aware for feature pages', () => {
     href: '/app/calling',
     label: 'Open WhatsApp Calling'
   });
+  const ai = { kind: 'feature', slug: 'whatsapp-ai-agents', title: 'WhatsApp AI Agents' };
+  assert.equal(resolveLaunchCta({ page: ai, authenticated: true }).href, '/app/ai-agents');
 });
