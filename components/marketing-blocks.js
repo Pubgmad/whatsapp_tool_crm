@@ -301,7 +301,11 @@ export function MarketingFooter({ brandName, footer, supportEmail, logo }) {
   const columns = (footer?.columns || []).filter((column) => column.visible !== false && Array.isArray(column.links) && column.links.length);
   const year = new Date().getFullYear();
   const copyright = footer?.copyright || `© ${year} ${brandName}. All rights reserved.`;
-  const showCta = Boolean(footer?.ctaLabel && footer?.ctaHref);
+  // Never promote workspace signup from the public footer — header/auth own that journey.
+  const ctaHref = String(footer?.ctaHref || '').toLowerCase();
+  const ctaLabel = String(footer?.ctaLabel || '').toLowerCase();
+  const isWorkspaceSignup = ctaHref.includes('/signup') || ctaLabel.includes('create workspace') || ctaLabel.includes('get started');
+  const showCta = Boolean(footer?.ctaLabel && footer?.ctaHref) && !isWorkspaceSignup;
 
   return (
     <footer className={styles.footer}>
@@ -347,7 +351,6 @@ export function MarketingFooter({ brandName, footer, supportEmail, logo }) {
         <small>{copyright}</small>
         <div className={styles.footerLegal}>
           {links.map((link) => <Link href={link.href} key={link.href + link.label}>{link.label}</Link>)}
-          <Link href="/login">Sign in</Link>
         </div>
       </div>
     </footer>

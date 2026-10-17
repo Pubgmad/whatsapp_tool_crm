@@ -32,6 +32,8 @@ test('default CMS document validates with feature routes', () => {
   assert.ok(doc.navigation.some((item) => item.id === 'nav-company'));
   assert.ok(Array.isArray(doc.footer.columns) && doc.footer.columns.length >= 4);
   assert.ok(doc.footer.columns.some((column) => column.title === 'Products' && column.links?.length));
+  assert.equal(doc.footer.ctaHref || '', '');
+  assert.ok(!(doc.footer.ctaLabel || '').toLowerCase().includes('create workspace'));
   assert.ok(doc.pages.some((page) => page.kind === 'resource' && page.slug === 'getting-started'));
   assert.ok(doc.pages.some((page) => page.slug === 'how-it-works'));
 });
