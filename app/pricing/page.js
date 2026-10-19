@@ -20,7 +20,7 @@ export default async function PricingPage() {
   }
 
   const { platform, site, assets, plans, style, authenticated } = ctx;
-  const ctaHref = authenticated ? '/app/inbox' : withAuthReturn('/signup', '/');
+  const ctaHref = authenticated ? '/app/settings/whatsapp' : withAuthReturn('/signup', '/app/settings/whatsapp');
   const ctaLabel = authenticated ? 'Open workspace' : (platform.public_signup_label || 'Get started');
   const page = {
     kind: 'pricing',

@@ -196,7 +196,7 @@ function renderPreview(body, contact, values) {
   });
 }
 
-export default function WorkspaceApp({ initialView = "overview", initialConversationId = null, authMode = "", initialPlatform = null, children = null }) {
+export default function WorkspaceApp({ initialView = "setup", initialConversationId = null, authMode = "", initialPlatform = null, children = null }) {
   const router = useRouter();
   const pathname = usePathname();
   const initialLocation = authMode ? { view: initialView, conversationId: initialConversationId } : workspaceLocation(pathname);
@@ -359,7 +359,7 @@ export default function WorkspaceApp({ initialView = "overview", initialConversa
       setPlatform({ ...fallbackPlatform, ...(publicConfig.platform || {}) });
       const me = await api("/api/me");
       verifiedAccount = me;
-      const location = authMode ? { view: "overview", conversationId: "" } : workspaceLocation(pathname);
+      const location = authMode ? { view: "setup", conversationId: "" } : workspaceLocation(pathname);
       const nextState = await api(stateUrl(location.view, { conversationId: location.conversationId || "" }));
       if (!scopeGate.current.current(request)) return;
       bootstrappedPathRef.current = pathname;
@@ -565,7 +565,12 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
   const [prefillEmail, setPrefillEmail] = useState("");
   const isSignup = mode === "signup";
   const googleLoginEnabled = Boolean(platform?.google_login_enabled);
-  const returnPath = safeAuthReturnPath(searchParams.get("next"), DEFAULT_POST_AUTH_PATH);
+  // Sign-in without a feature destination returns to the public site.
+  // Sign-up (Create workspace) continues into Meta / workspace connection.
+  const returnPath = safeAuthReturnPath(
+    searchParams.get("next"),
+    isSignup ? DEFAULT_WORKSPACE_PATH : DEFAULT_POST_AUTH_PATH
+  );
   useEffect(() => { setHydrated(true); }, []);
   useEffect(() => { setMode(initialMode); }, [initialMode]);
   useEffect(() => {
@@ -746,7 +751,8 @@ function Screens({ activeView, setupSection = null, ...props }) {
     calling: <WhatsAppCalling api={api} postJson={postJson} role={props.role} />,
     conversions: <WhatsAppConversions api={api} postJson={postJson} role={props.role} />,
     commerce: <><CommerceOpsPanel api={api} role={props.role} /><WhatsAppCommerce api={api} postJson={postJson} role={props.role} /></>,
-    overview: <Overview {...props} />,
+    // Overview dashboard retired from navigation; keep alias → Workspace/Meta setup.
+    overview: <Setup {...props} forcedSection="connection" hideSectionTabs={false} onNavigateSection={props.setActiveView} />,
     setup: <Setup {...props} forcedSection={setupSection || 'connection'} hideSectionTabs={Boolean(setupSection && activeView !== 'setup')} onNavigateSection={props.setActiveView} />,
     contacts: <Contacts {...props} />,
     team: <Team {...props} />,
@@ -812,8 +818,9 @@ function Billing({ state, role }) {
   const limits = subscription.limits || {};
   const money = (cents, currency = plan.currency) => currency ? new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100) : "Not set";
   const usageValue = (key) => limits[key] == null ? `${usage[key] || 0} / Unlimited` : `${usage[key] || 0} / ${limits[key]}`;
-  return <div className="screenGrid">
+  return <div className="screenGrid billingWorkspace" aria-label="Billing">
     <section className="heroPanel"><div><span className="softLabel">{subscription.status || "pending"}</span><h2>{plan.name || "Unassigned"}</h2><p>{plan.description || "Subscription details are managed by the platform owner."}</p></div><div className="heroMetrics"><Metric label="Monthly" value={money(plan.monthlyPriceCents)} /><Metric label="Yearly" value={money(plan.yearlyPriceCents)} /><Metric label="Period ends" value={subscription.periodEnd ? formatTime(subscription.periodEnd) : "Not set"} /></div></section>
+    <Panel title="Platform subscription vs messaging" subtitle="Billing for MathStrat is separate from Meta WhatsApp delivery charges"><p className="pageIntro" style={{ maxWidth: '42rem', margin: 0 }}>Your plan covers CRM seats and feature entitlements. WhatsApp conversation or per-message charges from Meta are billed separately when messaging credits or Meta billing apply. Free Forever includes no platform fee.</p></Panel>
     <Panel title="Current usage" subtitle="Live usage against the limits configured for this plan"><div className="meterGrid usageGrid"><Metric label="Contacts" value={usageValue("contacts")} /><Metric label="Campaigns" value={usageValue("campaigns")} /><Metric label="Messages" value={usageValue("messages")} /><Metric label="Users" value={usageValue("users")} /><Metric label="Automations" value={usageValue("automationFlows")} /><Metric label="WhatsApp conversations" value={usageValue("whatsappConversations")} /></div></Panel>
     <section className="billingPlans" aria-label="Subscription plans">
       {(billingAvailable || subscription.provider === 'razorpay') && <RazorpaySubscriptionActions postJson={postJson} role={role} plans={plans} interval={interval}/>}
@@ -869,7 +876,9 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
   useEffect(() => {
     if (forcedSection) setSection(forcedSection);
   }, [forcedSection]);
-  const operations = state.whatsappOperations || { accounts: [], phoneNumbers: [], nativeFlows: [], mediaAssets: [], capabilities: [], analytics: [] };
+  const setup = state?.setup || {};
+  const meta = state?.meta || {};
+  const operations = state?.whatsappOperations || { accounts: [], phoneNumbers: [], nativeFlows: [], mediaAssets: [], capabilities: [], analytics: [] };
   const activeAccount = operations.accounts.find((item) => item.isDefault) || operations.accounts[0];
   const activePhone = operations.phoneNumbers.find((item) => item.isDefault) || operations.phoneNumbers[0];
   useEffect(() => {
@@ -940,16 +949,16 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
     mutate(uploadForm("/api/whatsapp/media", form).then(() => event.currentTarget.reset()), "Media uploaded to WhatsApp");
   };
   const submitManual = (event) => { event.preventDefault(); mutate(postJson("/api/setup", Object.fromEntries(new FormData(event.currentTarget)), "PUT"), "Manual setup saved"); };
-  const metadata = state.setup.connectionMetadata || {};
+  const metadata = setup.connectionMetadata || {};
   return <div className="screenGrid metaSetupScreen">
     <section className="metaConnectHero">
-      <div><p className="kicker">WhatsApp setup</p><h2>{(state.setup?.status || 'Not connected') === 'Connected' ? 'WhatsApp Business is connected' : 'Connect WhatsApp Business'}</h2><span>{(state.setup?.status || 'Not connected') === 'Connected' ? 'Manage numbers, profile, and messaging tools.' : 'Use Cloud API for a new number, or coexistence for an existing Business App number.'}</span></div>
+      <div><p className="kicker">Workspace</p><h2>{(setup.status || 'Not connected') === 'Connected' ? (setup.businessName || 'WhatsApp connected') : 'Connect WhatsApp through Meta'}</h2><span>{(setup.status || 'Not connected') === 'Connected' ? 'Manage connection, numbers, and workspace messaging tools.' : 'Create or join a workspace, then complete Meta Embedded Signup or coexistence onboarding.'}</span></div>
       <div className="metaConnectActions">
-        <button className="primaryAction metaConnectButton" type="button" onClick={() => connectMeta('standard')} disabled={connecting || !state.meta.embeddedSignupAvailable}><Link2 size={18} /> Cloud API number</button>
-        <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !state.meta.embeddedSignupAvailable}><Smartphone size={18} /> Existing Business App number</button>
+        <button className="primaryAction metaConnectButton" type="button" onClick={() => connectMeta('standard')} disabled={connecting || !meta.embeddedSignupAvailable}><Link2 size={18} /> Cloud API number</button>
+        <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !meta.embeddedSignupAvailable}><Smartphone size={18} /> Existing Business App number</button>
       </div>
     </section>
-    {!state.meta.embeddedSignupAvailable && <div className="formError">WhatsApp connect isn&apos;t available yet. Contact support.</div>}
+    {!meta.embeddedSignupAvailable && <div className="formError">WhatsApp connect isn&apos;t available yet. Contact support.</div>}
     {signupError && <div className="formError" role="alert">{signupError}</div>}
     <CoexistenceProgress phones={operations.phoneNumbers.filter(phone=>phone.coexistence)} api={api} postJson={postJson}/>
     {!hideSectionTabs && <nav className="operationsTabs" aria-label="WhatsApp settings">
@@ -977,9 +986,9 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
         <Panel title="Connection health" subtitle="Status for this workspace">
           <div className="connectionSummary">
             <div><span>Connection</span><Badge kind={(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}>{state.setup?.status || "Not connected"}</Badge></div>
-            <div><span>Onboarding</span><strong>{state.setup.onboardingMethod === 'coexistence' ? 'Business App coexistence' : state.setup.onboardingMethod === 'embedded_signup' ? 'Embedded Signup' : 'Manual'}</strong></div>
-            <div><span>Events</span><Badge kind={state.setup.webhookSubscribed ? "good" : "warn"}>{state.setup.webhookSubscribed ? "Receiving" : "Not verified"}</Badge></div>
-            <div><span>Business number</span><strong>{state.setup.whatsappNumber || "Not connected"}</strong></div>
+            <div><span>Onboarding</span><strong>{setup.onboardingMethod === 'coexistence' ? 'Business App coexistence' : setup.onboardingMethod === 'embedded_signup' ? 'Embedded Signup' : 'Manual'}</strong></div>
+            <div><span>Events</span><Badge kind={setup.webhookSubscribed ? "good" : "warn"}>{setup.webhookSubscribed ? "Receiving" : "Not verified"}</Badge></div>
+            <div><span>Business number</span><strong>{setup.whatsappNumber || "Not connected"}</strong></div>
             <div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div>
             <div><span>Quality rating</span><strong>{metadata.qualityRating || activePhone?.qualityRating || "Unavailable"}</strong></div>
             <div><span>Token health</span><Badge kind={activeAccount?.token.status === "healthy" ? "good" : "warn"}>{activeAccount?.token.status || "Unknown"}</Badge></div>
@@ -988,11 +997,11 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
           <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={(state.setup?.status || 'Not connected') !== "Connected"}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "WhatsApp assets synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={(state.setup?.status || 'Not connected') !== "Connected"}><Unplug size={17} /> Disconnect</button></div>
         </Panel>
         <Panel title="Advanced" subtitle="IDs and webhook diagnostics">
-          <details className="techDetails"><summary>Technical IDs</summary><div className="connectionSummary"><div><span>WABA ID</span><strong>{state.setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{state.setup.phoneNumberId || "Not connected"}</strong></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div></details>
-          <details className="techDetails saasAdvancedBlock"><summary>Webhook details</summary><div className="webhookCard"><code>{state.setup.webhookUrl || state.meta.webhookUrl || "Configure APP_URL on the server"}</code><div><span>Signature verification</span><Badge kind="good">Server-side</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></details>
+          <details className="techDetails"><summary>Technical IDs</summary><div className="connectionSummary"><div><span>WABA ID</span><strong>{setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{setup.phoneNumberId || "Not connected"}</strong></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div></details>
+          <details className="techDetails saasAdvancedBlock"><summary>Webhook details</summary><div className="webhookCard"><code>{setup.webhookUrl || meta.webhookUrl || "Configure APP_URL on the server"}</code><div><span>Signature verification</span><Badge kind="good">Server-side</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></details>
         </Panel>
       </div>
-      <details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Use only if Embedded Signup is unavailable"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={state.setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={state.setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={state.setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={state.setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={state.setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={state.setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>
+      <details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Use only if Embedded Signup is unavailable"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>
     </>}
     {section === "numbers" && <Panel title="WhatsApp phone numbers" subtitle="Every number remains isolated to this company; the default number is used by campaigns and inbox replies">
       <div className="assetToolbar"><span>{operations.phoneNumbers.length} connected number{operations.phoneNumbers.length === 1 ? "" : "s"}</span><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "Phone numbers synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync from Meta</button></div>
@@ -1384,7 +1393,7 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
   const [phoneNumberId, setPhoneNumberId] = useState(phones.find((phone) => phone.isDefault)?.phoneNumberId || phones[0]?.phoneNumberId || "");
   const selectedPhone = phones.find((phone) => phone.phoneNumberId === phoneNumberId);
   const selectedAccount = state.whatsappOperations?.accounts?.find((account) => account.id === selectedPhone?.accountId);
-  const availableTemplates = approvedTemplates.filter((item) => item.wabaId === selectedAccount?.wabaId || (!item.wabaId && selectedAccount?.wabaId === state.setup.wabaId));
+  const availableTemplates = approvedTemplates.filter((item) => item.wabaId === selectedAccount?.wabaId || (!item.wabaId && selectedAccount?.wabaId === state?.setup?.wabaId));
   const activeFlows = (state.automationFlows || []).filter((flow) => flow.status === "active");
   const segments = (state.audienceSegments || []).filter((segment) => segment.isActive);
   const [templateId, setTemplateId] = useState(availableTemplates[0]?.id || "");
@@ -1408,7 +1417,7 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
   useEffect(() => { if (!templateId && availableTemplates[0]?.id) setTemplateId(availableTemplates[0].id); }, [availableTemplates, templateId]);
   const template = selectedTemplate?.id === templateId ? selectedTemplate : approvedTemplates.find((item) => item.id === templateId);
   const marketingMessagesReady = selectedAccount?.marketingMessagesStatus === 'ONBOARDED';
-  const templateMatchesSender = Boolean(template && selectedAccount && (template.wabaId === selectedAccount.wabaId || (!template.wabaId && selectedAccount.wabaId === state.setup.wabaId)));
+  const templateMatchesSender = Boolean(template && selectedAccount && (template.wabaId === selectedAccount.wabaId || (!template.wabaId && selectedAccount.wabaId === state?.setup?.wabaId)));
   const segment = selectedSegment || segments.find((item) => item.id === segmentId);
   const editableVariables = (template?.variables || []).filter((variable) => variable !== "name");
   const preview = template ? renderPreview(template.body, marketableContacts[0], variables) : "Select an approved template first.";
@@ -1424,7 +1433,7 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
     } catch (error) { mutate(Promise.reject(error)); }
   };
   const targetCount = segment ? segment.contactCount : selectedContactIds.length;
-  return <><CampaignPolicy role={state.account.role} businessId={state.account.business.id} api={api} postJson={postJson} /><div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Sending number<select value={phoneNumberId} onChange={(event) => { setPhoneNumberId(event.target.value); setTemplateId(""); setSelectedTemplate(null); setDeliveryMethod("cloud_api"); }} required><option value="">Select a number</option>{phones.map((phone) => <option key={phone.phoneNumberId} value={phone.phoneNumberId}>{phone.displayPhoneNumber || phone.verifiedName || phone.phoneNumberId}</option>)}</select></label><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates.filter((item) => item.wabaId === selectedAccount?.wabaId || (!item.wabaId && selectedAccount?.wabaId === state.setup.wabaId))} wabaId={selectedAccount?.wabaId || ""} value={templateId} onChange={value => { setTemplateId(value); setVariables({}); setDeliveryMethod('cloud_api'); }} onTemplate={setSelectedTemplate} /></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {selectedAccount?.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<SearchableOptionPicker api={api} endpoint="/api/segments?active=1" itemsKey="segments" initialOptions={segments} value={segmentId} onChange={(value, item) => { setSegmentId(value); setSelectedSegment(item); if (value) setSelectedContactIds([]); }} label="Saved segment" placeholder="Find a saved segment" noneLabel="Select contacts manually" formatOption={item => item.name + " (" + item.contactCount + ")"} /></label><label>Schedule<input name="scheduledAt" type="datetime-local" /><small>Schedule up to {state.operationsPolicy?.campaignMaxScheduleDays ?? 60} days ahead (deployment policy).</small></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label>Recurring broadcast (days)<input name="recurringIntervalDays" type="number" min="0" max="365" step="1" defaultValue="0" title="After a campaign completes, spawn the next one after this many days (0 = off)" /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<SearchableOptionPicker api={api} endpoint="/api/automation/options" itemsKey="flows" initialOptions={activeFlows} value={automationFlowId} onChange={setAutomationFlowId} label="Reply automation" placeholder="Find an active flow" noneLabel="No follow-up flow" formatOption={item => item.name} /></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}{template && !templateMatchesSender && <small className="errorLine">This template belongs to another WhatsApp account. Select a matching number or template.</small>}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!templateMatchesSender || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div><CampaignDripManager api={api} postJson={postJson} role={state.account.role} businessId={state.account.business.id} segments={segments} approvedTemplates={approvedTemplates} /></>;
+  return <><CampaignPolicy role={state.account.role} businessId={state.account.business.id} api={api} postJson={postJson} /><div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Sending number<select value={phoneNumberId} onChange={(event) => { setPhoneNumberId(event.target.value); setTemplateId(""); setSelectedTemplate(null); setDeliveryMethod("cloud_api"); }} required><option value="">Select a number</option>{phones.map((phone) => <option key={phone.phoneNumberId} value={phone.phoneNumberId}>{phone.displayPhoneNumber || phone.verifiedName || phone.phoneNumberId}</option>)}</select></label><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates.filter((item) => item.wabaId === selectedAccount?.wabaId || (!item.wabaId && selectedAccount?.wabaId === state?.setup?.wabaId))} wabaId={selectedAccount?.wabaId || ""} value={templateId} onChange={value => { setTemplateId(value); setVariables({}); setDeliveryMethod('cloud_api'); }} onTemplate={setSelectedTemplate} /></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {selectedAccount?.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<SearchableOptionPicker api={api} endpoint="/api/segments?active=1" itemsKey="segments" initialOptions={segments} value={segmentId} onChange={(value, item) => { setSegmentId(value); setSelectedSegment(item); if (value) setSelectedContactIds([]); }} label="Saved segment" placeholder="Find a saved segment" noneLabel="Select contacts manually" formatOption={item => item.name + " (" + item.contactCount + ")"} /></label><label>Schedule<input name="scheduledAt" type="datetime-local" /><small>Schedule up to {state.operationsPolicy?.campaignMaxScheduleDays ?? 60} days ahead (deployment policy).</small></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label>Recurring broadcast (days)<input name="recurringIntervalDays" type="number" min="0" max="365" step="1" defaultValue="0" title="After a campaign completes, spawn the next one after this many days (0 = off)" /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<SearchableOptionPicker api={api} endpoint="/api/automation/options" itemsKey="flows" initialOptions={activeFlows} value={automationFlowId} onChange={setAutomationFlowId} label="Reply automation" placeholder="Find an active flow" noneLabel="No follow-up flow" formatOption={item => item.name} /></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}{template && !templateMatchesSender && <small className="errorLine">This template belongs to another WhatsApp account. Select a matching number or template.</small>}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!templateMatchesSender || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div><CampaignDripManager api={api} postJson={postJson} role={state.account.role} businessId={state.account.business.id} segments={segments} approvedTemplates={approvedTemplates} /></>;
 }
 function WhatsAppReferralReport() {
   const [days, setDays] = useState(30);
@@ -1589,7 +1598,7 @@ function InteractiveReplyForm({ activeContact, mutate }) {
   return <details className="interactiveComposer"><summary><MessageSquareText size={16} /> Interactive message</summary><form onSubmit={submit}><label>Message<textarea name="body" rows="3" required /></label><div className="formSplit"><label>Format<select name="mode"><option value="buttons">Reply buttons (up to 3)</option><option value="list">List (up to 10)</option></select></label><Input name="buttonText" label="List button text" placeholder="Choose" maxLength="20" /></div><Input name="sectionTitle" label="List section title" placeholder="Options" maxLength="24" /><label>Options<textarea name="options" rows="4" placeholder={"pricing|Pricing|View pricing\ndemo|Book a demo|Choose a time"} required /></label><small>Use one option per line: identifier | title | description</small><button className="secondaryAction"><Send size={17} /> Send interactive message</button></form></details>;
 }
 
-function InboxView({ state, activeConversation, activeContact, approvedTemplates, openConversation, mutate, reloadInbox, inboxFilter: serverFilter = "", inboxQ: serverQ = "" }) {
+function InboxView({ state, activeConversation, activeContact, approvedTemplates, openConversation, mutate, reloadInbox, setActiveView, inboxFilter: serverFilter = "", inboxQ: serverQ = "" }) {
   const teamMembers = state.teamMembers || [];
   const currentUserId = state.account?.user?.id || "";
   const [search, setSearch] = useState(serverQ);
@@ -1607,11 +1616,19 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   activeSuggestionConversation.current = activeConversation?.id;
   const conversationId = activeConversation?.id;
   const replyDraft = replyDrafts[conversationId] || '';
-  const latestMessageId = activeConversation?.messages.at(-1)?.id || null;
+  const latestMessageId = activeConversation?.messages?.at?.(-1)?.id || null;
   const activeSuggestionMessage = useRef(latestMessageId);
   activeSuggestionMessage.current = latestMessageId;
-  const activeSuggestion = suggestionContext?.conversationId === conversationId && suggestionContext?.messageId === latestMessageId && suggestionContext?.draft === replyDraft ? suggestionContext : null;
-  const staleSuggestion = suggestionContext?.conversationId === conversationId && suggestionContext.messageId !== latestMessageId && suggestionContext.draft === replyDraft;
+  const activeSuggestion = suggestionContext?.conversationId === conversationId
+    && suggestionContext?.messageId === latestMessageId
+    && suggestionContext?.draft === replyDraft
+    ? suggestionContext
+    : null;
+  // Guard every field: `?.` on the first clause alone is not enough (&& still evaluates later accesses when the left side is true-ish for other reasons).
+  const staleSuggestion = Boolean(suggestionContext)
+    && suggestionContext?.conversationId === conversationId
+    && suggestionContext?.messageId !== latestMessageId
+    && suggestionContext?.draft === replyDraft;
   useEffect(() => {
     if (!state.featureFlags?.ai_agent) { setAiAvailable(false); return; }
     let active = true;
@@ -1631,7 +1648,8 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
     return () => window.clearTimeout(handle);
     // inboxFilter changes reload via the select handler; only debounce free-text search here.
   }, [search]);
-  const filteredConversations = state.conversations;
+  const filteredConversations = Array.isArray(state?.conversations) ? state.conversations : [];
+  const contacts = Array.isArray(state?.contacts) ? state.contacts : [];
   const assignedUser = teamMembers.find((member) => member.id === activeConversation?.assignedUserId);
   const workflowAction = (action, extra = {}) => { if (!activeConversation) return; mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, { action, ...extra }, "PATCH"), action === "note" ? "Note added" : "Conversation updated"); };
   const selectConversation = (conversation) => { suggestionRevision.current += 1; openConversation(conversation.id); if (conversation.unreadCount > 0) mutate(postJson(`/api/conversations/${conversation.id}/workflow`, { action: "mark_read" }, "PATCH")); };
@@ -1681,17 +1699,27 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   };
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
   const groupsEnabled = Boolean(state.featureFlags?.whatsapp_groups);
+  const whatsappConnected = (state?.setup?.status || 'Not connected') === 'Connected';
   return <>
+    {!whatsappConnected && (
+      <div className="saasBanner" role="status">
+        <div>
+          <strong>Connect WhatsApp to use the Inbox</strong>
+          <p style={{ margin: '4px 0 0' }}>Your Shared Inbox is ready. Connect a WhatsApp Business number through Meta to receive and send conversations.</p>
+        </div>
+        <button className="primaryAction" type="button" onClick={() => (setActiveView ? setActiveView('setup') : window.location.assign('/app/settings/whatsapp'))}>Open Workspace</button>
+      </div>
+    )}
     {groupsEnabled && <div className="wa-inbox-modes" role="tablist" aria-label="Inbox surface">
       <button type="button" role="tab" aria-selected={inboxSurface === "direct"} className={inboxSurface === "direct" ? "active" : ""} onClick={() => setInboxSurface("direct")}>1:1 conversations</button>
       <button type="button" role="tab" aria-selected={inboxSurface === "groups"} className={inboxSurface === "groups" ? "active" : ""} onClick={() => setInboxSurface("groups")}>Groups</button>
     </div>}
     {inboxSurface === "groups" ? <WhatsAppGroups api={api} postJson={postJson} enabled={groupsEnabled} embedded /> : <><section className="inboxShell">
-    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" /></label><select value={inboxFilter} onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = state.contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages.at(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!filteredConversations.length && <EmptyState text="No conversations match this view" />}</aside>
+    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" /></label><select value={inboxFilter} onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages?.at?.(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!filteredConversations.length && <EmptyState text="No conversations match this view" />}</aside>
     <div className="threadPane">{activeConversation && activeContact ? <>
       <header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></header>
       <div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div>
-      <div className="messages">{activeConversation.messages.map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>
+      <div className="messages">{(activeConversation.messages || []).map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>
       {activeConversation.status !== "closed" && activeConversation.canReply && <div className="aiReplyComposer">
         <form className="composer" onSubmit={reply}><textarea name="body" value={replyDraft} onChange={event => editReplyDraft(event.target.value)} placeholder="Write a WhatsApp reply" required /><button className="primaryAction" disabled={sendingConversationId !== null || staleSuggestion}><Send size={18} /> {sendingConversationId === conversationId ? "Sending" : "Send"}</button></form>
         {staleSuggestion && <small className="errorLine" role="alert">A new message arrived. Review and edit this suggestion before sending.</small>}

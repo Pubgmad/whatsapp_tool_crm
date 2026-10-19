@@ -11,11 +11,19 @@ import {
 } from '../lib/auth-return.js';
 import { PRICING_ARCHITECTURE } from '../lib/pricing-architecture.js';
 
+test('Open workspace destination is Meta setup, not inbox or billing', () => {
+  assert.equal(DEFAULT_WORKSPACE_PATH, '/app/settings/whatsapp');
+  assert.notEqual(DEFAULT_WORKSPACE_PATH, '/app/inbox');
+  assert.notEqual(DEFAULT_WORKSPACE_PATH, '/app/settings/billing');
+  assert.equal(DEFAULT_POST_AUTH_PATH, '/');
+});
+
 test('safeAuthReturnPath defaults to root and blocks open redirects', () => {
   assert.equal(safeAuthReturnPath(''), DEFAULT_POST_AUTH_PATH);
   assert.equal(safeAuthReturnPath('/'), '/');
   assert.equal(safeAuthReturnPath('/app/calling'), '/app/calling');
   assert.equal(safeAuthReturnPath('/app/dashboard'), '/app/dashboard');
+  assert.equal(safeAuthReturnPath('/app/settings/whatsapp'), '/app/settings/whatsapp');
   assert.equal(safeAuthReturnPath('https://evil.example'), '/');
   assert.equal(safeAuthReturnPath('//evil.example'), '/');
   assert.equal(safeAuthReturnPath('/super-admin'), '/');
