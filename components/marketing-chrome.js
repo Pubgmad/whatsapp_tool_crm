@@ -290,7 +290,7 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
           <ThemeToggle className={styles.themeToggle} />
           {authenticated ? (
             <>
-              <Link className={styles.btnPrimary} href="/app/inbox" onClick={close}>Open workspace</Link>
+              <Link className={styles.btnPrimary} href="/app/settings/whatsapp" onClick={close}>Open workspace</Link>
               <Link className={styles.btnSecondary} href="/app/settings/security" onClick={close}>Account</Link>
             </>
           ) : (

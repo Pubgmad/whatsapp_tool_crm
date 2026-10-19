@@ -83,8 +83,9 @@ export const setupSectionByView = {
 };
 
 export const pageTitles = {
-  overview: 'Overview',
-  setup: 'WhatsApp connection',
+  overview: 'Workspace',
+  setup: 'Workspace',
+
   numbers: 'Phone numbers',
   profile: 'Business profile',
   flows: 'WhatsApp Flows',
@@ -113,8 +114,9 @@ export const pageTitles = {
 
 /** One-line captions under page titles (keep short for premium density). */
 export const pageIntros = {
-  overview: 'Optional cross-module overview. Open a feature workspace for day-to-day work.',
-  setup: 'Connect and verify your WhatsApp Business account.',
+  overview: 'Workspace identity and WhatsApp connection status.',
+  setup: 'Manage this workspace and connect WhatsApp through Meta.',
+
   numbers: 'Phone numbers linked to this workspace.',
   profile: 'Public WhatsApp business profile.',
   flows: 'Meta-hosted forms and intake flows.',
@@ -177,6 +179,15 @@ export function pageJourney(view) {
  */
 export const navGroups = [
   {
+    id: 'workspace',
+    label: 'Workspace',
+    items: [
+      { id: 'setup', label: 'Workspace', icon: 'Building2' },
+      { id: 'numbers', label: 'Numbers', icon: 'Smartphone' },
+      { id: 'profile', label: 'Profile', icon: 'Building2' }
+    ]
+  },
+  {
     id: 'communication',
     label: 'Communication',
     items: [
@@ -210,17 +221,13 @@ export const navGroups = [
     label: 'Commerce & integrations',
     items: [
       { id: 'commerce', label: 'Commerce', icon: 'ShoppingBag' },
-      { id: 'integrations', label: 'Integrations', icon: 'KeyRound' },
-      { id: 'setup', label: 'WhatsApp setup', icon: 'Settings2' },
-      { id: 'numbers', label: 'Numbers', icon: 'Smartphone' },
-      { id: 'profile', label: 'Profile', icon: 'Building2' }
+      { id: 'integrations', label: 'Integrations', icon: 'KeyRound' }
     ]
   },
   {
     id: 'insights',
     label: 'Insights & admin',
     items: [
-      { id: 'overview', label: 'Overview', icon: 'LayoutDashboard' },
       { id: 'results', label: 'Analytics', icon: 'BarChart3' },
       { id: 'conversions', label: 'Conversions', icon: 'Activity' },
       { id: 'journeys', label: 'Journeys', icon: 'Activity' },
@@ -264,7 +271,7 @@ export function workspaceLocation(pathname) {
     return { view: map[rest] || 'setup', conversationId: null };
   }
   const entry = Object.entries(workspaceRoutes).find(([, route]) => route === pathname);
-  return { view: entry?.[0] || 'overview', conversationId: null };
+  return { view: entry?.[0] || 'setup', conversationId: null };
 }
 
 export function pageTitle(view) {

@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS oauth_login_states (
   state_hash TEXT PRIMARY KEY,
   mode TEXT NOT NULL CHECK (mode IN ('signin', 'signup')),
-  next_path TEXT NOT NULL DEFAULT '/app/dashboard',
+  next_path TEXT NOT NULL DEFAULT '/',
   code_verifier_encrypted TEXT NOT NULL DEFAULT '',
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

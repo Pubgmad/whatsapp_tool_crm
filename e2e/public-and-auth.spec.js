@@ -76,10 +76,11 @@ test('authenticated route suite', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Open Dashboard' })).toHaveCount(0);
   await expect(page.locator('a[href="/app/settings/billing"]')).toHaveCount(0);
   await page.getByRole('link', { name: 'Open workspace' }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe('/app/inbox');
+  await expect.poll(() => new URL(page.url()).pathname).toBe('/app/settings/whatsapp');
   await expect(page.getByText('Unable to load this page')).toHaveCount(0);
   await page.goto('/app/inbox');
   await expect(page).toHaveURL('/app/inbox');
+  await expect(page.getByText('Unable to load this page')).toHaveCount(0);
   for (const path of ['/app/contacts', '/app/templates', '/app/campaigns', '/app/automations', '/app/inbox', '/app/settings/billing', '/app/settings/security']) {
     await page.goto(path);
     await expect(page).toHaveURL(path);

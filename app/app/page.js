@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
-export default function WorkspaceIndexPage() {
-  redirect("/app/inbox");
+/** /app entry opens workspace management (Meta connection), not Inbox or Overview. */
+export default function AppIndexPage() {
+  redirect('/app/settings/whatsapp');
 }

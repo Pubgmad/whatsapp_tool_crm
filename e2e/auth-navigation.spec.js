@@ -54,13 +54,15 @@ test('a verified owner signs in and reaches the platform root',async({page,conte
     await expect(page.getByRole('link',{name:'Open Dashboard'})).toHaveCount(0);
     await expect(page.locator('a[href="/app/settings/billing"]')).toHaveCount(0);
     await page.getByRole('link',{name:'Open workspace'}).click();
-    await expect.poll(()=>new URL(page.url()).pathname).toBe('/app/inbox');
+    await expect.poll(()=>new URL(page.url()).pathname).toBe('/app/settings/whatsapp');
     await expect(page.getByText('Unable to load this page')).toHaveCount(0);
     await page.goto('/login?next=/app/calling');
     await expect.poll(()=>new URL(page.url()).pathname).toBe('/app/calling');
     await expect(page.getByRole('heading',{name:'Calling'})).toBeVisible();
     await page.goto('/app/dashboard');
-    await expect(page.getByRole('heading',{name:'Overview'})).toBeVisible();
+    await expect.poll(()=>new URL(page.url()).pathname).toBe('/app/settings/whatsapp');
+    await expect(page.getByText('Unable to load this page')).toHaveCount(0);
+    await page.goto('/app/inbox');
     await expect(page.getByText('Unable to load this page')).toHaveCount(0);
     const session=(await context.cookies()).find(cookie=>cookie.name==='wcrm_session');
     expect(session?.httpOnly).toBe(true);
