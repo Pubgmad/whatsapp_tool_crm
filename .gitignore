@@ -38,3 +38,4 @@ build-artifacts/
 # Markdown / docs dumps: only root README is published to GitHub
 *.md
 !/README.md
+!/CONTEXT.md
