@@ -49,10 +49,8 @@ import {
   canOpenWorkspaceView,
   featureForView,
   flatNavItems,
-  navGroupLabelForView,
   navGroups,
   pageIntro as workspacePageIntro,
-  pageJourney as workspacePageJourney,
   pageTitle as workspacePageTitle,
   setupSectionByView,
   workspaceLocation,
@@ -63,12 +61,10 @@ import { Children, cloneElement, isValidElement, Suspense, useCallback, useEffec
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BadgeCheck, Ban, BarChart3, Bot, ChevronRight, CircleAlert, Download, FileText, Image, Inbox, LayoutDashboard,
-  Eye, EyeOff, Loader2, LogOut, Menu, MessageSquare, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
+  Eye, EyeOff, Loader2, LogOut, MessageSquare, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
   ShieldCheck, Sparkles, Trash2, Upload, UsersRound, X, Search, Clock3, Activity, CheckCheck, Copy, Link2, Pause, Play, Pencil, Save, StickyNote, Unplug, UserPlus, WalletCards,
   Smartphone, Workflow, RadioTower, Building2, KeyRound, ShoppingBag, Paperclip
 } from "lucide-react";
-import ThemeToggle from "./theme-toggle";
-
 const NAV_ICONS = {
   LayoutDashboard, Settings2, UsersRound, UserPlus, WalletCards, ShieldCheck, MessageSquareText, Bot, Send,
   ShoppingBag, Activity, PhoneCall, RadioTower, BarChart3, Inbox, Ban, Workflow, Paperclip, Link2, Smartphone,
@@ -76,6 +72,12 @@ const NAV_ICONS = {
 };
 
 const navItems = flatNavItems.map((item) => ({ ...item, icon: NAV_ICONS[item.icon] || LayoutDashboard }));
+
+/** Primary products shown in the compact switcher (not a full CRM dashboard nav). */
+const PRODUCT_SWITCHER_IDS = [
+  'setup', 'inbox', 'campaigns', 'ads', 'automation', 'calling', 'ai_agents',
+  'templates', 'contacts', 'results', 'commerce', 'integrations', 'team', 'billing', 'security'
+];
 
 
 let csrfToken = '';
@@ -225,7 +227,6 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const [activeConversationId, setActiveConversationId] = useState(initialLocation.conversationId);
   const [notice, setNotice] = useState("");
   const [platform, setPlatform] = useState({ ...fallbackPlatform, ...(initialPlatform || {}) });
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [campaignRetarget, setCampaignRetarget] = useState(null);
   const [pages, setPages] = useState({});
   const [workspaces, setWorkspaces] = useState([]);
@@ -446,14 +447,12 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
     if (!route) return;
     if (featureForView[view] && state?.featureFlags?.[featureForView[view]] === false) { notify('This feature is disabled by the platform administrator.'); return; }
     setActiveView(view);
-    setMobileNavOpen(false);
     router.push(route);
   };
 
   const openConversation = (conversationId) => {
     setActiveConversationId(conversationId);
     setPages((current) => ({ ...current, messages: 1, notes: 1 }));
-    setMobileNavOpen(false);
     router.push(`/app/inbox/${encodeURIComponent(conversationId)}`);
   };
 
@@ -492,77 +491,108 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const platformConfig = { ...platform, ...(state.platform || {}) };
   const screenProps = { state, mutate, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
 
+  const productOptions = PRODUCT_SWITCHER_IDS
+    .map((id) => navItems.find((item) => item.id === id))
+    .filter(Boolean)
+    .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
+    .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups);
+  const activeGroup = navGroups.find((group) => group.items.some((item) => item.id === activeView));
+  const secondaryItems = (activeGroup?.items || [])
+    .map((item) => navItems.find((entry) => entry.id === item.id))
+    .filter(Boolean)
+    .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
+    .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups);
+  const isMetaSetup = activeView === 'setup' || Boolean(setupSectionByView[activeView]);
+  const pageHeading = activeView === 'setup' ? 'WhatsApp connection' : workspacePageTitle(activeView);
+
   return (
-    <main className="shell">
-      <aside className={`sideRail ${mobileNavOpen ? "open" : ""}`}>
-        <div className="brandBlock"><div className="brandIcon">{platformConfig.logo_url?<img src={platformConfig.logo_url} alt="" className="platformLogo"/>:<PhoneCall size={22} />}</div><div><strong>{platformConfig.brand_name}</strong><span>{account.business.name}</span></div><button className="mobileCloseButton" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
-        {workspaces.length > 1 && <label className="workspaceSwitcher"><span>Workspace</span><select value={account.business.id} onChange={selectWorkspace}>{workspaces.map((item) => <option key={item.id} value={item.id} disabled={item.status === "suspended"}>{item.name}{item.status === "suspended" ? " (suspended)" : ""}</option>)}</select></label>}
-        <nav className="navList navGrouped" aria-label="Product sections">
-          {navGroups.map((group) => {
-            const items = group.items
-              .map((item) => navItems.find((entry) => entry.id === item.id))
-              .filter(Boolean)
-              .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
-              .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups);
-            if (!items.length) return null;
+    <main className={`productShell${isMetaSetup ? ' metaFocusShell' : ''}`}>
+      <header className="productTopBar">
+        <div className="productBrand">
+          <div className="brandIcon">{platformConfig.logo_url ? <img src={platformConfig.logo_url} alt="" className="platformLogo" /> : <PhoneCall size={18} />}</div>
+          <div>
+            <strong>{platformConfig.brand_name}</strong>
+            <span>{account.business.name}</span>
+          </div>
+        </div>
+        <label className="productSwitcher">
+          <span className="srOnly">Product</span>
+          <select
+            value={productOptions.some((item) => item.id === activeView) ? activeView : (productOptions[0]?.id || 'setup')}
+            onChange={(event) => navigate(event.target.value)}
+            aria-label="Switch product"
+          >
+            {productOptions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+        </label>
+        {workspaces.length > 1 ? (
+          <label className="productWorkspaceSelect">
+            <span className="srOnly">Workspace</span>
+            <select value={account.business.id} onChange={selectWorkspace} aria-label="Switch workspace">
+              {workspaces.map((item) => (
+                <option key={item.id} value={item.id} disabled={item.status === 'suspended'}>
+                  {item.name}{item.status === 'suspended' ? ' (suspended)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <div className="productTopActions">
+          <span className={`statusPill ${(state.setup?.status || 'Not connected') === 'Connected' ? 'good' : 'warn'}`}>{state.setup?.status || 'Not connected'}</span>
+          <button className="iconButton" type="button" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button>
+          <details className="productProfileMenu">
+            <summary aria-label="Account menu">{account.user.email?.split('@')[0] || 'Profile'}</summary>
+            <div className="productProfilePanel" role="menu">
+              <button type="button" role="menuitem" onClick={() => navigate('setup')}>WhatsApp setup</button>
+              <button type="button" role="menuitem" onClick={() => navigate('security')}>Security</button>
+              {canOpenWorkspaceView(account.role, 'billing') ? <button type="button" role="menuitem" onClick={() => navigate('billing')}>Billing</button> : null}
+              <button type="button" role="menuitem" onClick={logout}><LogOut size={15} /> Sign out</button>
+            </div>
+          </details>
+        </div>
+      </header>
+      {secondaryItems.length > 1 ? (
+        <nav className="productSecondaryNav" aria-label={`${activeGroup?.label || 'Feature'} sections`}>
+          {secondaryItems.map((item) => {
+            const Icon = item.icon;
             return (
-              <div className="navGroup" key={group.id}>
-                <p className="navGroupLabel">{group.label}</p>
-                {items.map((item) => {
-                  const Icon = item.icon;
-                  return <button key={item.id} type="button" className={activeView === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
-                })}
-              </div>
+              <button key={item.id} type="button" className={activeView === item.id ? 'active' : ''} onClick={() => navigate(item.id)}>
+                <Icon size={16} /><span>{item.label}</span>
+              </button>
             );
           })}
         </nav>
-        <div className="railNote"><ShieldCheck size={18} /><span>{account.user.email}</span></div>
-      </aside>
-      {mobileNavOpen && <button className="mobileNavScrim" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" />}
-      <section className="workspace">
-        <header className="heroBar">
-          <button className="mobileMenuButton" type="button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
+      ) : null}
+      <section className="workspace productWorkspace">
+        <header className="productPageHead">
           <div>
-            <p className="kicker">{navItems.find((item) => item.id === activeView)?.label || 'Workspace'}</p>
-            <h1>{workspacePageTitle(activeView)}</h1>
-            <p className="pageBreadcrumb">
-              <span>{navGroupLabelForView(activeView)}</span>
-              <span aria-hidden="true"> / </span>
-              {setupSectionByView[activeView] && activeView !== 'setup' ? (
-                <>
-                  <button type="button" className="textButton" onClick={() => navigate('setup')}>WhatsApp setup</button>
-                  <span aria-hidden="true"> / </span>
-                </>
-              ) : null}
-              <span>{workspacePageTitle(activeView)}</span>
-            </p>
-            {!workspacePageJourney(activeView) && workspacePageIntro(activeView) ? <p className="pageIntro">{workspacePageIntro(activeView)}</p> : null}
+            <p className="kicker">{isMetaSetup ? 'Workspace' : (activeGroup?.label || 'Product')}</p>
+            <h1>{pageHeading}</h1>
+            {workspacePageIntro(activeView) ? <p className="pageIntro">{workspacePageIntro(activeView)}</p> : null}
           </div>
-          <div className="topActions"><ThemeToggle /><button className="iconButton" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button><button className="iconButton" title="Sign out" onClick={logout}><LogOut size={18} /></button><span className={`statusPill ${(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}`}>{state.setup?.status || "Not connected"}</span></div>
         </header>
         {notice && <div className="toast">{notice}</div>}
-        {(state.setup?.status || 'Not connected') !== 'Connected'
-          && canOpenWorkspaceView(account.role, 'setup')
-          && activeView === 'overview' ? (
-          <div className="onboardingBanner" role="status">
-            <div>
-              <strong>Finish workspace setup</strong>
-              <span>Connect your WhatsApp Business number to unlock inbox, broadcasts, and automation. Optional integrations can wait.</span>
-            </div>
-            <button className="primaryAction" type="button" onClick={() => navigate('setup')}>Continue setup</button>
+        {['degraded', 'reconnect_required'].includes(state.setup?.health?.status) && (
+          <div className="connectionAlert" role="alert">
+            <CircleAlert size={19} />
+            <span>{connectionHealthMessage(state.setup?.health)}</span>
+            {canOpenWorkspaceView(account.role, 'setup') && (
+              <button className="secondaryAction" type="button" onClick={() => navigate('setup')}>Reconnect WhatsApp</button>
+            )}
           </div>
-        ) : (() => {
-          const journey = workspacePageJourney(activeView);
-          if (!journey || !canOpenWorkspaceView(account.role, journey.target)) return null;
-          return (
-            <div className="workspaceJourney workspaceJourneyCompact" role="note">
-              <span>{journey.hint}</span>
-              <button className="secondaryAction compactAction" type="button" onClick={() => navigate(journey.target)}>{journey.label} <ChevronRight size={16} /></button>
-            </div>
-          );
-        })()}
-        {["degraded", "reconnect_required"].includes(state.setup?.health?.status) && <div className="connectionAlert" role="alert"><CircleAlert size={19} /><span>{connectionHealthMessage(state.setup?.health)}</span>{canOpenWorkspaceView(account.role, "setup") && <button className="secondaryAction" type="button" onClick={() => navigate("setup")}>Open WhatsApp settings</button>}</div>}
-        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is not included in your current plan or is disabled by the platform administrator.'><div className='actionCluster'><button className='primaryAction' type='button' onClick={() => navigate('billing')}>View plans</button><button className='secondaryAction' type='button' onClick={() => navigate('setup')}>Open workspace setup</button></div></Panel></div> : <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />}
+        )}
+        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? (
+          <div className="contentGrid">
+            <Panel title="Feature unavailable" subtitle="This feature is not included in your current plan or is disabled by the platform administrator.">
+              <div className="actionCluster">
+                <button className="primaryAction" type="button" onClick={() => navigate('billing')}>View plans</button>
+                <button className="secondaryAction" type="button" onClick={() => navigate('setup')}>WhatsApp setup</button>
+              </div>
+            </Panel>
+          </div>
+        ) : (
+          <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />
+        )}
         {children}
       </section>
     </main>
@@ -979,13 +1009,16 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
     {!meta.embeddedSignupAvailable && <div className="formError">WhatsApp connect isn&apos;t available yet. Contact support.</div>}
     {signupError && <div className="formError" role="alert">{signupError}</div>}
     <CoexistenceProgress phones={operations.phoneNumbers.filter(phone=>phone.coexistence)} api={api} postJson={postJson}/>
-    {!hideSectionTabs && <nav className="operationsTabs" aria-label="WhatsApp settings">
+    {!hideSectionTabs && <nav className="operationsTabs" aria-label="WhatsApp connection">
       {[
-        ["connection", Activity, "Connection", "setup"], ["numbers", Smartphone, "Numbers", "numbers"], ["profile", Building2, "Profile", "profile"],
-        ["flows", Workflow, "WhatsApp Flows", "flows"], ["media", Paperclip, "Media", "media"], ["commerce", ShoppingBag, "Commerce", "commerce"],
-        ["entry_points", Link2, "Links and QR codes", "entry_points"], ["analytics", BarChart3, "Meta analytics", "setup"], ["journeys", Activity, "Customer journeys", "journeys"], ["capabilities", RadioTower, "Capabilities", "capabilities"], ...(state.featureFlags?.whatsapp_groups ? [["groups", MessageSquare, "Groups", "groups"]] : []), ...(["Owner", "Manager"].includes(state.account.role) ? [["integrations", KeyRound, "Integrations", "integrations"]] : [])
+        ["connection", Activity, "Connection", "setup"],
+        ["numbers", Smartphone, "Numbers", "numbers"],
+        ["profile", Building2, "Profile", "profile"]
       ].map(([id, Icon, label, viewId]) => <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => { setSection(id); if (onNavigateSection && viewId) onNavigateSection(viewId); }}><Icon size={16} /><span>{label}</span></button>)}
     </nav>}
+    {!hideSectionTabs && section === 'connection' && (
+      <p className="pageIntro" style={{ margin: '0 0 8px' }}>Flows, media, commerce, and other WhatsApp tools are available from the product switcher after connection.</p>
+    )}
     {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={state.account.role}/>}
     {section === 'flows' && <WhatsAppFlowDesigner api={api} postJson={postJson} flows={operations.nativeFlows} onUploaded={()=>mutate(Promise.resolve({ok:true}), 'Flow uploaded')}/>}
     {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={state.account.role}/>}

@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Grid3x3, MessageCircle, Phone, Megaphone, Bot, Sparkles, Workflow, FileText, Shield, Puzzle, Box } from 'lucide-react';
 import styles from '../app/marketing.module.css';
-import ThemeToggle from './theme-toggle';
+import { DEFAULT_WORKSPACE_PATH } from '../lib/auth-return.js';
 
 const ICONS = {
   message: MessageCircle,
@@ -265,11 +265,21 @@ function MobileItem({ item, onNavigate }) {
 
 export default function MarketingChrome({ brandName, logo, navigation = [], signInLabel = 'Sign in', signupLabel = 'Get started', authenticated = false, children }) {
   const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const items = (navigation || []).filter((item) => item.visible !== false);
-  const close = () => setOpen(false);
+  const close = () => { setOpen(false); setMenuOpen(false); };
+
+  const signOut = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    } catch {
+      /* continue to login */
+    }
+    window.location.assign('/login');
+  };
 
   return (
-    <div className={styles.site}>
+    <div className={styles.site} data-marketing-theme="light">
       <header className={styles.header}>
         <div className={styles.headerAccent} aria-hidden />
         <Link href="/" className={styles.brand} onClick={close}>
@@ -287,11 +297,27 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
           </nav>
         </div>
         <div className={styles.headerActions}>
-          <ThemeToggle className={styles.themeToggle} />
           {authenticated ? (
             <>
-              <Link className={styles.btnPrimary} href="/app/settings/whatsapp" onClick={close}>Open workspace</Link>
-              <Link className={styles.btnSecondary} href="/app/settings/security" onClick={close}>Account</Link>
+              <Link className={styles.btnPrimary} href={DEFAULT_WORKSPACE_PATH} onClick={close}>Connect WhatsApp</Link>
+              <div className={styles.profileMenu}>
+                <button
+                  type="button"
+                  className={styles.profileTrigger}
+                  aria-expanded={menuOpen}
+                  aria-haspopup="menu"
+                  onClick={() => setMenuOpen((value) => !value)}
+                >
+                  Menu <ChevronDown size={16} aria-hidden />
+                </button>
+                {menuOpen ? (
+                  <div className={styles.profilePanel} role="menu">
+                    <Link role="menuitem" href={DEFAULT_WORKSPACE_PATH} onClick={close}>WhatsApp setup</Link>
+                    <Link role="menuitem" href="/app/settings/security" onClick={close}>Security settings</Link>
+                    <button type="button" role="menuitem" onClick={signOut}>Sign out</button>
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : (
             <>

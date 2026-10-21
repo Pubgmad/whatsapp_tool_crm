@@ -11,17 +11,17 @@
 .primaryAction{box-shadow:0 3px 10px color-mix(in srgb, var(--brand) 28%, transparent)}
 .primaryAction:hover{box-shadow:0 5px 14px color-mix(in srgb, var(--brand) 32%, transparent)}
 .secondaryAction:hover,.rowActions button:hover,.iconButton:hover{border-color:color-mix(in srgb, var(--brand) 35%, var(--line-strong))}
-.heroPanel,.automationHero{background:var(--nav);border-color:var(--line-strong);color:#eaf4ef;box-shadow:var(--shadow-sm)}
-.heroPanel p,.automationHero span{color:#c6d9d1}
+.heroPanel,.automationHero{background:var(--surface);border-color:var(--line);color:var(--ink);box-shadow:var(--shadow-sm)}
+.heroPanel p,.automationHero span{color:var(--muted)}
 .softLabel{background:var(--brand-soft);border-color:var(--line-strong);color:var(--brand-dark)}
-.heroMetrics .metric,.automationKpis .metric{background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.12)}
-.toast{background:var(--nav)}
+.heroMetrics .metric,.automationKpis .metric{background:var(--soft);border-color:var(--line)}
+.toast{background:var(--ink)}
 .readinessList>div.ready{background:var(--brand-soft);border-color:var(--line-strong)}
 .authShell::before,.superAuthShell::before{background:linear-gradient(90deg,transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px),linear-gradient(transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px);background-size:32px 32px}
 .authPanel,.superAuthPanel{box-shadow:var(--shadow-md)}
-.metaSetupScreen .metaConnectHero{background:linear-gradient(115deg,var(--nav),color-mix(in srgb,var(--brand) 38%,var(--nav)));border-color:var(--line-strong);box-shadow:var(--shadow-sm);color:#eaf4ef}
-.metaSetupScreen .metaConnectHero span{color:#c6d9d1}
-.metaSetupScreen .metaConnectHero .kicker{color:#9edac2}
+.metaSetupScreen .metaConnectHero{background:linear-gradient(115deg,#EFF6FF,color-mix(in srgb,var(--brand) 12%,#fff));border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink)}
+.metaSetupScreen .metaConnectHero span{color:var(--muted)}
+.metaSetupScreen .metaConnectHero .kicker{color:var(--brand-dark)}
 .metaSetupScreen .metaConnectHero .metaConnectActions{display:grid;flex:0 0 250px;width:250px;gap:10px}
 .metaSetupScreen .metaConnectActions button{min-height:46px;white-space:normal;overflow-wrap:normal}
 .metaSetupScreen .metaConnectButton{background:var(--brand);border-color:var(--brand)}
