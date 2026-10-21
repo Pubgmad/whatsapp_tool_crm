@@ -90,7 +90,7 @@ export default function WhatsAppGroups({ api, postJson, enabled, embedded = fals
       ) : (
         <div role="tabpanel">
           <p role="status">Meta Groups entitlement: <strong>{data?.entitlement?.status || 'loading'}</strong></p>
-          {data && !data.entitlement.entitled && <p className="wa-module-note">Groups aren&apos;t enabled for this WhatsApp account yet.</p>}
+          {data && !data.entitlement?.entitled && <p className="wa-module-note">Groups aren&apos;t enabled for this WhatsApp account yet.</p>}
           <div className="wa-group-toolbar">
             <form onSubmit={(event) => { event.preventDefault(); setPage(1); setSearch(query.trim()); }}>
               <label><span className="srOnly">Search groups</span><input value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="Search groups" /></label>

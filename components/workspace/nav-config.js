@@ -149,10 +149,9 @@ export const pageJourneys = {
   templates: { label: 'Broadcast', target: 'campaigns', hint: 'Use an approved template.' },
   campaigns: { label: 'Analytics', target: 'results', hint: 'Review delivery and results.' },
   results: { label: 'Audience', target: 'contacts', hint: 'Build a retarget segment.' },
+  // Keep journeys off Automation / Ads / Calling so those modules stay product-focused
+  // instead of dashboard-style cross-links to Inbox.
   inbox: { label: 'Automation', target: 'automation', hint: 'Reduce repetitive replies.' },
-  automation: { label: 'Inbox', target: 'inbox', hint: 'Review human handoffs.' },
-  ads: { label: 'Inbox', target: 'inbox', hint: 'View ad entry chats.' },
-  calling: { label: 'Inbox', target: 'inbox', hint: 'Open related conversations.' },
   commerce: { label: 'Setup', target: 'setup', hint: 'Confirm number readiness.' },
   conversions: { label: 'Analytics', target: 'results', hint: 'Compare with campaigns.' },
   flows: { label: 'Automation', target: 'automation', hint: 'Use Flows in workflows.' },

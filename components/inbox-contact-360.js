@@ -91,8 +91,8 @@ export default function InboxContact360({ contactId, api, pageSize = 30 }) {
           <h3>{contact.name || 'Unnamed contact'}</h3>
           <a href={`tel:${contact.phone}`}>{contact.phone}</a>
         </div>
-        <span className={contact.consent.unsubscribed ? 'badge bad' : contact.consent.marketingPermission ? 'badge good' : 'badge warn'}>
-          {contact.consent.unsubscribed ? 'Unsubscribed' : contact.consent.marketingPermission ? 'Opted in' : 'Consent unknown'}
+        <span className={contact.consent?.unsubscribed ? 'badge bad' : contact.consent?.marketingPermission ? 'badge good' : 'badge warn'}>
+          {contact.consent?.unsubscribed ? 'Unsubscribed' : contact.consent?.marketingPermission ? 'Opted in' : 'Consent unknown'}
         </span>
       </header>
 
@@ -119,14 +119,14 @@ export default function InboxContact360({ contactId, api, pageSize = 30 }) {
             <button type="submit" className="secondaryAction" disabled={saving}>{saving ? 'Saving…' : 'Save tags'}</button>
           </form>
         ) : (
-          <p>{contact.tags.length ? contact.tags.join(', ') : 'No tags'}</p>
+          <p>{(contact.tags || []).length ? contact.tags.join(', ') : 'No tags'}</p>
         )}
       </section>
 
       <section aria-labelledby="contact-attributes">
         <h4 id="contact-attributes">Attributes</h4>
-        {Object.keys(contact.attributes).length ? (
-          <dl>{Object.entries(contact.attributes).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>)}</dl>
+        {Object.keys(contact.attributes || {}).length ? (
+          <dl>{Object.entries(contact.attributes || {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>)}</dl>
         ) : <p>No custom attributes.</p>}
       </section>
 

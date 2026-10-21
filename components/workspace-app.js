@@ -44,6 +44,7 @@ import { DEFAULT_POST_AUTH_PATH, DEFAULT_WORKSPACE_PATH, safeAuthReturnPath, wit
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../lib/password-policy.js';
 import { metaSdkCallback } from '../lib/meta-sdk-callback';
 import { saveConversationDraft, clearSentConversationDraft, canApplySupportSuggestion } from '../lib/inbox-drafts';
+import { planMarketingFeatures } from '../lib/feature-controls.js';
 import {
   canOpenWorkspaceView,
   featureForView,
@@ -126,8 +127,12 @@ const emptyWorkspaceState = {
   meta: {}
 };
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function mergeWorkspaceState(current, incoming) {
-  return {
+  const merged = {
     ...emptyWorkspaceState,
     ...(current || {}),
     ...incoming,
@@ -136,6 +141,16 @@ function mergeWorkspaceState(current, incoming) {
     meta: { ...(current?.meta || {}), ...(incoming?.meta || {}) },
     pagination: { ...(current?.pagination || {}), ...(incoming?.pagination || {}) }
   };
+  // Hardening: APIs must never leave list fields as null/non-arrays (Inbox shell crash).
+  merged.conversations = asArray(merged.conversations);
+  merged.contacts = asArray(merged.contacts);
+  merged.campaigns = asArray(merged.campaigns);
+  merged.templates = asArray(merged.templates);
+  merged.teamMembers = asArray(merged.teamMembers);
+  merged.automationFlows = asArray(merged.automationFlows);
+  merged.audienceSegments = asArray(merged.audienceSegments);
+  merged.events = asArray(merged.events);
+  return merged;
 }
 
 function stateUrl(view, { page = 1, messagePage = 1, notePage = 1, conversationId = "", inboxFilter = "", q = "" } = {}) {
@@ -466,11 +481,14 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   if (authMode) return <main className="loading"><Loader2 className="spin" size={30} /><p>Opening workspace</p></main>;
   if (!state) return <main className="loading"><Sparkles size={32} /><p>Preparing workspace</p></main>;
 
+  const conversations = asArray(state.conversations);
+  const contacts = asArray(state.contacts);
+  const campaigns = asArray(state.campaigns);
   const activeConversation = activeConversationId
-    ? state.conversations.find((conversation) => conversation.id === activeConversationId) || null
-    : state.conversations[0];
-  const activeContact = activeConversation ? state.contacts.find((contact) => contact.id === activeConversation.contactId) : null;
-  const latestCampaign = state.campaigns[0];
+    ? conversations.find((conversation) => conversation.id === activeConversationId) || null
+    : conversations[0] || null;
+  const activeContact = activeConversation ? contacts.find((contact) => contact.id === activeConversation.contactId) || null : null;
+  const latestCampaign = campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
   const screenProps = { state, mutate, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
 
@@ -544,7 +562,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
           );
         })()}
         {["degraded", "reconnect_required"].includes(state.setup?.health?.status) && <div className="connectionAlert" role="alert"><CircleAlert size={19} /><span>{connectionHealthMessage(state.setup?.health)}</span>{canOpenWorkspaceView(account.role, "setup") && <button className="secondaryAction" type="button" onClick={() => navigate("setup")}>Open WhatsApp settings</button>}</div>}
-        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is disabled by the platform administrator.'><button className='secondaryAction' type='button' onClick={() => navigate('inbox')}>Open inbox</button></Panel></div> : <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />}
+        {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? <div className='contentGrid'><Panel title='Feature unavailable' subtitle='This feature is not included in your current plan or is disabled by the platform administrator.'><div className='actionCluster'><button className='primaryAction' type='button' onClick={() => navigate('billing')}>View plans</button><button className='secondaryAction' type='button' onClick={() => navigate('setup')}>Open workspace setup</button></div></Panel></div> : <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />}
         {children}
       </section>
     </main>
@@ -829,10 +847,10 @@ function Billing({ state, role }) {
       {notice && <p role="status">{notice}</p>}
       {!billingAvailable && <div className="formError">Online billing is not configured yet.</div>}
       {subscription.provider === 'razorpay' && subscription.status !== 'canceled' && <button className="secondaryAction" type="button" disabled={pending || role !== 'Owner'} onClick={() => openBilling('/api/billing/portal')}>Open Razorpay subscription</button>}
-      <div className="planGrid">{plans.map((item) => { const price = interval === 'monthly' ? item.monthlyPriceCents : item.yearlyPriceCents; const activeProvider = subscription.provider === 'razorpay' && ['active', 'trialing'].includes(subscription.status); const current = activeProvider && item.code === plan.code && interval === subscription.billingInterval; const choiceKey = item.id + ':' + interval; return <article className="planTile" key={item.id}><header><div><strong>{item.name}</strong><p>{item.description}</p></div>{current && <Badge kind="good">Current</Badge>}</header><div className="planPrice">{money(price, item.currency)}<small>/{interval === 'monthly' ? 'month' : 'year'}</small></div><ul>{(item.features || []).map((feature) => <li key={feature}>{feature}</li>)}</ul><button className="primaryAction" type="button" disabled={pending || !billingAvailable || role !== 'Owner' || !price || current || (subscription.provider === 'razorpay' && subscription.status === 'past_due')} onClick={() => activeProvider ? (confirmPlan === choiceKey ? switchPlan(item.id) : setConfirmPlan(choiceKey)) : openBilling('/api/billing/checkout', { planId: item.id, interval })}>{current ? 'Current plan' : activeProvider ? confirmPlan === choiceKey ? 'Confirm switch' : 'Switch plan' : 'Choose plan'}</button>{activeProvider && confirmPlan === choiceKey && <button className="secondaryAction" type="button" onClick={() => setConfirmPlan('')}>Cancel</button>}</article>; })}</div>
+      <div className="planGrid">{plans.map((item) => { const price = interval === 'monthly' ? item.monthlyPriceCents : item.yearlyPriceCents; const activeProvider = subscription.provider === 'razorpay' && ['active', 'trialing'].includes(subscription.status); const current = activeProvider && item.code === plan.code && interval === subscription.billingInterval; const choiceKey = item.id + ':' + interval; const bullets = planMarketingFeatures(item.features); return <article className="planTile" key={item.id}><header><div><strong>{item.name}</strong><p>{item.description}</p></div>{current && <Badge kind="good">Current</Badge>}</header><div className="planPrice">{money(price, item.currency)}<small>/{interval === 'monthly' ? 'month' : 'year'}</small></div><ul>{bullets.map((feature) => <li key={feature}>{feature}</li>)}</ul><button className="primaryAction" type="button" disabled={pending || !billingAvailable || role !== 'Owner' || !price || current || (subscription.provider === 'razorpay' && subscription.status === 'past_due')} onClick={() => activeProvider ? (confirmPlan === choiceKey ? switchPlan(item.id) : setConfirmPlan(choiceKey)) : openBilling('/api/billing/checkout', { planId: item.id, interval })}>{current ? 'Current plan' : activeProvider ? confirmPlan === choiceKey ? 'Confirm switch' : 'Switch plan' : 'Choose plan'}</button>{activeProvider && confirmPlan === choiceKey && <button className="secondaryAction" type="button" onClick={() => setConfirmPlan('')}>Cancel</button>}</article>; })}</div>
       {!plans.length && <EmptyState text="No public subscription plans are available" />}
     </section>
-    <Panel title="Included features" subtitle={plan.name || "Current plan"}><div className="readinessList">{(plan.features || []).map((feature) => <div className="ready" key={feature}><span>{feature}</span><Badge kind="good">Included</Badge></div>)}{!(plan.features || []).length && <EmptyState text="No plan features have been configured" />}</div></Panel>
+    <Panel title="Included features" subtitle={plan.name || "Current plan"}><div className="readinessList">{planMarketingFeatures(plan.features).map((feature) => <div className="ready" key={feature}><span>{feature}</span><Badge kind="good">Included</Badge></div>)}{!planMarketingFeatures(plan.features).length && <EmptyState text="No plan features have been configured" />}</div></Panel>
   </div>;
 }
 
@@ -1313,18 +1331,29 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
   const process = () => mutate(postJson("/api/automation/process", { limit: 25 }), "Automation queue processed");
   const node = selectedNode;
 
-  return <div className="screenGrid automationScreen">
-    <section className="automationHero">
-      <div><p className="kicker">Automation</p><h2>Reply workflows</h2><span>Design triggers and actions on the canvas. Select a node to edit it.</span></div>
-      <div className="automationKpis"><Metric label="Flows" value={state.pagination?.automation?.total ?? flows.length} /><Metric label="Active" value={analytics.active} /><Metric label="Completed" value={analytics.completed} /><Metric label="Pending" value={analytics.pending} /></div>
-    </section>
-
-    <AutomationLiveOpsPanel api={api} />
-
+  const flowLimit = state?.subscription?.limits?.automationFlows;
+  const flowUsage = state?.subscription?.usage?.automationFlows ?? flows.length;
+  return <div className="screenGrid automationScreen automationWorkspace">
     <section className="actionBand automationTopbar">
-      <div><strong>{editingId ? "Editing flow" : "New flow"}</strong><span>Add nodes, connect paths, then save.</span></div>
-      <div className="actionCluster"><button className="secondaryAction" type="button" onClick={() => addNode("question")}><Plus size={18} /> Add node</button><button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>{editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}</div>
+      <div>
+        <strong>{editingId ? 'Editing flow' : 'Workflows'}</strong>
+        <span>
+          {editingId
+            ? 'Add nodes, connect paths, then save.'
+            : `Build reply workflows on the canvas.${flowLimit != null ? ` Plan capacity: ${flowUsage} / ${flowLimit} flows.` : ''}`}
+        </span>
+      </div>
+      <div className="actionCluster">
+        <button className="secondaryAction" type="button" onClick={() => addNode('question')}><Plus size={18} /> Add node</button>
+        {editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}
+        <details className="techDetails automationOpsMenu">
+          <summary>Ops</summary>
+          <button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>
+          <span className="fieldHint">Sessions: {analytics.active} active · {analytics.pending} pending · {analytics.completed} completed</span>
+        </details>
+      </div>
     </section>
+    <details className="techDetails saasAdvancedBlock"><summary>Connection readiness</summary><AutomationLiveOpsPanel api={api} /></details>
 
     <form className="visualFlowShell visualFlowShellCanvas" onSubmit={submit}>
       <div className="automationInspector">
@@ -1381,11 +1410,11 @@ function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePag
       />
     </form>
 
-    <AutomationConnections api={api} postJson={postJson} role={state.account.role}/>
-    <div className="flowCardGrid">
-      {flows.map((flow) => <article className="templateCard flowCard" key={flow.id}><div className="cardHead"><div><h3>{flow.name}</h3><p>{flow.description || "No description"}</p></div><Badge kind={flow.status === "active" ? "good" : flow.status === "paused" ? "warn" : "neutral"}>{flow.status}</Badge></div><div className="statusGrid"><Metric label="Nodes" value={flow.nodeCount} /><Metric label="Active" value={flow.activeSessions} /><Metric label="Completed" value={flow.completedSessions} /><Metric label="Rate" value={`${flow.completionRate || 0}%`} /></div><div className="chipRow">{flow.triggerKeywords.map((keyword) => <span key={keyword}>{keyword}</span>)}{!flow.triggerKeywords.length && <span>{flow.triggerMode}</span>}</div><div className="flowActions"><button className="secondaryAction" type="button" onClick={() => loadFlow(flow)}>Edit</button><button className="secondaryAction" type="button" onClick={() => updateStatus(flow, flow.status === "active" ? "paused" : "active")}>{flow.status === "active" ? "Pause" : "Activate"}</button><button className="secondaryAction dangerSoft" type="button" onClick={() => archive(flow)}><Trash2 size={16} /> Archive</button></div></article>)}
-      {!flows.length && <Panel title="No automation flows"><EmptyState text="Create and activate a flow to automate replies from incoming WhatsApp messages." /></Panel>}
+    <div className="flowCardGrid" aria-label="Saved workflows">
+      {flows.map((flow) => <article className="templateCard flowCard" key={flow.id}><div className="cardHead"><div><h3>{flow.name}</h3><p>{flow.description || 'No description'}</p></div><Badge kind={flow.status === 'active' ? 'good' : flow.status === 'paused' ? 'warn' : 'neutral'}>{flow.status}</Badge></div><div className="chipRow">{(flow.triggerKeywords || []).map((keyword) => <span key={keyword}>{keyword}</span>)}{!(flow.triggerKeywords || []).length && <span>{flow.triggerMode}</span>}</div><div className="flowActions"><button className="secondaryAction" type="button" onClick={() => loadFlow(flow)}>Edit</button><button className="secondaryAction" type="button" onClick={() => updateStatus(flow, flow.status === 'active' ? 'paused' : 'active')}>{flow.status === 'active' ? 'Pause' : 'Activate'}</button><button className="secondaryAction dangerSoft" type="button" onClick={() => archive(flow)}><Trash2 size={16} /> Archive</button></div></article>)}
+      {!flows.length && <Panel title="No workflows yet"><EmptyState text="Create a flow above, connect nodes on the canvas, then activate it to automate WhatsApp replies." /></Panel>}
     </div>
+    <details className="techDetails saasAdvancedBlock"><summary>API connections (advanced)</summary><AutomationConnections api={api} postJson={postJson} role={state.account.role}/></details>
   </div>;
 }
 function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setActiveView, campaignRetarget, setCampaignRetarget }) {
