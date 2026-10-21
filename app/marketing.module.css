@@ -108,7 +108,7 @@ html[data-theme="dark"] .site{
 .btnPrimary:hover,.btn.primary:hover{transform:translateY(-1px);background:var(--mk-primary-dark);box-shadow:var(--mk-shadow-hover)}
 .btnPrimary:focus-visible,.btnSecondary:focus-visible{outline:2px solid var(--mk-primary);outline-offset:2px}
 .btnSecondary,.btn.secondary{background:var(--mk-card);border-color:var(--mk-line);color:var(--mk-ink)!important;box-shadow:0 2px 8px rgba(15,23,42,.04);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
-.btnSecondary:hover,.btn.secondary:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--mk-primary) 45%,var(--mk-line));box-shadow:0 8px 20px rgba(37,99,235,.1)}
+.btnSecondary:hover,.btn.secondary:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--mk-brand,#1e40af) 45%,var(--mk-line));box-shadow:0 8px 20px rgba(30,64,175,.1)}
 .profileMenu{position:relative}
 .profileTrigger{display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:8px 12px;border:1px solid var(--mk-line);border-radius:12px;background:var(--mk-card);color:var(--mk-ink);font:inherit;font-weight:700;cursor:pointer}
 .profilePanel{position:absolute;right:0;top:calc(100% + 8px);z-index:50;display:grid;min-width:200px;padding:8px;background:#fff;border:1px solid var(--mk-line);border-radius:12px;box-shadow:var(--mk-shadow)}
@@ -158,7 +158,7 @@ html[data-theme="dark"] .site{
   color:#142429;
   box-shadow:
     0 28px 56px rgba(0,0,0,.45),
-    0 0 0 1px rgba(37,99,235,.25);
+    0 0 0 1px rgba(30,64,175,.25);
 }
 .heroVisualBar{
   display:flex;align-items:center;gap:7px;padding:13px 15px;
@@ -179,8 +179,8 @@ html[data-theme="dark"] .site{
 .heroVisualCards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .heroVisualCards b{
   display:block;aspect-ratio:1.1;border-radius:14px;
-  background:linear-gradient(160deg,#DBEAFE,#2563EB);
-  border:1px solid rgba(37,99,235,.25);
+  background:linear-gradient(160deg,#DBEAFE,#1e40af);
+  border:1px solid rgba(30,64,175,.25);
 }
 .heroFeature{padding-top:64px;padding-bottom:56px}
 .heroFeature h1{max-width:18ch}
@@ -243,8 +243,8 @@ html[data-theme="dark"] .pricing{background:var(--mk-pricing-bg)}
 .productCard p{margin:0;color:var(--mk-muted);line-height:1.55;flex:1}
 .productIcon{
   width:48px;height:48px;border-radius:14px;display:grid;place-items:center;
-  background:linear-gradient(145deg,rgba(37,99,235,.14),rgba(37,99,235,.06));color:var(--mk-primary);
-  border:1px solid rgba(37,99,235,.12);
+  background:linear-gradient(145deg,rgba(30,64,175,.14),rgba(30,64,175,.06));color:var(--mk-brand,#1e40af);
+  border:1px solid rgba(30,64,175,.12);
 }
 .productBenefits{margin:0;padding-left:1.1rem;color:var(--mk-muted);font-size:.92rem;line-height:1.45}
 .productBenefits li{margin:.25rem 0}

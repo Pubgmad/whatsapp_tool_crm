@@ -17,15 +17,15 @@
 .loading,
 .superLoading{
   background:
-    radial-gradient(circle at top left,rgba(37,99,235,.12),transparent 44%),
+    radial-gradient(circle at top left,rgba(30,64,175,.12),transparent 44%),
     radial-gradient(circle at bottom right,rgba(13,148,136,.08),transparent 40%),
     var(--canvas);
 }
 .authShell::before,
 .superAuthShell::before{
   background:
-    linear-gradient(90deg,transparent 31px,rgba(37,99,235,.04) 32px,transparent 33px),
-    linear-gradient(transparent 31px,rgba(37,99,235,.04) 32px,transparent 33px);
+    linear-gradient(90deg,transparent 31px,rgba(30,64,175,.04) 32px,transparent 33px),
+    linear-gradient(transparent 31px,rgba(30,64,175,.04) 32px,transparent 33px);
   background-size:32px 32px;
 }
 .authPanel,
@@ -48,7 +48,7 @@
   background:rgba(255,255,255,.92);
   backdrop-filter:blur(12px);
   border-bottom:1px solid var(--line);
-  box-shadow:0 1px 0 rgba(37,99,235,.04),0 8px 20px rgba(15,23,42,.03);
+  box-shadow:0 1px 0 rgba(30,64,175,.04),0 8px 20px rgba(15,23,42,.03);
 }
 .productBrand strong{
   font-family:var(--font-display);
@@ -80,7 +80,7 @@
 .productSecondaryNav button.active{
   background:var(--brand);
   border-color:var(--brand);
-  box-shadow:0 4px 12px rgba(37,99,235,.22);
+  box-shadow:0 4px 12px rgba(30,64,175,.22);
 }
 .productPageHead .kicker{
   color:var(--indigo);
@@ -112,7 +112,7 @@
 
 /* ——— Focus rings / inputs ——— */
 :focus-visible{
-  outline:3px solid rgba(37,99,235,.35);
+  outline:3px solid rgba(30,64,175,.35);
   outline-offset:2px;
 }
 input:not([type=checkbox]):not([type=file]),
