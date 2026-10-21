@@ -5,6 +5,7 @@ import "./template-picker.css";
 import "./visual-refresh.css";
 import "./crm-vibrant-theme.css";
 import "./premium-design-system.css";
+import "./palette.css";
 import { getPublicPlatformConfig } from "../lib/platform";
 
 /* Force light-first product chrome; clear sticky dark prefs from earlier themes. */

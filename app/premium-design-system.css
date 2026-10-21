@@ -1,32 +1,12 @@
 /*
- * Premium Ocean Blue design system — import LAST so these rules win.
- * Brand #2563EB · Indigo #4338CA (sparing) · Teal #0D9488
+ * Premium CRM chrome — surfaces + blue hierarchy.
+ * Primary CTA orange attractor is applied in palette.css (imported after this file).
  * Soft surfaces stay neutral (#F1F5F9); brand-soft stays blue (#DBEAFE).
  */
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap');
 
 :root{
-  --canvas:#F8FAFC;
-  --surface:#FFFFFF;
-  --soft:#F1F5F9;
-  --ink:#0F172A;
-  --ink-soft:#334155;
-  --muted:#64748B;
-  --line:#E2E8F0;
-  --line-strong:#CBD5E1;
-  --brand:#2563EB;
-  --brand-dark:#1D4ED8;
-  --brand-soft:#DBEAFE;
-  --indigo:#4338CA;
-  --indigo-soft:#E0E7FF;
-  --accent:#0D9488;
-  --accent-soft:#CCFBF1;
-  --blue:#2563EB;
-  --blue-soft:#EFF6FF;
   --radius:12px;
-  --shadow-sm:0 1px 2px rgba(15,23,42,.05);
-  --shadow-md:0 12px 32px rgba(37,99,235,.12);
-  --focus-ring:0 0 0 3px rgba(37,99,235,.16);
   --font-display:"Plus Jakarta Sans","Source Sans 3",ui-sans-serif,system-ui,sans-serif;
   --font-body:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
 }
@@ -109,13 +89,9 @@
   color:var(--accent);
 }
 
-/* ——— Buttons ——— */
+/* ——— Buttons (fill/color owned by palette.css CTA attractor) ——— */
 .primaryAction{
   border-radius:10px;
-  box-shadow:0 4px 14px rgba(37,99,235,.22);
-}
-.primaryAction:hover{
-  box-shadow:0 6px 18px rgba(37,99,235,.28);
 }
 .secondaryAction,
 .rowActions button,
