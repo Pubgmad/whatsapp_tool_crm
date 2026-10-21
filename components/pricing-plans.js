@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import styles from '../app/marketing.module.css';
+import { planMarketingFeatures } from '../lib/feature-controls.js';
 
 function formatMoney(cents, currency) {
   try {
@@ -82,8 +83,8 @@ export default function PricingPlans({ plans = [], ctaHref = '/signup', ctaLabel
                   Commercial rates are set by Super Admin. This card is visible for structure only until prices are published.
                 </p>
               ) : null}
-              {Array.isArray(plan.features) && plan.features.length > 0 ? (
-                <ul>{plan.features.map((feature, index) => <li key={index}>{feature}</li>)}</ul>
+              {planMarketingFeatures(plan.features).length > 0 ? (
+                <ul>{planMarketingFeatures(plan.features).map((feature, index) => <li key={index}>{feature}</li>)}</ul>
               ) : null}
               <a className={styles.btnPrimary} href={ctaHref}>{free ? 'Get started free' : ctaLabel}</a>
             </article>

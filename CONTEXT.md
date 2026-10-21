@@ -1,6 +1,6 @@
 # MathStrat WhatsApp CRM — Project Context
 
-Last updated: 2026-10-19  
+Last updated: 2026-10-21  
 Primary branch: `production_saas` (merge to `main` after verification)  
 Public site / app: `https://crm.mathstrat-sites.com`
 
@@ -77,15 +77,17 @@ Tenant isolation is enforced via `business_id` + RLS-oriented DB access patterns
 ### Defaults
 
 - `lib/default-plans.js` + `npm run db:init` seed **Free Forever** (`code: free`, ₹0, visible).
-- Paid tiers (basic/growth/premium/enterprise) seed as **hidden drafts** until Super Admin prices and publishes them.
+- Paid drafts: **starter / growth / professional / enterprise** (hidden, ₹0 until Super Admin prices). Proposed reference INR: 999 / 2499 / 5999 / custom — not live charges.
+- `plan.features` may mix **entitlement keys** (`inbox`, `campaigns`, …) and marketing bullets. `planAllowsFeature` only gates on known `WORKSPACE_FEATURES` keys; marketing-only arrays do not deny features.
 - Signup / Google signup assigns Free Forever as **`active`** with **no trial expiry** when the free plan exists.
 - Env: `DEFAULT_SUBSCRIPTION_PLAN_CODE=free` (recommended).
 
 ### Enforcement
 
-- `assertSubscriptionActive` in `lib/limits.js` (when `SUBSCRIPTION_ENFORCEMENT_ENABLED` is true).
-- Paid upgrades: Razorpay checkout / portal / webhooks (`/api/webhooks/razorpay`).
-- Public `/pricing` reads `is_active AND visible` plans only.
+- `assertSubscriptionActive` + usage limits in `lib/limits.js` (when `SUBSCRIPTION_ENFORCEMENT_ENABLED` is true).
+- Feature keys: `assertWorkspaceFeature` / `workspaceFeatureFlags` in `lib/feature-controls.js`.
+- Paid upgrades: Razorpay checkout / portal / webhooks (`/api/webhooks/razorpay`). Activation requires verified payment webhook — not success-URL alone.
+- Public `/pricing` reads `is_active AND visible` plans only; UI shows marketing bullets only (keys filtered).
 
 ### Separated charges
 
@@ -250,7 +252,9 @@ Prioritized engineering backlog (not Meta App Review itself):
 | Free users blocked | `trialing` with `trial_days=0` expired immediately | Free → `active`, null period end |
 | Open workspace → Inbox | `DEFAULT_WORKSPACE_PATH=/app/inbox` | Now `/app/settings/whatsapp` |
 | Generic dashboard | Overview nav + `/app/dashboard` | Removed from nav; dashboard redirects to Workspace |
-| Inbox “Unable to load this page” | (1) slim inbox API missing `setup`; (2) `suggestionContext.messageId` when null | Full `loadState` + null-safe suggestion guards |
+| Inbox “Unable to load this page” | (1) slim inbox API missing `setup`; (2) `suggestionContext.messageId` when null; (3) parent shell `state.conversations.find` when non-array | Full `loadState` + null-safe suggestion guards + `asArray` / `mergeWorkspaceState` hardening; Contact360/Groups optional chaining |
+| Automation looked like a dashboard | KPI hero + Connection readiness + Inbox journey strip | Workflow-first topbar + canvas; readiness/connections demoted to `<details>`; remove Automation→Inbox journey |
+| Plan features locked everything | Marketing strings in `plan.features` failed `planAllowsFeature` | Entitlement keys only; marketing bullets ignored for gating |
 
 ---
 

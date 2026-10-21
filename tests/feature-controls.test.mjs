@@ -57,6 +57,8 @@ test('plan entitlements further restrict platform-enabled features', async () =>
   assert.equal(planAllowsFeature([], 'calling'), true);
   assert.equal(planAllowsFeature(['inbox', 'calling'], 'calling'), true);
   assert.equal(planAllowsFeature(['inbox'], 'calling'), false);
+  // Marketing-only bullets must not deny every feature (legacy Free Forever catalogues).
+  assert.equal(planAllowsFeature(['Shared inbox (2 seats)', 'Upgrade anytime'], 'campaigns'), true);
   assert.equal(resolveFeatureGate({ platformEnabled: true, planAllows: true, tenantOverride: null }), true);
   assert.equal(resolveFeatureGate({ platformEnabled: true, planAllows: false, tenantOverride: true }), false);
   assert.equal(resolveFeatureGate({ platformEnabled: false, planAllows: true, tenantOverride: true }), false);

@@ -13,8 +13,11 @@ test('built-in catalogue includes visible Free Forever and hidden draft paid tie
   assert.ok(free);
   assert.equal(free.visible, true);
   assert.equal(free.monthly_price_cents, 0);
-  assert.ok(plans.some((plan) => plan.code === 'basic' && plan.visible === false));
+  assert.ok(plans.some((plan) => plan.code === 'starter' && plan.visible === false));
+  assert.ok(plans.some((plan) => plan.code === 'professional' && plan.visible === false));
   assert.ok(plans.some((plan) => plan.code === 'enterprise' && plan.visible === false));
+  assert.ok(free.features.includes('inbox'));
+  assert.ok(free.features.some((item) => item.includes('Shared inbox')));
 });
 
 test('subscriptionFieldsForPlan provisions Free Forever as active without trial expiry', () => {
