@@ -25,7 +25,7 @@ const emptyPlan = {
   code: "",
   name: "",
   description: "",
-  currency: "",
+  currency: "INR",
   monthlyPrice: "",
   yearlyPrice: "",
   trialDays: "0",
@@ -35,10 +35,12 @@ const emptyPlan = {
   automationFlowLimit: "",
   monthlyMessageLimit: "",
   whatsappConversationLimit: "",
-  features: "",
+  entitlementKeys: [],
+  marketingFeatures: "",
   displayOrder: "0",
-  visible: true,
-  isActive: true
+  visible: false,
+  isActive: true,
+  isPopular: false
 };
 
 let csrfToken = '';
@@ -88,7 +90,7 @@ const adminSections = [
 
 const adminHeadings = {
   overview: ["Platform overview", "Companies, subscriptions, and system health."],
-  plans: ["Subscription plans", "Pricing, limits, and plan availability."],
+  plans: ["Billing & plans", "Draft catalogue, entitlements, limits, and public pricing control."],
   features: ['Feature controls', 'Enable or disable modules for workspaces.'],
   'meta-webhooks': ['Meta webhooks', 'Delivery failures and event replay.'],
   content: ["Website CMS", "Pages, navigation, branding, and feature content."],
@@ -103,6 +105,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   const [admin, setAdmin] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [plans, setPlans] = useState([]);
+  const [planCatalogue, setPlanCatalogue] = useState(null);
   const [settings, setSettings] = useState([]);
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState("");
@@ -159,7 +162,20 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
     ]);
     setDashboard(nextDashboard);
     setPlans(planPayload.plans || []);
+    setPlanCatalogue(planPayload.catalogue || null);
     setSettings(settingPayload.settings || []);
+  };
+
+  const ensureDefaultPlans = async () => {
+    try {
+      const result = await postJson("/api/super-admin/plans/ensure", {});
+      setPlans(result.plans || []);
+      const inserted = result.seed?.inserted?.length || 0;
+      notify(inserted ? `Added ${inserted} missing default plan(s)` : "Default catalogue already present — no overwrites");
+      await loadPlatformData();
+    } catch (error) {
+      notify(error.message);
+    }
   };
 
   const bootstrap = async () => {
@@ -329,13 +345,14 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       </details>
       </>}
 
-      {initialSection === "plans" && <><section className="superGrid">
-        <Panel title="Plan catalogue" subtitle="Pricing, features, and limits">
-          <div className="planGrid">{plans.map((plan) => <PlanCard key={plan.id} plan={plan} onDelete={deletePlan} />)}{!plans.length && <Empty text="No plans configured yet" />}</div>
-        </Panel>
-      </section>
-
-      <PlanManager plans={plans} onSave={savePlan} /></>}
+      {initialSection === "plans" && <PlansBillingWorkspace
+        plans={plans}
+        catalogue={planCatalogue}
+        onSave={savePlan}
+        onDelete={deletePlan}
+        onEnsureDefaults={ensureDefaultPlans}
+        razorpayConfigured={Boolean(dashboard.operations?.razorpayConfigured)}
+      />}
       {initialSection === "content" && <><CmsSiteEditor api={api} notify={notify}/><ContentManager settings={settings.filter((item) => item.category !== 'feature_controls')} onSave={saveSetting} /></>}
       {initialSection === 'features' && <ContentManager settings={settings.filter((item) => item.category === 'feature_controls')} onSave={saveSetting} />}
       {initialSection === 'meta-webhooks' && <MetaWebhookOperations notify={notify} />}
@@ -559,10 +576,82 @@ function SuperAdminSecurity({ notify }) {
   </Panel>{recoveryCodes.length > 0 && <Panel title='Recovery codes' subtitle='Store these once in a secure password manager. Each code works only once.'><div className='recoveryCodes'>{recoveryCodes.map((code) => <code key={code}>{code}</code>)}</div></Panel>}</div>;
 }
 
-function PlanManager({ plans, onSave }) {
+function PlansBillingWorkspace({ plans, catalogue, onSave, onDelete, onEnsureDefaults, razorpayConfigured }) {
+  const published = plans.filter((plan) => plan.visible && plan.isActive);
+  const drafts = plans.filter((plan) => !plan.visible);
+  const entitlementLabels = catalogue?.entitlementKeys || {};
+  return (
+    <>
+      <section className="superGrid">
+        <Panel title="Billing control" subtitle="Platform subscription is separate from Meta WhatsApp messaging charges">
+          <div className="statusStack">
+            <div><span>Catalogue version</span><strong>{catalogue?.version || "—"}</strong></div>
+            <div><span>Published on Pricing</span><strong>{published.length}</strong></div>
+            <div><span>Draft / hidden</span><strong>{drafts.length}</strong></div>
+            <div><span>Razorpay SaaS billing</span><strong>{razorpayConfigured ? "configured" : "not ready — no live charges"}</strong></div>
+          </div>
+          <p className="pageIntro" style={{ marginTop: 12 }}>
+            {catalogue?.note || "Paid plans stay Hidden until you publish. Customers are charged only after verified Razorpay payment."}
+          </p>
+          <div className="actionCluster" style={{ marginTop: 12 }}>
+            <button className="secondaryAction" type="button" onClick={onEnsureDefaults}><Plus size={16} /> Ensure default plans</button>
+            <a className="secondaryAction" href="/pricing" target="_blank" rel="noreferrer"><Eye size={16} /> Preview public Pricing</a>
+          </div>
+        </Panel>
+        <Panel title="Charge layers" subtitle="What MathStrat bills vs Meta">
+          <ul className="statusStack" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            <li><span>Platform subscription</span><strong>Editable here</strong></li>
+            <li><span>WhatsApp / Meta messaging</span><strong>Separate — not bundled</strong></li>
+            <li><span>AI usage &amp; seats</span><strong>Via plan limits / add-ons</strong></li>
+            <li><span>Taxes (GST)</span><strong>At checkout when configured</strong></li>
+          </ul>
+        </Panel>
+      </section>
+
+      <Panel title="Entitlement matrix" subtitle="Which WORKSPACE_FEATURES each plan grants (keys stored in plan.features)">
+        <div style={{ overflowX: "auto" }}>
+          <table className="dataTable">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                {plans.map((plan) => <th key={plan.id}>{plan.name}<br /><small>{plan.visible ? "Published" : "Draft"}</small></th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(entitlementLabels).map(([key, label]) => (
+                <tr key={key}>
+                  <td><strong>{label}</strong><div><small>{key}</small></div></td>
+                  {plans.map((plan) => {
+                    const on = (plan.entitlementKeys || []).includes(key);
+                    return <td key={plan.id}>{on ? "✓" : "—"}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!plans.length && <Empty text="No plans yet — click Ensure default plans" />}
+      </Panel>
+
+      <section className="superGrid">
+        <Panel title="Plan catalogue" subtitle="Proposed prices are editable drafts until Visible is enabled">
+          <div className="planGrid">
+            {plans.map((plan) => <PlanCard key={plan.id} plan={plan} onDelete={onDelete} />)}
+            {!plans.length && <Empty text="No plans configured yet" />}
+          </div>
+        </Panel>
+      </section>
+
+      <PlanManager plans={plans} onSave={onSave} entitlementLabels={entitlementLabels} />
+    </>
+  );
+}
+
+function PlanManager({ plans, onSave, entitlementLabels = {} }) {
   const [editingId, setEditingId] = useState("");
   const [form, setForm] = useState(emptyPlan);
   const editing = plans.find((plan) => plan.id === editingId);
+  const featureKeys = Object.keys(entitlementLabels);
 
   const edit = (plan) => {
     setEditingId(plan.id);
@@ -574,6 +663,15 @@ function PlanManager({ plans, onSave }) {
     setForm(emptyPlan);
   };
 
+  const toggleEntitlement = (key) => {
+    setForm((current) => {
+      const set = new Set(current.entitlementKeys || []);
+      if (set.has(key)) set.delete(key);
+      else set.add(key);
+      return { ...current, entitlementKeys: [...set] };
+    });
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     const payload = formToPlanPayload(form);
@@ -581,17 +679,38 @@ function PlanManager({ plans, onSave }) {
     reset();
   };
 
-  return <Panel title={editing ? "Edit subscription plan" : "Create subscription plan"} subtitle="Changes are stored in PostgreSQL and reflected wherever plans are read." id="plan-editor">
+  return <Panel title={editing ? "Edit subscription plan" : "Create subscription plan"} subtitle="Stored in PostgreSQL. Public Pricing and customer Billing read the same records." id="plan-editor">
     <form className="planEditor" onSubmit={submit}>
-      <div className="formSplit"><Input label="Plan code" value={form.code} onChange={(event) => setFormValue(setForm, "code", event.target.value)} placeholder="professional" required /><Input label="Plan name" value={form.name} onChange={(event) => setFormValue(setForm, "name", event.target.value)} placeholder="Plan name" required /></div>
+      <div className="formSplit"><Input label="Plan code" value={form.code} onChange={(event) => setFormValue(setForm, "code", event.target.value)} placeholder="professional" required disabled={Boolean(editing)} /><Input label="Plan name" value={form.name} onChange={(event) => setFormValue(setForm, "name", event.target.value)} placeholder="Plan name" required /></div>
       <label>Description<textarea rows="3" value={form.description} onChange={(event) => setFormValue(setForm, "description", event.target.value)} placeholder="Short customer-facing plan description"></textarea></label>
       <div className="formQuad"><Input label="Currency" required maxLength="3" value={form.currency} onChange={(event) => setFormValue(setForm, "currency", event.target.value.toUpperCase())} /><Input label="Monthly price" type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(event) => setFormValue(setForm, "monthlyPrice", event.target.value)} /><Input label="Yearly price" type="number" min="0" step="0.01" value={form.yearlyPrice} onChange={(event) => setFormValue(setForm, "yearlyPrice", event.target.value)} /><Input label="Trial days" type="number" min="0" value={form.trialDays} onChange={(event) => setFormValue(setForm, "trialDays", event.target.value)} /></div>
-      <div className="formQuad"><Input label="Contacts" type="number" min="0" value={form.contactLimit} onChange={(event) => setFormValue(setForm, "contactLimit", event.target.value)} /><Input label="Campaigns/month" type="number" min="0" value={form.campaignLimit} onChange={(event) => setFormValue(setForm, "campaignLimit", event.target.value)} /><Input label="Users" type="number" min="0" value={form.userLimit} onChange={(event) => setFormValue(setForm, "userLimit", event.target.value)} /><Input label="Automation flows" type="number" min="0" value={form.automationFlowLimit} onChange={(event) => setFormValue(setForm, "automationFlowLimit", event.target.value)} /></div>
+      <div className="formQuad"><Input label="Contacts" type="number" min="0" value={form.contactLimit} onChange={(event) => setFormValue(setForm, "contactLimit", event.target.value)} /><Input label="Campaigns/month" type="number" min="0" value={form.campaignLimit} onChange={(event) => setFormValue(setForm, "campaignLimit", event.target.value)} /><Input label="Team seats" type="number" min="0" value={form.userLimit} onChange={(event) => setFormValue(setForm, "userLimit", event.target.value)} /><Input label="Automation flows" type="number" min="0" value={form.automationFlowLimit} onChange={(event) => setFormValue(setForm, "automationFlowLimit", event.target.value)} /></div>
       <div className="formSplit"><Input label="Messages/month" type="number" min="0" value={form.monthlyMessageLimit} onChange={(event) => setFormValue(setForm, "monthlyMessageLimit", event.target.value)} /><Input label="WhatsApp conversations" type="number" min="0" value={form.whatsappConversationLimit} onChange={(event) => setFormValue(setForm, "whatsappConversationLimit", event.target.value)} /></div>
-      <label>Features<textarea rows="5" value={form.features} onChange={(event) => setFormValue(setForm, "features", event.target.value)} placeholder="One feature per line"></textarea></label>
-      <div className="formQuad"><Input label="Display order" type="number" value={form.displayOrder} onChange={(event) => setFormValue(setForm, "displayOrder", event.target.value)} /><label className="checkRow"><input type="checkbox" checked={form.visible} onChange={(event) => setFormValue(setForm, "visible", event.target.checked)} /> Visible</label><label className="checkRow"><input type="checkbox" checked={form.isActive} onChange={(event) => setFormValue(setForm, "isActive", event.target.checked)} /> Active</label><div className="formActions"><button className="primaryAction" type="submit"><Save size={17} /> {editing ? "Update plan" : "Create plan"}</button>{editing && <button className="secondaryAction" type="button" onClick={reset}>Cancel</button>}</div></div>
+
+      <fieldset className="entitlementMatrix" style={{ border: "1px solid var(--line)", borderRadius: 12, padding: 14, margin: "12px 0" }}>
+        <legend style={{ padding: "0 8px", fontWeight: 700 }}>Feature entitlements</legend>
+        <p className="pageIntro" style={{ marginTop: 0 }}>These keys gate the CRM. Unchecked features show an upgrade state for customers on this plan.</p>
+        <div className="chipRow" style={{ flexWrap: "wrap", gap: 8 }}>
+          {featureKeys.map((key) => (
+            <label className="checkRow" key={key} style={{ minWidth: "46%" }}>
+              <input type="checkbox" checked={(form.entitlementKeys || []).includes(key)} onChange={() => toggleEntitlement(key)} />
+              {entitlementLabels[key] || key}
+            </label>
+          ))}
+          {!featureKeys.length && <span>Entitlement catalogue loading…</span>}
+        </div>
+      </fieldset>
+
+      <label>Marketing bullets (public Pricing)<textarea rows="4" value={form.marketingFeatures} onChange={(event) => setFormValue(setForm, "marketingFeatures", event.target.value)} placeholder="One customer-facing bullet per line"></textarea></label>
+      <div className="formQuad">
+        <Input label="Display order" type="number" value={form.displayOrder} onChange={(event) => setFormValue(setForm, "displayOrder", event.target.value)} />
+        <label className="checkRow"><input type="checkbox" checked={form.visible} onChange={(event) => setFormValue(setForm, "visible", event.target.checked)} /> Published (Visible on Pricing)</label>
+        <label className="checkRow"><input type="checkbox" checked={form.isActive} onChange={(event) => setFormValue(setForm, "isActive", event.target.checked)} /> Active</label>
+        <label className="checkRow"><input type="checkbox" checked={form.isPopular} onChange={(event) => setFormValue(setForm, "isPopular", event.target.checked)} /> Mark popular</label>
+      </div>
+      <div className="formActions"><button className="primaryAction" type="submit"><Save size={17} /> {editing ? "Update plan" : "Create plan"}</button>{editing && <button className="secondaryAction" type="button" onClick={reset}>Cancel</button>}</div>
     </form>
-    <div className="editablePlanList">{plans.map((plan) => <button type="button" key={plan.id} onClick={() => edit(plan)} className={editingId === plan.id ? "active" : ""}><Pencil size={16} /><span>{plan.name}</span><small>{money(plan.monthlyPriceCents, plan.currency)} monthly</small></button>)}</div>
+    <div className="editablePlanList">{plans.map((plan) => <button type="button" key={plan.id} onClick={() => edit(plan)} className={editingId === plan.id ? "active" : ""}><Pencil size={16} /><span>{plan.name}</span><small>{plan.visible ? "Published" : "Draft"} · {money(plan.monthlyPriceCents, plan.currency)}/mo</small></button>)}</div>
   </Panel>;
 }
 
@@ -756,13 +875,30 @@ function TextSettingForm({ setting, onSave }) {
 }
 
 function PlanCard({ plan, onDelete }) {
+  const status = plan.visible ? "published" : "draft";
   return <article className="planTile">
-    <header><div><strong>{plan.name}</strong><small>{plan.code}</small></div><Badge kind={plan.isActive ? "active" : "suspended"}>{plan.isActive ? "active" : "inactive"}</Badge></header>
+    <header>
+      <div><strong>{plan.name}</strong><small>{plan.code}</small></div>
+      <div className="chipRow compact">
+        <Badge kind={plan.isActive ? "active" : "suspended"}>{plan.isActive ? "active" : "archived"}</Badge>
+        <Badge kind={plan.visible ? "good" : "warn"}>{status}</Badge>
+        {plan.isPopular ? <Badge kind="active">popular</Badge> : null}
+      </div>
+    </header>
     <p>{plan.description || "No description"}</p>
-    <div className="planPrices"><span>{money(plan.monthlyPriceCents, plan.currency)} monthly</span><span>{plan.yearlyPriceCents ? `${money(plan.yearlyPriceCents, plan.currency)} yearly` : "No yearly price"}</span></div>
-    <div className="chipRow">{plan.features.slice(0, 4).map((feature) => <span key={feature}>{feature}</span>)}{!plan.features.length && <span>No features listed</span>}</div>
-    <div className="planMeta"><small>{plan.subscribers} subscribers</small><small>{plan.visible ? "Visible" : "Hidden"}</small></div>
-    <button className="secondaryAction dangerSoft" type="button" onClick={() => onDelete(plan)}><Trash2 size={16} /> Delete</button>
+    <div className="planPrices">
+      <span>{money(plan.monthlyPriceCents, plan.currency)} monthly</span>
+      <span>{plan.yearlyPriceCents ? `${money(plan.yearlyPriceCents, plan.currency)} yearly` : "No yearly price"}</span>
+    </div>
+    {plan.proposedMonthlyInr != null && !plan.visible ? (
+      <small>Proposed reference ₹{plan.proposedMonthlyInr}/mo — draft until published</small>
+    ) : null}
+    <div className="chipRow">
+      {(plan.marketingFeatures || []).slice(0, 3).map((feature) => <span key={feature}>{feature}</span>)}
+      <span>{(plan.entitlementKeys || []).length} entitlements</span>
+    </div>
+    <div className="planMeta"><small>{plan.subscribers} subscribers</small><small>Order {plan.displayOrder}</small></div>
+    <button className="secondaryAction dangerSoft" type="button" onClick={() => onDelete(plan)}><Trash2 size={16} /> {plan.subscribers > 0 ? "Archive" : "Delete"}</button>
   </article>;
 }
 
@@ -776,7 +912,7 @@ function planToForm(plan) {
     code: plan.code,
     name: plan.name,
     description: plan.description || "",
-    currency: plan.currency || "",
+    currency: plan.currency || "INR",
     monthlyPrice: rupees(plan.monthlyPriceCents),
     yearlyPrice: rupees(plan.yearlyPriceCents),
     trialDays: String(plan.trialDays || 0),
@@ -786,14 +922,21 @@ function planToForm(plan) {
     automationFlowLimit: plan.limits.automationFlows ?? "",
     monthlyMessageLimit: plan.limits.messages ?? "",
     whatsappConversationLimit: plan.limits.whatsappConversations ?? "",
-    features: (plan.features || []).join("\n"),
+    entitlementKeys: plan.entitlementKeys || [],
+    marketingFeatures: (plan.marketingFeatures || []).join("\n"),
     displayOrder: String(plan.displayOrder || 0),
     visible: plan.visible,
-    isActive: plan.isActive
+    isActive: plan.isActive,
+    isPopular: Boolean(plan.isPopular)
   };
 }
 
 function formToPlanPayload(form) {
+  const entitlements = Array.isArray(form.entitlementKeys) ? form.entitlementKeys : [];
+  const marketing = String(form.marketingFeatures || "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
   return {
     code: form.code,
     name: form.name,
@@ -808,10 +951,11 @@ function formToPlanPayload(form) {
     automationFlowLimit: optionalNumber(form.automationFlowLimit),
     monthlyMessageLimit: optionalNumber(form.monthlyMessageLimit),
     whatsappConversationLimit: optionalNumber(form.whatsappConversationLimit),
-    features: form.features.split(/\r?\n/).map((item) => item.trim()).filter(Boolean),
+    features: [...entitlements, ...marketing],
     displayOrder: optionalNumber(form.displayOrder) || 0,
     visible: form.visible,
-    isActive: form.isActive
+    isActive: form.isActive,
+    isPopular: form.isPopular
   };
 }
 

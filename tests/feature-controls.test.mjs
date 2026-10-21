@@ -2,9 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertWorkspaceFeature, featureSettingKey, workspaceFeatureFlags, WORKSPACE_FEATURES, planAllowsFeature, resolveFeatureGate } from '../lib/feature-controls.js';
 
-function mockRun({ platformRows = [], overrides = {}, planFeatures = [] } = {}) {
+function mockRun({ platformRows = [], overrides = {}, planFeatures = [], status = 'active' } = {}) {
   return async (sql) => {
-    if (sql.includes('subscription_plans')) return { rows: [{ features: planFeatures }] };
+    if (sql.includes('business_subscriptions') || sql.includes('sp.features') || sql.includes('plan_features')) {
+      return {
+        rows: [{
+          status,
+          trial_ends_at: null,
+          current_period_end: null,
+          plan_features: planFeatures,
+          plan_code: 'test',
+          free_features: ['inbox', 'templates', 'segments', 'automation', 'ads', 'entry_points']
+        }]
+      };
+    }
     if (sql.includes('FROM businesses')) return { rows: [{ feature_overrides: overrides }] };
     if (sql.includes('platform_settings')) return { rows: platformRows };
     return { rows: [] };
@@ -72,6 +83,12 @@ test('plan entitlements further restrict platform-enabled features', async () =>
     assert.equal(flags.calling, false);
     assert.equal(flags.whatsapp_groups, false);
     assert.equal(flags.checkout_recovery, false);
+
+    const expired = mockRun({ planFeatures: ['inbox', 'templates', 'calling', 'campaigns'], status: 'expired' });
+    const expiredFlags = await workspaceFeatureFlags('business-expired', expired);
+    assert.equal(expiredFlags.inbox, true);
+    assert.equal(expiredFlags.calling, false);
+    assert.equal(expiredFlags.campaigns, false);
   } finally {
     if (previous === undefined) delete process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED;
     else process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED = previous;

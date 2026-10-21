@@ -6,7 +6,7 @@ import pg from "pg";
 import { seedPlatformSettings } from "../lib/platform.js";
 import { DEFAULT_PRIVACY_POLICY } from "../lib/privacy-policy.js";
 import { databaseSslConfig } from "../lib/db.js";
-import { builtInSubscriptionPlans, DEFAULT_FREE_PLAN_CODE } from "../lib/default-plans.js";
+import { builtInSubscriptionPlans, DEFAULT_FREE_PLAN_CODE, ensureDefaultSubscriptionPlans } from "../lib/default-plans.js";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -66,44 +66,9 @@ async function addConstraintIfMissing(client, table, name, expression) {
 }
 
 async function seedSubscriptionPlans(client) {
-  const plans = parsePlans();
-  for (const plan of plans) {
-    const code = clean(plan.code).toLowerCase();
-    const name = clean(plan.name);
-    if (!code || !name) continue;
-    const currency = clean(plan.currency).toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) throw new Error(`Plan ${code} requires a three-letter currency code.`);
-    const monthlyPrice = optionalNumber(plan.monthlyPriceCents, plan.monthly_price_cents, plan.priceCents, plan.price_cents) || 0;
-    const yearlyPrice = optionalNumber(plan.yearlyPriceCents, plan.yearly_price_cents) || 0;
-
-    await client.query(
-      `INSERT INTO subscription_plans (id, code, name, description, billing_interval, price_cents, monthly_price_cents, yearly_price_cents, currency, trial_days, contact_limit, campaign_limit, user_limit, automation_flow_limit, monthly_message_limit, whatsapp_conversation_limit, features, display_order, visible, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-       ON CONFLICT (code) DO NOTHING`,
-      [
-        `plan_${crypto.randomBytes(8).toString("hex")}`,
-        code,
-        name,
-        clean(plan.description),
-        clean(plan.billingInterval || plan.billing_interval || "monthly"),
-        monthlyPrice,
-        monthlyPrice,
-        yearlyPrice,
-        currency,
-        optionalNumber(plan.trialDays, plan.trial_days) || 0,
-        optionalNumber(plan.contactLimit, plan.contact_limit),
-        optionalNumber(plan.campaignLimit, plan.campaign_limit),
-        optionalNumber(plan.userLimit, plan.user_limit),
-        optionalNumber(plan.automationFlowLimit, plan.automation_flow_limit),
-        optionalNumber(plan.monthlyMessageLimit, plan.monthly_message_limit),
-        optionalNumber(plan.whatsappConversationLimit, plan.whatsapp_conversation_limit),
-        JSON.stringify(Array.isArray(plan.features) ? plan.features : []),
-        optionalNumber(plan.displayOrder, plan.display_order) || 0,
-        plan.visible === false ? false : true,
-        plan.isActive === false || plan.is_active === false ? false : true
-      ]
-    );
-  }
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_popular BOOLEAN NOT NULL DEFAULT FALSE");
+  await client.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb");
+  await ensureDefaultSubscriptionPlans(client, parsePlans());
 }
 
 async function backfillSubscriptions(client) {
