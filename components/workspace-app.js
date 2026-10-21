@@ -44,7 +44,7 @@ import { DEFAULT_POST_AUTH_PATH, DEFAULT_WORKSPACE_PATH, safeAuthReturnPath, wit
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../lib/password-policy.js';
 import { metaSdkCallback } from '../lib/meta-sdk-callback';
 import { saveConversationDraft, clearSentConversationDraft, canApplySupportSuggestion } from '../lib/inbox-drafts';
-import { planMarketingFeatures } from '../lib/feature-controls.js';
+import { planMarketingFeatures } from '../lib/plan-features.js';
 import {
   canOpenWorkspaceView,
   featureForView,

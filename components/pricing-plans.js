@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import styles from '../app/marketing.module.css';
-import { planMarketingFeatures } from '../lib/feature-controls.js';
+import { planMarketingFeatures } from '../lib/plan-features.js';
 
 function formatMoney(cents, currency) {
   try {
