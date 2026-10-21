@@ -44,7 +44,7 @@ import { DEFAULT_POST_AUTH_PATH, DEFAULT_WORKSPACE_PATH, safeAuthReturnPath, wit
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../lib/password-policy.js';
 import { metaSdkCallback } from '../lib/meta-sdk-callback';
 import { saveConversationDraft, clearSentConversationDraft, canApplySupportSuggestion } from '../lib/inbox-drafts';
-import { planMarketingFeatures } from '../lib/plan-features.js';
+import { planMarketingFeatures, WORKSPACE_FEATURES } from '../lib/plan-features.js';
 import {
   canOpenWorkspaceView,
   featureForView,
@@ -445,7 +445,12 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const navigate = (view) => {
     const route = workspaceRoutes[view];
     if (!route) return;
-    if (featureForView[view] && state?.featureFlags?.[featureForView[view]] === false) { notify('This feature is disabled by the platform administrator.'); return; }
+    if (featureForView[view] && state?.featureFlags?.[featureForView[view]] === false) {
+      // Stay on an upgrade explanation for the locked view — do not silently bounce to Billing.
+      setActiveView(view);
+      router.push(route);
+      return;
+    }
     setActiveView(view);
     router.push(route);
   };
@@ -582,14 +587,12 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
           </div>
         )}
         {featureForView[activeView] && state.featureFlags?.[featureForView[activeView]] === false ? (
-          <div className="contentGrid">
-            <Panel title="Feature unavailable" subtitle="This feature is not included in your current plan or is disabled by the platform administrator.">
-              <div className="actionCluster">
-                <button className="primaryAction" type="button" onClick={() => navigate('billing')}>View plans</button>
-                <button className="secondaryAction" type="button" onClick={() => navigate('setup')}>WhatsApp setup</button>
-              </div>
-            </Panel>
-          </div>
+          <UpgradeRequiredPanel
+            planName={state.subscription?.plan?.name || state.plan?.name || 'your current plan'}
+            featureKey={featureForView[activeView]}
+            onBilling={() => navigate('billing')}
+            onSetup={() => navigate('setup')}
+          />
         ) : (
           <Screens activeView={activeView} setupSection={setupSectionByView[activeView] || null} {...screenProps} />
         )}
@@ -826,6 +829,24 @@ function Screens({ activeView, setupSection = null, ...props }) {
   </>;
 }
 
+function UpgradeRequiredPanel({ planName, featureKey, onBilling, onSetup }) {
+  const label = WORKSPACE_FEATURES[featureKey] || featureKey || 'This feature';
+  return (
+    <div className="contentGrid" aria-label="Upgrade required">
+      <Panel title="Upgrade required" subtitle={`${label} is not included in ${planName}.`}>
+        <p className="pageIntro" style={{ maxWidth: '40rem' }}>
+          Your workspace can keep using included Free / current-plan tools. This module stays locked until an Owner upgrades
+          (or Super Admin assigns a plan). You are not being redirected away — choose what to do next.
+        </p>
+        <div className="actionCluster">
+          <button className="primaryAction" type="button" onClick={onBilling}>Review plans &amp; billing</button>
+          <button className="secondaryAction" type="button" onClick={onSetup}>Continue with WhatsApp setup</button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 function Billing({ state, role }) {
   const [plans, setPlans] = useState([]);
   const [billingAvailable, setBillingAvailable] = useState(false);
@@ -867,8 +888,8 @@ function Billing({ state, role }) {
   const money = (cents, currency = plan.currency) => currency ? new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100) : "Not set";
   const usageValue = (key) => limits[key] == null ? `${usage[key] || 0} / Unlimited` : `${usage[key] || 0} / ${limits[key]}`;
   return <div className="screenGrid billingWorkspace" aria-label="Billing">
-    <section className="heroPanel"><div><span className="softLabel">{subscription.status || "pending"}</span><h2>{plan.name || "Unassigned"}</h2><p>{plan.description || "Subscription details are managed by the platform owner."}</p></div><div className="heroMetrics"><Metric label="Monthly" value={money(plan.monthlyPriceCents)} /><Metric label="Yearly" value={money(plan.yearlyPriceCents)} /><Metric label="Period ends" value={subscription.periodEnd ? formatTime(subscription.periodEnd) : "Not set"} /></div></section>
-    <Panel title="Platform subscription vs messaging" subtitle="Billing for MathStrat is separate from Meta WhatsApp delivery charges"><p className="pageIntro" style={{ maxWidth: '42rem', margin: 0 }}>Your plan covers CRM seats and feature entitlements. WhatsApp conversation or per-message charges from Meta are billed separately when messaging credits or Meta billing apply. Free Forever includes no platform fee.</p></Panel>
+    <section className="heroPanel"><div><span className="softLabel">{subscription.status || "pending"}</span><h2>{plan.name || "Unassigned"}</h2><p>{plan.description || "Subscription details are managed by the platform owner."}</p><p className="pageIntro" style={{ marginTop: 8 }}>Payment status: <strong>{subscription.paymentStatus || 'none'}</strong>{subscription.provider && subscription.provider !== 'none' ? ` · Provider: ${subscription.provider}` : ''}</p></div><div className="heroMetrics"><Metric label="Monthly" value={money(plan.monthlyPriceCents)} /><Metric label="Yearly" value={money(plan.yearlyPriceCents)} /><Metric label="Period ends" value={subscription.periodEnd ? formatTime(subscription.periodEnd) : (plan.code === 'free' ? 'Never (Free)' : 'Not set')} /></div></section>
+    <Panel title="Platform subscription vs messaging" subtitle="Billing for MathStrat is separate from Meta WhatsApp delivery charges"><p className="pageIntro" style={{ maxWidth: '42rem', margin: 0 }}>Your plan covers CRM seats and feature entitlements. WhatsApp conversation or per-message charges from Meta are billed separately when messaging credits or Meta billing apply. Free Forever includes no platform fee. Invoices and payment history appear here only when Razorpay billing events exist — nothing is fabricated.</p></Panel>
     <Panel title="Current usage" subtitle="Live usage against the limits configured for this plan"><div className="meterGrid usageGrid"><Metric label="Contacts" value={usageValue("contacts")} /><Metric label="Campaigns" value={usageValue("campaigns")} /><Metric label="Messages" value={usageValue("messages")} /><Metric label="Users" value={usageValue("users")} /><Metric label="Automations" value={usageValue("automationFlows")} /><Metric label="WhatsApp conversations" value={usageValue("whatsappConversations")} /></div></Panel>
     <section className="billingPlans" aria-label="Subscription plans">
       {(billingAvailable || subscription.provider === 'razorpay') && <RazorpaySubscriptionActions postJson={postJson} role={role} plans={plans} interval={interval}/>}

@@ -70,9 +70,10 @@ export default function PricingPlans({ plans = [], ctaHref = '/signup', ctaLabel
           const period = useYearly ? ' / year' : ' / month';
           const free = isFreePlan(plan);
           const isDraftPaid = !free && amount <= 0;
+          const popular = Boolean(plan.is_popular || plan.isPopular);
           return (
-            <article className={`${styles.plan}${free ? ` ${styles.planFeatured}` : ''}`} key={plan.id}>
-              <h3>{plan.name}</h3>
+            <article className={`${styles.plan}${free || popular ? ` ${styles.planFeatured}` : ''}`} key={plan.id}>
+              <h3>{plan.name}{popular ? <small> · Popular</small> : null}</h3>
               {plan.description ? <p>{plan.description}</p> : null}
               <strong>
                 {free ? formatMoney(0, plan.currency) : isDraftPaid ? 'Contact for pricing' : formatMoney(amount, plan.currency)}
