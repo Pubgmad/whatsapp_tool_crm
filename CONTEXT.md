@@ -1,6 +1,6 @@
 # MathStrat WhatsApp CRM — Project Context
 
-Last updated: 2026-10-21 (product-shell dismantle)  
+Last updated: 2026-10-21 (Ocean Blue premium visual system)  
 Primary branch: `production_saas` (merge to `main` after verification)  
 Public site / app: `https://crm.mathstrat-sites.com`
 
@@ -42,7 +42,15 @@ Tenant isolation is enforced via `business_id` + RLS-oriented DB access patterns
 - **Create workspace** → `/signup` → Meta setup (`DEFAULT_WORKSPACE_PATH`).
 - Normal **Sign in** (no `?next=`) → public root `/`.
 - Feature CTAs preserve destination (e.g. CTWA → `/app/ads`).
-- Light-first **Premium Cloud Blue** tokens; theme init forces `data-theme=light`.
+- Light-first theme init forces `data-theme=light`.
+
+### Visual system (Ocean Blue)
+
+- **Palette:** Ocean Blue `#2563EB` (brand), Deep Indigo `#4338CA` (sparing kickers/accents), Teal `#0D9488` (accent). Light surfaces `#F8FAFC` / `#FFFFFF` / soft `#F1F5F9` (neutral — not blue); ink `#0F172A`, muted `#64748B`, line `#E2E8F0`. Brand soft `#DBEAFE`; blue-soft `#EFF6FF` for brand-tinted chips only.
+- **Tokens live in** `app/globals.css`; overrides win via `app/premium-design-system.css` (imported last in `app/layout.js`).
+- **Type:** Product + marketing headings use **Plus Jakarta Sans**; body **Source Sans 3** (Linear/Stripe-style sans, not Fraunces).
+- **Feature identity (CSS only):** left accent / kicker — inbox & billing → brand; automation → indigo; Meta setup & campaigns → teal.
+- Auth shells use light Ocean Blue + teal radials (no purple/orange).
 
 ### Feature → route map
 

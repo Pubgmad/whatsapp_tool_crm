@@ -1,0 +1,380 @@
+/*
+ * Premium Ocean Blue design system — import LAST so these rules win.
+ * Brand #2563EB · Indigo #4338CA (sparing) · Teal #0D9488
+ * Soft surfaces stay neutral (#F1F5F9); brand-soft stays blue (#DBEAFE).
+ */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+:root{
+  --canvas:#F8FAFC;
+  --surface:#FFFFFF;
+  --soft:#F1F5F9;
+  --ink:#0F172A;
+  --ink-soft:#334155;
+  --muted:#64748B;
+  --line:#E2E8F0;
+  --line-strong:#CBD5E1;
+  --brand:#2563EB;
+  --brand-dark:#1D4ED8;
+  --brand-soft:#DBEAFE;
+  --indigo:#4338CA;
+  --indigo-soft:#E0E7FF;
+  --accent:#0D9488;
+  --accent-soft:#CCFBF1;
+  --blue:#2563EB;
+  --blue-soft:#EFF6FF;
+  --radius:12px;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.05);
+  --shadow-md:0 12px 32px rgba(37,99,235,.12);
+  --focus-ring:0 0 0 3px rgba(37,99,235,.16);
+  --font-display:"Plus Jakarta Sans","Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+  --font-body:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+}
+
+/* ——— Auth shells: light Ocean Blue (no purple / orange) ——— */
+.authShell,
+.superAuthShell,
+.loading,
+.superLoading{
+  background:
+    radial-gradient(circle at top left,rgba(37,99,235,.12),transparent 44%),
+    radial-gradient(circle at bottom right,rgba(13,148,136,.08),transparent 40%),
+    var(--canvas);
+}
+.authShell::before,
+.superAuthShell::before{
+  background:
+    linear-gradient(90deg,transparent 31px,rgba(37,99,235,.04) 32px,transparent 33px),
+    linear-gradient(transparent 31px,rgba(37,99,235,.04) 32px,transparent 33px);
+  background-size:32px 32px;
+}
+.authPanel,
+.superAuthPanel{
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-md);
+  border-color:var(--line);
+}
+.authPanel .kicker,
+.superAuthPanel .kicker,
+.authHeader .kicker{
+  color:var(--indigo);
+}
+
+/* ——— Product shell chrome ——— */
+.productShell{
+  background:var(--canvas);
+}
+.productTopBar{
+  background:rgba(255,255,255,.92);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(37,99,235,.04),0 8px 20px rgba(15,23,42,.03);
+}
+.productBrand strong{
+  font-family:var(--font-display);
+  letter-spacing:-.01em;
+}
+.productSwitcher select,
+.productWorkspaceSelect select{
+  border-radius:10px;
+  border-color:var(--line-strong);
+  background:var(--surface);
+  box-shadow:var(--shadow-sm);
+}
+.productSwitcher select:focus,
+.productWorkspaceSelect select:focus{
+  border-color:var(--brand);
+  box-shadow:var(--focus-ring);
+}
+.productSecondaryNav{
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.productSecondaryNav button{
+  border-radius:10px;
+}
+.productSecondaryNav button:hover{
+  background:var(--soft);
+  color:var(--brand-dark);
+}
+.productSecondaryNav button.active{
+  background:var(--brand);
+  border-color:var(--brand);
+  box-shadow:0 4px 12px rgba(37,99,235,.22);
+}
+.productPageHead .kicker{
+  color:var(--indigo);
+}
+.metaFocusShell .productPageHead .kicker{
+  color:var(--accent);
+}
+
+/* ——— Buttons ——— */
+.primaryAction{
+  border-radius:10px;
+  box-shadow:0 4px 14px rgba(37,99,235,.22);
+}
+.primaryAction:hover{
+  box-shadow:0 6px 18px rgba(37,99,235,.28);
+}
+.secondaryAction,
+.rowActions button,
+.iconButton,
+.mobileMenuButton,
+.mobileCloseButton{
+  border-radius:10px;
+}
+.secondaryAction:hover,
+.rowActions button:hover,
+.iconButton:hover,
+.mobileMenuButton:hover,
+.mobileCloseButton:hover{
+  border-color:#93C5FD;
+  background:var(--brand-soft);
+  color:var(--brand-dark);
+}
+
+/* ——— Focus rings / inputs ——— */
+:focus-visible{
+  outline:3px solid rgba(37,99,235,.35);
+  outline-offset:2px;
+}
+input:not([type=checkbox]):not([type=file]),
+textarea,
+select{
+  border-radius:10px;
+}
+input:not([type=checkbox]):not([type=file]):focus,
+textarea:focus,
+select:focus,
+.searchBox:focus-within,
+.filterBox:focus-within{
+  border-color:var(--brand);
+  box-shadow:var(--focus-ring);
+}
+
+/* ——— Panels & tables ——— */
+.panel,
+.superPanel,
+.retargetPanel,
+.templateCard,
+.flowCard,
+.planTile,
+.settingGroup{
+  border-radius:var(--radius);
+}
+.tableWrap{
+  border-radius:var(--radius);
+  border-color:var(--line);
+  box-shadow:var(--shadow-sm);
+  overflow:hidden;
+}
+.tableWrap th{
+  background:var(--soft);
+  color:var(--muted);
+  font-weight:750;
+  letter-spacing:.04em;
+}
+.tableWrap tbody tr:hover{
+  background:color-mix(in srgb,var(--brand-soft) 55%,var(--surface));
+}
+
+/* ——— Feature identity accents ——— */
+.inboxShell{
+  border-radius:var(--radius);
+  border-left:3px solid var(--brand);
+  box-shadow:var(--shadow-sm);
+}
+.inboxShell .kicker,
+.productWorkspace:has(.inboxShell) .productPageHead .kicker{
+  color:var(--brand);
+}
+.threadList button.active{
+  background:var(--brand-soft);
+  box-shadow:inset 3px 0 0 var(--brand);
+}
+
+.automationScreen{
+  border-left:3px solid var(--indigo);
+  padding-left:14px;
+  margin-left:-2px;
+}
+.automationScreen .kicker,
+.automationTopbar .kicker,
+.productWorkspace:has(.automationScreen) .productPageHead .kicker{
+  color:var(--indigo);
+}
+.automationTopbar{
+  border-radius:var(--radius);
+  border-left:3px solid var(--indigo);
+}
+.flowNode{
+  border-left-color:var(--indigo);
+}
+
+.metaSetupScreen{
+  border-left:3px solid var(--accent);
+  padding-left:14px;
+  margin-left:-2px;
+}
+.metaSetupScreen .kicker,
+.metaSetupScreen .metaConnectHero .kicker,
+.productWorkspace:has(.metaSetupScreen) .productPageHead .kicker{
+  color:var(--accent);
+}
+.metaSetupScreen .metaConnectHero{
+  border-radius:var(--radius);
+  border-left:3px solid var(--accent);
+}
+
+.billingWorkspace{
+  border-left:3px solid var(--brand);
+  padding-left:14px;
+  margin-left:-2px;
+}
+.billingWorkspace .kicker,
+.billingWorkspace .heroPanel .kicker,
+.productWorkspace:has(.billingWorkspace) .productPageHead .kicker{
+  color:var(--brand-dark);
+}
+.billingWorkspace .heroPanel{
+  border-radius:var(--radius);
+  border-top:3px solid var(--brand);
+}
+
+.campaignLayout{
+  border-left:3px solid var(--accent);
+  padding-left:14px;
+  margin-left:-2px;
+}
+.campaignLayout .kicker,
+.productWorkspace:has(.campaignLayout) .productPageHead .kicker{
+  color:var(--accent);
+}
+.campaignLayout > .panel:first-child{
+  border-top:3px solid transparent;
+  border-image:linear-gradient(90deg,var(--brand),var(--indigo),var(--accent)) 1;
+  border-radius:var(--radius);
+}
+
+/* Soft labels & env chips stay brand-blue, not purple */
+.softLabel,
+.envBox code,
+.onboardingBanner{
+  border-color:#BFDBFE;
+}
+.emptyFlowButton{
+  border-color:#93C5FD;
+  border-radius:var(--radius);
+}
+.dragHandle{
+  border-color:#BFDBFE;
+}
+.companyRow:hover,
+.editablePlanList button:hover,
+.editablePlanList button.active{
+  border-color:#93C5FD;
+}
+.legalHero .kicker{
+  color:#93C5FD;
+}
+
+/* Kickers default to indigo for premium hierarchy; brand/teal overrides above win per feature */
+.kicker{
+  color:var(--indigo);
+  letter-spacing:.08em;
+}
+.heroBar .kicker,
+.heroPanel .kicker,
+.automationHero .kicker{
+  color:var(--brand);
+}
+
+/* CTWA / ads module */
+.wa-module:has([data-ads-workspace]),
+.productWorkspace:has(.wa-ads-workspace) .productPageHead .kicker{
+  color:var(--indigo);
+}
+.wa-ads-workspace,
+.wa-module.wa-ads-workspace{
+  border-left:3px solid var(--indigo);
+  padding-left:14px;
+}
+
+/* AI agents */
+.productWorkspace:has(.aiAgentsWorkspace) .productPageHead .kicker{
+  color:var(--indigo);
+}
+.aiAgentsWorkspace{
+  border-left:3px solid var(--indigo);
+  padding-left:14px;
+}
+
+/* Empty / loading polish */
+.emptyState,
+.saasEmpty,
+.workspaceEmpty{
+  border-radius:var(--radius);
+  background:linear-gradient(180deg,var(--surface),var(--soft));
+}
+.loading,
+.superLoading{
+  color:var(--ink-soft);
+}
+.loading p,
+.superLoading p{
+  font-family:var(--font-display);
+  font-weight:600;
+}
+
+/* Status pills — crisp SaaS chips */
+.statusPill,
+.badge{
+  border-radius:999px;
+  letter-spacing:.02em;
+}
+.statusPill.good,
+.badge.good{
+  color:#047857;
+  background:#ECFDF5;
+  border:1px solid #A7F3D0;
+}
+
+/* Toast */
+.toast{
+  border-radius:12px;
+  background:var(--ink);
+  box-shadow:var(--shadow-md);
+}
+
+/* Responsive product chrome */
+@media (max-width:760px){
+  .productTopBar{
+    padding:10px 14px;
+    gap:8px;
+  }
+  .productSwitcher,
+  .productWorkspaceSelect{
+    min-width:100%;
+    flex:1 1 100%;
+  }
+  .productTopActions{
+    margin-left:0;
+    width:100%;
+    justify-content:space-between;
+  }
+  .productPageHead{
+    padding:14px 14px 0;
+  }
+  .productPageHead h1{
+    font-size:22px;
+  }
+  .productSecondaryNav{
+    padding:8px 14px;
+    overflow-x:auto;
+    flex-wrap:nowrap;
+  }
+  .productSecondaryNav button span{
+    white-space:nowrap;
+  }
+}
