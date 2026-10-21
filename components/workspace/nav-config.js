@@ -84,7 +84,7 @@ export const setupSectionByView = {
 
 export const pageTitles = {
   overview: 'Workspace',
-  setup: 'Workspace',
+  setup: 'WhatsApp connection',
 
   numbers: 'Phone numbers',
   profile: 'Business profile',
@@ -143,21 +143,8 @@ export const pageIntros = {
   ai_agents: 'Knowledge-aware assistants, testing, and escalation rules.'
 };
 
-/** Optional next-step CTAs — short hints only. */
-export const pageJourneys = {
-  contacts: { label: 'Broadcast', target: 'campaigns', hint: 'Send to a filtered audience.' },
-  templates: { label: 'Broadcast', target: 'campaigns', hint: 'Use an approved template.' },
-  campaigns: { label: 'Analytics', target: 'results', hint: 'Review delivery and results.' },
-  results: { label: 'Audience', target: 'contacts', hint: 'Build a retarget segment.' },
-  // Keep journeys off Automation / Ads / Calling so those modules stay product-focused
-  // instead of dashboard-style cross-links to Inbox.
-  inbox: { label: 'Automation', target: 'automation', hint: 'Reduce repetitive replies.' },
-  commerce: { label: 'Setup', target: 'setup', hint: 'Confirm number readiness.' },
-  conversions: { label: 'Analytics', target: 'results', hint: 'Compare with campaigns.' },
-  flows: { label: 'Automation', target: 'automation', hint: 'Use Flows in workflows.' },
-  media: { label: 'Templates', target: 'templates', hint: 'Attach media headers.' },
-  entry_points: { label: 'Broadcast', target: 'campaigns', hint: 'Follow up new chats.' }
-};
+/** Cross-feature journey strips removed — they recreated dashboard-style chrome. */
+export const pageJourneys = {};
 
 export function navGroupLabelForView(view) {
   const group = navGroups.find((entry) => entry.items.some((item) => item.id === view));

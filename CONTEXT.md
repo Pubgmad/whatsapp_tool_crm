@@ -1,6 +1,6 @@
 # MathStrat WhatsApp CRM — Project Context
 
-Last updated: 2026-10-21  
+Last updated: 2026-10-21 (product-shell dismantle)  
 Primary branch: `production_saas` (merge to `main` after verification)  
 Public site / app: `https://crm.mathstrat-sites.com`
 
@@ -36,13 +36,13 @@ Tenant isolation is enforced via `business_id` + RLS-oriented DB access patterns
 
 ### Navigation principles (current)
 
-- **No generic Overview dashboard** in sidebar navigation.
+- **No customer-facing dashboard sidebar.** CRM uses a compact **product switcher** + feature secondary tabs (`productShell` in `workspace-app.js`).
 - **`/app/dashboard`** redirects to **`/app/settings/whatsapp`** (compatibility only).
-- **Open workspace** → `/app/settings/whatsapp` (Meta / workspace management).
-- **Create workspace** → `/signup` → after signup → Meta setup (`DEFAULT_WORKSPACE_PATH`).
+- Marketing **Connect WhatsApp** → `/app/settings/whatsapp` (Meta Embedded Signup). No “Account” header button; compact Menu for security / sign out.
+- **Create workspace** → `/signup` → Meta setup (`DEFAULT_WORKSPACE_PATH`).
 - Normal **Sign in** (no `?next=`) → public root `/`.
 - Feature CTAs preserve destination (e.g. CTWA → `/app/ads`).
-- **Billing** is only via sidebar / intentional route — not post-login default.
+- Light-first **Premium Cloud Blue** tokens; theme init forces `data-theme=light`.
 
 ### Feature → route map
 

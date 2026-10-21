@@ -6,7 +6,8 @@ import "./visual-refresh.css";
 import "./crm-vibrant-theme.css";
 import { getPublicPlatformConfig } from "../lib/platform";
 
-const themeInitScript = `(function(){var k='wcrm_theme';try{var s=localStorage.getItem(k)||'light';var d=document.documentElement;if(s==='dark')d.setAttribute('data-theme','dark');else if(s==='system')d.setAttribute('data-theme',window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');else d.setAttribute('data-theme','light');}catch(e){d.setAttribute('data-theme','light');}})();`;
+/* Force light-first product chrome; clear sticky dark prefs from earlier themes. */
+const themeInitScript = `(function(){var k='wcrm_theme';var d=document.documentElement;try{localStorage.setItem(k,'light');}catch(e){}d.setAttribute('data-theme','light');})();`;
 
 export const dynamic = "force-dynamic";
 
