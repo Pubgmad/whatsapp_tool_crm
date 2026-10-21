@@ -306,9 +306,10 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
                   className={styles.profileTrigger}
                   aria-expanded={menuOpen}
                   aria-haspopup="menu"
+                  aria-label="Profile menu"
                   onClick={() => setMenuOpen((value) => !value)}
                 >
-                  Menu <ChevronDown size={16} aria-hidden />
+                  You <ChevronDown size={16} aria-hidden />
                 </button>
                 {menuOpen ? (
                   <div className={styles.profilePanel} role="menu">

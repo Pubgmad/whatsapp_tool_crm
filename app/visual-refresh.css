@@ -19,7 +19,7 @@
 .readinessList>div.ready{background:var(--brand-soft);border-color:var(--line-strong)}
 .authShell::before,.superAuthShell::before{background:linear-gradient(90deg,transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px),linear-gradient(transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px);background-size:32px 32px}
 .authPanel,.superAuthPanel{box-shadow:var(--shadow-md)}
-.metaSetupScreen .metaConnectHero{background:linear-gradient(115deg,#EFF6FF,color-mix(in srgb,var(--brand) 12%,#fff));border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink)}
+.metaSetupScreen .metaConnectHero{background:linear-gradient(115deg,var(--brand-soft),color-mix(in srgb,var(--brand) 10%,#fff));border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink)}
 .metaSetupScreen .metaConnectHero span{color:var(--muted)}
 .metaSetupScreen .metaConnectHero .kicker{color:var(--brand-dark)}
 .metaSetupScreen .metaConnectHero .metaConnectActions{display:grid;flex:0 0 250px;width:250px;gap:10px}

@@ -1817,7 +1817,7 @@ function AiAgentsWorkspace({ state }) {
     );
   }
   return (
-    <div className="screenGrid">
+    <div className="screenGrid aiAgentsWorkspace">
       <AiSupportSettings api={api} postJson={postJson} uploadForm={uploadForm} role={role} />
     </div>
   );
