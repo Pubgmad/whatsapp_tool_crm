@@ -1,6 +1,6 @@
 # P1-003 — Inbox composer: send media
 
-**Status:** Open  
+**Status:** Done (feature/dev) — `POST /api/messages/reply-media` + inbox Paperclip composer (image/video/audio/PDF/text)  
 **Priority:** P1  
 **Type:** Engineering  
 

@@ -1,6 +1,6 @@
 # P1-002 — Automation: AI simulate vs runtime parity + Flow resume errors
 
-**Status:** Partial — Flow resume errors surfaced in `automation_sessions.last_error`; AI simulate vs runtime parity still open  
+**Status:** Done (feature/dev) — keyword AI routes skip OpenAI in runtime; simulator shares API/attribute branching; optional `aiRouteDestination` for LLM preview; Flow resume errors on `last_error`  
 **Priority:** P1  
 **Type:** Engineering  
 

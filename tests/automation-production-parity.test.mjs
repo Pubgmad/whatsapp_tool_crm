@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { normalizeDefinition, safeRegex } from '../lib/automation.js';
-import { executeAdvancedNode, normalizeAdvancedNode } from '../lib/automation-node-runtime.js';
+import { executeAdvancedNode, normalizeAdvancedNode, resolveApiRequestBranch } from '../lib/automation-node-runtime.js';
 import { normalizeAiRouteNode, parseAiRouteResponse } from '../lib/automation-ai-router.js';
 import { simulateAutomationFlow } from '../lib/automation-simulate.js';
 
@@ -10,6 +10,14 @@ test('AI routes require explicit allowed destinations and fail closed', () => {
   const node = normalizeAiRouteNode({ type: 'ai_route', model: 'configured', prompt: 'Route safely', allowedDestinations: ['sales', 'fallback'], fallback: 'fallback' });
   assert.equal(node.fallback, 'fallback');
   assert.equal(parseAiRouteResponse({ output: [{ type: 'message', content: [{ type: 'output_text', text: '{"destination":"unknown"}' }] }] }, node.allowedDestinations, node.fallback), 'fallback');
+});
+
+test('simulator and runtime share API status branch resolution', () => {
+  const node = { type: 'api_request', next: 'ok', errorNext: 'failed', timeoutNext: 'timed_out', connectionId: 'owned_connection',
+    requestFields: [], responseMapping: [], statusBranches: [{ status: '202', next: 'accepted' }, { status: '4xx', next: 'rejected' }] };
+  normalizeAdvancedNode(node);
+  assert.equal(resolveApiRequestBranch(node, { statusCode: 202 }).next, 'accepted');
+  assert.equal(resolveApiRequestBranch(node, { errorCode: 'AUTOMATION_API_TIMEOUT' }).next, 'timed_out');
 });
 
 test('API nodes branch by status, timeout, and transport error', async () => {
@@ -51,7 +59,7 @@ test('simulator covers API and commerce-visible nodes', () => {
   const result = simulateAutomationFlow({
     startNodeId: 'api',
     nodes: [
-      { id: 'api', type: 'api_request', next: 'product', errorNext: 'end', timeoutNext: 'end', statusBranches: [{ status: '202', next: 'product' }] },
+      { id: 'api', type: 'api_request', next: 'product', errorNext: 'end', timeoutNext: 'end', connectionId: 'demo_connection', requestFields: [], responseMapping: [], statusBranches: [{ status: '202', next: 'product' }] },
       { id: 'product', type: 'multi_product', body: 'Products', next: 'end' },
       { id: 'end', type: 'end' }
     ]

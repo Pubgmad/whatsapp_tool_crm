@@ -1693,6 +1693,8 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const [suggestionError, setSuggestionError] = useState('');
   const [suggestionContext, setSuggestionContext] = useState(null);
   const [sendingConversationId, setSendingConversationId] = useState(null);
+  const [pendingMedia, setPendingMedia] = useState(null);
+  const mediaInputRef = useRef(null);
   const [aiAvailable, setAiAvailable] = useState(false);
   const suggestionRevision = useRef(0);
   const sendingReply = useRef(false);
@@ -1747,17 +1749,29 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const reply = async (event) => {
     event.preventDefault();
     const body = replyDraft.trim();
-    if (!conversationId || !activeContact || !body || sendingReply.current || staleSuggestion) return;
+    const mediaFile = pendingMedia;
+    if (!conversationId || !activeContact || (!body && !mediaFile) || sendingReply.current || staleSuggestion) return;
     const contactId = activeContact.id;
     const sentDraft = replyDraft;
     sendingReply.current = true;
     setSendingConversationId(conversationId);
     try {
-      await mutate(postJson('/api/messages/reply', { contactId, body }).then(result => {
+      const afterSend = (result) => {
         setReplyDrafts(current => clearSentConversationDraft(current, conversationId, sentDraft));
         setSuggestionContext(current => current?.conversationId === conversationId && current.draft === sentDraft ? null : current);
+        setPendingMedia(null);
+        if (mediaInputRef.current) mediaInputRef.current.value = '';
         return result;
-      }), 'Message sent');
+      };
+      if (mediaFile) {
+        const form = new FormData();
+        form.set('contactId', contactId);
+        form.set('file', mediaFile);
+        if (body) form.set('caption', body);
+        await mutate(uploadForm('/api/messages/reply-media', form).then(afterSend), 'Media sent');
+      } else {
+        await mutate(postJson('/api/messages/reply', { contactId, body }).then(afterSend), 'Message sent');
+      }
     } finally {
       sendingReply.current = false;
       setSendingConversationId(null);
@@ -1805,7 +1819,13 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
       <div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div>
       <div className="messages">{(activeConversation.messages || []).map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>
       {activeConversation.status !== "closed" && activeConversation.canReply && <div className="aiReplyComposer">
-        <form className="composer" onSubmit={reply}><textarea name="body" value={replyDraft} onChange={event => editReplyDraft(event.target.value)} placeholder="Write a WhatsApp reply" required /><button className="primaryAction" disabled={sendingConversationId !== null || staleSuggestion}><Send size={18} /> {sendingConversationId === conversationId ? "Sending" : "Send"}</button></form>
+        <form className="composer" onSubmit={reply}>
+          <input ref={mediaInputRef} type="file" hidden accept="image/jpeg,image/png,video/mp4,video/3gpp,audio/*,application/pdf,text/plain" onChange={(event) => setPendingMedia(event.target.files?.[0] || null)} />
+          <button className="iconButton" type="button" title="Attach image, video, audio, or document" onClick={() => mediaInputRef.current?.click()} disabled={sendingConversationId !== null}><Paperclip size={18} /></button>
+          {pendingMedia && <span className="composerAttachment">{pendingMedia.name} <button type="button" className="iconButton" title="Remove attachment" onClick={() => { setPendingMedia(null); if (mediaInputRef.current) mediaInputRef.current.value = ''; }}><X size={14} /></button></span>}
+          <textarea name="body" value={replyDraft} onChange={event => editReplyDraft(event.target.value)} placeholder={pendingMedia ? 'Optional caption' : 'Write a WhatsApp reply'} required={!pendingMedia} />
+          <button className="primaryAction" type="submit" disabled={sendingConversationId !== null || staleSuggestion || (!replyDraft.trim() && !pendingMedia)}><Send size={18} /> {sendingConversationId === conversationId ? "Sending" : "Send"}</button>
+        </form>
         {staleSuggestion && <small className="errorLine" role="alert">A new message arrived. Review and edit this suggestion before sending.</small>}
         {aiAvailable && <button className="secondaryAction" type="button" onClick={suggestReply} disabled={suggesting}><Bot size={16} /> {suggesting ? "Preparing suggestion" : "Suggest reply"}</button>}
         {suggestionError && <small className="errorLine" role="alert">{suggestionError}</small>}

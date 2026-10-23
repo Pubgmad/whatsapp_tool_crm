@@ -14,8 +14,13 @@ async function postAutomationSimulate(request) {
     requireWorkspaceManager(account);
     const body = await readJsonBodyLimited(request, 1_000_000);
     const result = simulateAutomationFlow(body.definition, {
-      text: body.text, values: body.values, apiOutcome: body.apiOutcome,
-      apiStatus: body.apiStatus, advancedOutcome: body.advancedOutcome
+      text: body.text,
+      values: body.values,
+      attributes: body.attributes,
+      aiRouteDestination: body.aiRouteDestination,
+      apiOutcome: body.apiOutcome,
+      apiStatus: body.apiStatus,
+      advancedOutcome: body.advancedOutcome
     });
     return json(result);
   } catch (error) {
