@@ -39,3 +39,5 @@ build-artifacts/
 *.md
 !/README.md
 !/CONTEXT.md
+!/dev-tickets/
+!/dev-tickets/**/*.md
