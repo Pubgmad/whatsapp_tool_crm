@@ -1,6 +1,6 @@
 # P1-002 — Automation: AI simulate vs runtime parity + Flow resume errors
 
-**Status:** Open  
+**Status:** Partial — Flow resume errors surfaced in `automation_sessions.last_error`; AI simulate vs runtime parity still open  
 **Priority:** P1  
 **Type:** Engineering  
 

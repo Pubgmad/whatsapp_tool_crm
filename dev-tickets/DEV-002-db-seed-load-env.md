@@ -1,6 +1,6 @@
 # DEV-002 — `db:seed` should load `.env.local`
 
-**Status:** Open  
+**Status:** Done (feature/dev)  
 **Priority:** DevEx  
 **Type:** Engineering  
 

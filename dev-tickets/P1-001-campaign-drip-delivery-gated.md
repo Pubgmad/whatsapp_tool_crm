@@ -1,6 +1,6 @@
 # P1-001 — Campaign drip: delivery-gated step advance
 
-**Status:** Open  
+**Status:** Done (feature/dev) — run `npm run db:init` on all envs for `awaiting_delivery` status  
 **Priority:** P1  
 **Type:** Engineering  
 
