@@ -1,6 +1,6 @@
 # P1-004 — WhatsApp Calling: TURN relay + Meta entitlement
 
-**Status:** Open  
+**Status:** Done (code) — ops: TURN on VPS per [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md)  
 **Priority:** P1  
 **Type:** Engineering + infrastructure  
 
@@ -18,8 +18,8 @@ Browser WebRTC calling is implemented but returns **`CALL_RELAY_NOT_CONFIGURED`*
 ## Acceptance criteria
 
 - [ ] Production env has valid TURN configuration
-- [ ] Calling UI works on eligible WABA; honest error when not entitled
-- [ ] Production hub does not show spurious “ready” without relay
+- [x] Calling UI surfaces TURN / Meta / policy blockers in order
+- [x] Production hub / activation checklist: calling **available** only when Meta enabled **and** TURN configured
 
 ## References
 

@@ -1,6 +1,6 @@
 # P0-004 — Meta webhook signature enforcement (production)
 
-**Status:** Open  
+**Status:** Done (code) — production env per [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md)  
 **Priority:** P0  
 **Type:** Security  
 

@@ -1,6 +1,6 @@
 # P2-002 — Billing UI: invoice history (Razorpay)
 
-**Status:** Open  
+**Status:** Done — `GET /api/billing/invoices` + Billing payment history panel  
 **Priority:** P2  
 **Type:** Engineering  
 

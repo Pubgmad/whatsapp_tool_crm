@@ -1,6 +1,6 @@
 # P0-003 — Super Admin MFA and database RLS fail-closed
 
-**Status:** Open  
+**Status:** Ops — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § P0-003; hub flags MFA/RLS in production  
 **Priority:** P0  
 **Type:** Security / ops  
 

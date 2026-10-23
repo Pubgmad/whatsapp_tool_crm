@@ -1,6 +1,6 @@
 # P2-003 — CMS republish on production database
 
-**Status:** Open  
+**Status:** Ops — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § P2-003  
 **Priority:** P2  
 **Type:** Super Admin / content  
 

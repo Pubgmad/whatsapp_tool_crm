@@ -1,6 +1,6 @@
 # P1-006 — Coexistence onboarding + history synchronization
 
-**Status:** Open  
+**Status:** Done (implemented; README + runbook updated)  
 **Priority:** P1  
 **Type:** Engineering (new feature)  
 

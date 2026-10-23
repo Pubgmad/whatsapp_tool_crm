@@ -1,6 +1,6 @@
 # P1-005 — CTWA live ads activation
 
-**Status:** Open  
+**Status:** Blocked (Meta App Review) — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § P1-005  
 **Priority:** P1  
 **Type:** Meta App Review + ops (code largely present)  
 

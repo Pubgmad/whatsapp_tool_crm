@@ -1,6 +1,6 @@
 # P0-002 — Deploy and host verification
 
-**Status:** Open  
+**Status:** Ops — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § P0-002  
 **Priority:** P0  
 **Type:** Ops  
 

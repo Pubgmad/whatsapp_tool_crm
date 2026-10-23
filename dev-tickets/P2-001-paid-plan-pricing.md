@@ -1,6 +1,6 @@
 # P2-001 — Publish paid subscription plan prices
 
-**Status:** Open  
+**Status:** Blocked (commercial approval) — Super Admin after pricing sign-off  
 **Priority:** P2  
 **Type:** Commercial + Super Admin  
 

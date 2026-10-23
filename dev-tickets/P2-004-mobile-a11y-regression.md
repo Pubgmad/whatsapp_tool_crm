@@ -1,6 +1,6 @@
 # P2-004 — Mobile and accessibility regression
 
-**Status:** Open  
+**Status:** QA — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § P2-004  
 **Priority:** P2  
 **Type:** QA  
 

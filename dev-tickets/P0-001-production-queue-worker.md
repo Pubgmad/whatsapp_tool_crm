@@ -1,6 +1,6 @@
 # P0-001 — Production queue worker
 
-**Status:** Open  
+**Status:** Ops — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § P0-001  
 **Priority:** P0  
 **Type:** Ops  
 

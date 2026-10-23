@@ -1,6 +1,6 @@
 # OPS-001 — Google sign-in OAuth client
 
-**Status:** Open  
+**Status:** Ops — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § OPS-001  
 **Priority:** Ops  
 **Type:** Configuration  
 

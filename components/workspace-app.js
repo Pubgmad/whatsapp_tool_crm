@@ -856,12 +856,21 @@ function Billing({ state, role }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [confirmPlan, setConfirmPlan] = useState('');
+  const [invoices, setInvoices] = useState([]);
+  const [invoiceNote, setInvoiceNote] = useState('');
   useEffect(() => {
     api('/api/billing/plans').then((result) => {
       setPlans(result.plans || []);
       setBillingAvailable(Boolean(result.billingAvailable));
     }).catch((reason) => setError(reason.message));
   }, []);
+  useEffect(() => {
+    if (role !== 'Owner') return;
+    api('/api/billing/invoices').then((result) => {
+      setInvoices(result.invoices || []);
+      setInvoiceNote(result.message || '');
+    }).catch(() => {});
+  }, [role]);
   const openBilling = async (path, body = {}) => {
     try {
       setPending(true);
@@ -903,6 +912,10 @@ function Billing({ state, role }) {
       {!plans.length && <EmptyState text="No public subscription plans are available" />}
     </section>
     <Panel title="Included features" subtitle={plan.name || "Current plan"}><div className="readinessList">{planMarketingFeatures(plan.features).map((feature) => <div className="ready" key={feature}><span>{feature}</span><Badge kind="good">Included</Badge></div>)}{!planMarketingFeatures(plan.features).length && <EmptyState text="No plan features have been configured" />}</div></Panel>
+    {role === 'Owner' && <Panel title="Payment history" subtitle="Razorpay subscription invoices when billing is active">
+      {invoiceNote && <p className="pageIntro">{invoiceNote}</p>}
+      {invoices.length ? <div className="wa-module-table"><table><thead><tr><th>Invoice</th><th>Status</th><th>Amount</th><th>Paid</th></tr></thead><tbody>{invoices.map((row) => <tr key={row.id + (row.paidAt || '')}><td>{row.id || '—'}</td><td>{row.status}</td><td>{row.currency ? money(row.amountPaid, row.currency) : row.amountPaid}</td><td>{row.paidAt ? formatTime(row.paidAt) : '—'}</td></tr>)}</tbody></table></div> : <EmptyState text="No invoices yet — use Open Razorpay subscription after your first paid checkout." />}
+    </Panel>}
   </div>;
 }
 

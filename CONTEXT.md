@@ -160,8 +160,10 @@ Also required operationally:
 
 | Item | Notes |
 |---|---|
-| Calling APIs / entitlement | Meta eligibility + app capability |
-| **TURN / relay** | App requires configured call relay (`CALL_RELAY_NOT_CONFIGURED` without TURN) |
+| Calling APIs / entitlement | Meta eligibility + enable calling on the phone (`metadata.calling.status === ENABLED` after refresh) |
+| **TURN / relay** | Platform env `WHATSAPP_CALL_TURN_URLS` (comma-separated `turn:` / `turns:` URLs) + `WHATSAPP_CALL_TURN_SECRET` (HMAC for short-lived credentials). Without both, API returns `CALL_RELAY_NOT_CONFIGURED` and Production hub shows calling as **setup**, not **available**. |
+| Workspace UI | `/app/calling` shows an honest blocked reason (TURN → Meta enablement → role policy). Use **Load settings** to sync Meta calling flags. |
+| Production checklist | Meta Setup → Capabilities treats calling as ready only when **Meta + TURN** are both satisfied. |
 
 ### 4.6 WhatsApp Groups
 

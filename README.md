@@ -57,7 +57,7 @@ To send real WhatsApp messages, you need:
 - Webhook verify token matching `META_WEBHOOK_VERIFY_TOKEN`.
 - Message templates approved by Meta.
 
-Use a business-controlled number for production. Standard Cloud API onboarding may require moving a number off the WhatsApp Business app; eligible businesses can instead use Meta's separate Business App coexistence onboarding flow. This CRM does not yet implement coexistence onboarding or history synchronization.
+Use a business-controlled number for production. Standard Cloud API onboarding may require moving a number off the WhatsApp Business app. Eligible businesses can connect an **existing WhatsApp Business app number** via Meta Embedded Signup coexistence (**Meta Setup → Existing Business App number**). History and contact sync progress appear in the workspace coexistence panel; sync limits follow Meta's API (see `lib/coexistence.js` and `docs/PRODUCTION_RUNBOOK.md` § P1-006).
 
 ### Meta account lifecycle callbacks
 

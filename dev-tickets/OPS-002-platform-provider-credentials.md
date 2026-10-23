@@ -1,6 +1,6 @@
 # OPS-002 — Platform provider credentials matrix
 
-**Status:** Open  
+**Status:** Ops — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § OPS-002  
 **Priority:** Ops  
 **Type:** Configuration  
 
