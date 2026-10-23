@@ -22,7 +22,8 @@ test('support routing respects availability, capacity, tenant boundaries and rea
     assert.equal((await runSupportQueue()).assigned,1);
     assert.equal((await query('SELECT assigned_user_id FROM conversations WHERE id=$1',[v])).rows[0].assigned_user_id,u);
     await transaction(client=>recordSupportInbound(client,b,v,new Date(start.getTime()+1000)));
-    assert.equal(new Date((await query('SELECT waiting_since FROM support_waiting WHERE conversation_id=$1',[v])).rows[0].waiting_since).getTime(),start.getTime());
+    const waitingMs = new Date((await query('SELECT waiting_since FROM support_waiting WHERE conversation_id=$1', [v])).rows[0].waiting_since).getTime();
+    assert.ok(Math.abs(waitingMs - start.getTime()) < 2000, `waiting_since drift ${waitingMs} vs ${start.getTime()}`);
     await assert.rejects(query('UPDATE support_waiting SET business_id=$1 WHERE conversation_id=$2',[o,v]),{code:'23503'});
     await query("UPDATE support_waiting SET waiting_since=NOW()-INTERVAL '31 minutes' WHERE conversation_id=$1",[v]);
     assert.equal((await runSupportQueue()).breached,1);

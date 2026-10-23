@@ -14,7 +14,7 @@ test('super-admin feature override is audited, tenant-scoped and reversible', { 
   await client.connect();
   try {
     await client.query("SELECT set_config('app.system_access','true',false)");
-    await client.query('INSERT INTO businesses(id,name,slug,account_status) VALUES($1,$2,$3,$4),($5,$6,$7,$8)', [businessId,'Feature test',`feature-${suffix}`,'active',otherId,'Other test',`other-${suffix}`,'active']);
+    await client.query('INSERT INTO businesses(id,name,slug,account_status,review_access) VALUES($1,$2,$3,$4,TRUE),($5,$6,$7,$8,FALSE)', [businessId,'Feature test',`feature-${suffix}`,'active',otherId,'Other test',`other-${suffix}`,'active']);
     enterSystemContext();
     await saveCompanyFeatureOverride({ businessId, feature: 'calling', enabled: false, adminId: 'test-admin' });
     assert.equal((await workspaceFeatureFlags(businessId)).calling, false);

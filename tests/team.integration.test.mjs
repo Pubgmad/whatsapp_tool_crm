@@ -40,9 +40,20 @@ test('team invite create, accept, revoke, and membership mutations stay tenant-s
       ...(body ? { body: JSON.stringify(body) } : {})
     });
   };
+  const inviteAcceptRequest = (path, body) =>
+    new Request(new URL(path, base), {
+      method: 'POST',
+      headers: {
+        cookie: `wcrm_csrf=${encodeURIComponent(csrf)}`,
+        origin: new URL(base).origin,
+        'x-csrf-token': csrf,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
 
   try {
-    await query("INSERT INTO businesses (id,name,slug,account_status) VALUES ($1,$1,$1,'active'),($2,$2,$2,'active')", [business, other]);
+    await query("INSERT INTO businesses (id,name,slug,account_status,review_access) VALUES ($1,$1,$1,'active',TRUE),($2,$2,$2,'active',FALSE)", [business, other]);
     await query("INSERT INTO users (id,name,email,password_hash,email_verified_at) VALUES ($1,'Owner',$2,$3,NOW()),($4,'Agent',$5,$3,NOW())", [
       ownerId, `${ownerId}@example.test`, hashPassword('Aa1' + crypto.randomBytes(12).toString('base64url')),
       agentId, `${agentId}@example.test`
@@ -75,11 +86,14 @@ test('team invite create, accept, revoke, and membership mutations stay tenant-s
     assert.equal((await listed.json()).invitations.length, 1);
 
     const inviteToken = createdBody.inviteUrl.split('/invite/')[1];
-    const accept = await acceptTeamInvitation(ownerRequest(`/api/team/accept/${inviteToken}`, {
-      method: 'POST',
-      body: { name: 'Invited Manager', password: 'Aa1' + crypto.randomBytes(12).toString('base64url') }
-    }), { params: Promise.resolve({ token: inviteToken }) });
-    assert.equal(accept.status, 201);
+    const acceptPassword = 'Aa1' + crypto.randomBytes(12).toString('base64url');
+    const accept = await acceptTeamInvitation(
+      inviteAcceptRequest(`/api/team/accept/${inviteToken}`, { name: 'Invited Manager', password: acceptPassword }),
+      { params: Promise.resolve({ token: inviteToken }) }
+    );
+    if (accept.status !== 201) {
+      assert.fail(`accept invite failed (${accept.status}): ${await accept.text()}`);
+    }
     enterSystemContext();
     const membership = await query("SELECT role FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.business_id=$1 AND u.email=$2", [business, inviteEmail]);
     assert.equal(membership.rows[0]?.role, 'Manager');
