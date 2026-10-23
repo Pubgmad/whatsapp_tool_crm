@@ -24,7 +24,7 @@
 | P2-001 | **Blocked (commercial)** | Super Admin publishes prices after approval |
 | P2-002 | **Done** | `GET /api/billing/invoices` + Billing UI |
 | P2-003 | **Ops** | CMS republish — runbook § P2-003 |
-| P2-004 | **QA** | `npm run test:e2e` + a11y script — runbook § P2-004 |
+| P2-004 | **QA** | CI matrix green locally (`npm run test:e2e:ci`); full 5-browser `npm run test:e2e` + VPS attestation — runbook § P2-004 |
 | OPS-001 | **Ops** | Google OAuth — runbook § OPS-001 |
 | OPS-002 | **Ops** | Credentials matrix — runbook § OPS-002 |
 

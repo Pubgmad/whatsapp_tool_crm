@@ -1,6 +1,6 @@
 # P2-004 — Mobile and accessibility regression
 
-**Status:** QA — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § P2-004  
+**Status:** QA (CI matrix green locally) — [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) § P2-004  
 **Priority:** P2  
 **Type:** QA  
 
@@ -20,9 +20,11 @@ UX overhaul updated nav labels, focus styles, and responsive CSS. Full matrix no
 
 ## Acceptance criteria
 
-- [ ] No critical a11y violations on primary journeys (document known deferrals)
-- [ ] `record-a11y-e2e` artifacts stored per team process
-- [ ] Playwright mobile spec updated if nav labels drift
+- [x] CI subset: `npm run test:e2e:ci` (chromium a11y-public + android workspace-mobile) — 2026-10-23
+- [ ] Full `npm run test:e2e` (firefox, webkit, iphone) on VPS or after `npx playwright install`
+- [x] Mobile spec aligned to product switcher + Communication sections nav (Free plan: Automation/Analytics, not Broadcasting)
+- [x] Local attestation: `node scripts/record-a11y-e2e.mjs --projects chromium-desktop,android`
+- [ ] No critical a11y violations on primary journeys (manual spot-check still optional)
 
 ## References
 

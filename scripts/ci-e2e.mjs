@@ -4,10 +4,17 @@ import nextEnv from '@next/env';
 nextEnv.loadEnvConfig(process.cwd());
 
 const port = Number(process.env.E2E_PORT || 3100);
-const base = `http://127.0.0.1:${port}`;
-process.env.E2E_BASE_URL = base;
-process.env.APP_URL = process.env.APP_URL || base;
-process.env.LOGIN_RATE_LIMIT = process.env.LOGIN_RATE_LIMIT || '1000';
+// Use localhost (not 127.0.0.1) so browser Origin matches Next request.url and APP_URL.
+const base = `http://localhost:${port}`;
+const e2eEnv = {
+  ...process.env,
+  E2E_BASE_URL: base,
+  APP_URL: base,
+  LOGIN_RATE_LIMIT: process.env.LOGIN_RATE_LIMIT || '1000'
+};
+process.env.E2E_BASE_URL = e2eEnv.E2E_BASE_URL;
+process.env.APP_URL = e2eEnv.APP_URL;
+process.env.LOGIN_RATE_LIMIT = e2eEnv.LOGIN_RATE_LIMIT;
 
 function run(command, args, env = process.env) {
   return new Promise((resolve, reject) => {
@@ -32,7 +39,7 @@ async function waitForServer(timeoutMs = 120000) {
 }
 
 const server = spawn('npm', ['run', 'start', '--', '-p', String(port)], {
-  env: process.env,
+  env: e2eEnv,
   stdio: 'inherit',
   shell: true
 });

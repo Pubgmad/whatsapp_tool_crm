@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { postLoginConnectWhatsApp } from './helpers.js';
 
 test('public product site stays readable and admin publishing is protected',async({page,request})=>{
   await page.goto('/');
@@ -72,10 +73,10 @@ test('authenticated route suite', async ({ page }) => {
   await page.getByLabel('Password', { exact: true }).fill(process.env.E2E_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe('/');
-  await expect(page.getByRole('link', { name: 'Connect WhatsApp' })).toBeVisible();
+  await expect(postLoginConnectWhatsApp(page)).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open Dashboard' })).toHaveCount(0);
   await expect(page.locator('a[href="/app/settings/billing"]')).toHaveCount(0);
-  await page.getByRole('link', { name: 'Connect WhatsApp' }).click();
+  await postLoginConnectWhatsApp(page).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe('/app/settings/whatsapp');
   await expect(page.getByText('Unable to load this page')).toHaveCount(0);
   await page.goto('/app/inbox');
