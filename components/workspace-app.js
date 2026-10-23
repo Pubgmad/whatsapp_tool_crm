@@ -39,6 +39,7 @@ import WhatsAppRetargetingPanel from './whatsapp-retargeting-panel';
 import ApprovedTemplatePicker from './approved-template-picker';
 import SearchableOptionPicker from './searchable-option-picker';
 import AiSupportSettings from './ai-support-settings';
+import ThemeToggle from './theme-toggle';
 import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation';
 import { DEFAULT_POST_AUTH_PATH, DEFAULT_WORKSPACE_PATH, safeAuthReturnPath, withAuthReturn } from '../lib/auth-return.js';
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../lib/password-policy.js';
