@@ -42,3 +42,5 @@ build-artifacts/
 !/dev-tickets/
 !/dev-tickets/**/*.md
 !/docs/PRODUCTION_RUNBOOK.md
+!/docs/META_APP_REVIEW.md
+!/docs/DOMAIN_MIGRATION.md

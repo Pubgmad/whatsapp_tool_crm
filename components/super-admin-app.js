@@ -461,6 +461,7 @@ function WorkspaceDeletionQueue({ notify }) {
 function MetaDeletionQueue({ notify }) {
   const [requests, setRequests] = useState([]);
   const [notes, setNotes] = useState({});
+  const [stores, setStores] = useState({});
   const [pendingId, setPendingId] = useState("");
   const [error, setError] = useState("");
   const load = async () => {
@@ -478,7 +479,7 @@ function MetaDeletionQueue({ notify }) {
         id: item.id,
         status,
         note: notes[item.id] || "",
-        confirmation: status === "completed" ? "REVIEWED_DATA_DELETION" : ""
+        checkedStores: status === "completed" ? String(stores[item.id] || "").split(",").map((value) => value.trim()).filter(Boolean) : []
       }, "PATCH");
       notify(status === "completed" ? "Deletion review completed" : status === "pending" ? "Request reopened" : "Request marked for investigation");
       await load();
@@ -491,8 +492,8 @@ function MetaDeletionQueue({ notify }) {
     <div className="deletionRequestList">{requests.map((item) => <article className="deletionRequestRow" key={item.id}>
       <div><strong>{item.confirmationCode}</strong><small>{formatTime(item.requestedAt)} | {item.businessesAffected} linked workspace{item.businessesAffected === 1 ? "" : "s"}</small><span className={`badge ${item.status === "completed" ? "good" : "warn"}`}>{item.status}</span></div>
       {item.businessIds.length > 0 && <small>Workspace IDs: {item.businessIds.join(", ")}</small>}
-      {item.status === "pending" ? <><label>Review note<textarea value={notes[item.id] || ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} minLength="20" maxLength="4000" /></label><div className="actionCluster"><button className="primaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "completed")}><BadgeCheck size={16} /> Confirm handled</button><button className="secondaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "failed")}><Ban size={16} /> Needs investigation</button></div></> : <p>{item.reviewNote || "No note recorded."}</p>}
-      {item.status === "failed" && <><label>Follow-up note<textarea value={notes[item.id] || ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} minLength="20" maxLength="4000" /></label><div className="actionCluster"><button className="primaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "completed")}><BadgeCheck size={16} /> Confirm handled</button><button className="secondaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "pending")}><RefreshCcw size={16} /> Reopen</button></div></>}
+      {item.resultCode && <small>Result: {item.resultCode}{item.lastError ? ` — ${item.lastError}` : ''}</small>}
+      {(item.status === "pending" || item.status === "failed" || item.status === "processing") ? <><label>Review note<textarea value={notes[item.id] || ""} onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} minLength="20" maxLength="4000" /></label><label>Verified stores<textarea value={stores[item.id] || ""} onChange={(event) => setStores((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="whatsapp_credentials, meta_leadgen_submissions" /></label><div className="actionCluster"><button className="primaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20 || !String(stores[item.id] || "").trim()} onClick={() => review(item, "completed")}><BadgeCheck size={16} /> Confirm handled</button>{item.status !== "failed" && <button className="secondaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "failed")}><Ban size={16} /> Needs investigation</button>}{item.status === "failed" && <button className="secondaryAction" type="button" disabled={pendingId === item.id || (notes[item.id] || "").trim().length < 20} onClick={() => review(item, "pending")}><RefreshCcw size={16} /> Reopen</button>}</div></> : <p>{item.reviewNote || "No note recorded."}</p>}
     </article>)}</div>
     {!requests.length && <Empty text="No Meta deletion requests yet" />}
   </Panel>;

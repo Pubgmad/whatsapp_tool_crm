@@ -58,14 +58,14 @@ try {
       throw new Error("REVIEWER_EMAIL already belongs to a non-review account. Use a different dedicated reviewer email.");
     }
     businessId = reviewWorkspace.id;
-    await client.query("UPDATE users SET name = $1, password_hash = $2, updated_at = NOW() WHERE id = $3", [reviewerName, hashPassword(password), userId]);
+    await client.query("UPDATE users SET name = $1, password_hash = $2, email_verified_at = COALESCE(email_verified_at, NOW()), email_verification_required = TRUE, updated_at = NOW() WHERE id = $3", [reviewerName, hashPassword(password), userId]);
   } else {
     userId = id("u");
     businessId = id("b");
     const slug = `${slugify(businessName)}-${crypto.randomBytes(2).toString("hex")}`;
     const webhookUrl = process.env.WEBHOOK_URL || `${process.env.APP_URL || "http://localhost:3000"}/api/webhooks/meta`;
 
-    await client.query("INSERT INTO users (id, name, email, password_hash) VALUES ($1, $2, $3, $4)", [userId, reviewerName, email, hashPassword(password)]);
+    await client.query("INSERT INTO users (id, name, email, password_hash, email_verified_at, email_verification_required) VALUES ($1, $2, $3, $4, NOW(), TRUE)", [userId, reviewerName, email, hashPassword(password)]);
     await client.query(
       `INSERT INTO businesses (id, name, slug, webhook_url, mode, status, account_status, review_access)
        VALUES ($1, $2, $3, $4, 'Live Meta', 'Needs setup', 'active', TRUE)`,

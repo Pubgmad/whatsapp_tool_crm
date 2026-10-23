@@ -34,6 +34,7 @@ import AudienceBulkTagsPanel from './audience-bulk-tags-panel';
 import CampaignDripManager from './campaign-drip-manager';
 import InboxContact360 from './inbox-contact-360';
 import { summarizeAnalyticsPayload } from '../lib/whatsapp-analytics-summary.js';
+import { acceptEmbeddedSignupMessage, createSignupAttempt, reduceSignupAttempt, SIGNUP_WAIT_MS, signupSubmitPayload } from '../lib/embedded-signup-attempt.js';
 import { campaignSourceLabel } from '../lib/campaign-source-labels.js';
 import WhatsAppRetargetingPanel from './whatsapp-retargeting-panel';
 import ApprovedTemplatePicker from './approved-template-picker';
@@ -951,8 +952,7 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
 }
 
 function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
-  const signupData = useRef({});
-  const signupCompletion = useRef(null);
+  const signupAttempt = useRef(null);
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
   const [section, setSection] = useState(forcedSection || "connection");
@@ -966,61 +966,81 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
   const activePhone = operations.phoneNumbers.find((item) => item.isDefault) || operations.phoneNumbers[0];
   useEffect(() => {
     const listener = (event) => {
-      if (!/^https:\/\/([a-z0-9-]+\.)*facebook\.com$/i.test(event.origin)) return;
-      let payload = event.data;
-      if (typeof payload === "string") { try { payload = JSON.parse(payload); } catch { return; } }
-      if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
-      if (payload.event === 'FINISH' || payload.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
-        signupData.current = { ...(payload.data || {}), sessionEvent: payload.event };
-        setSignupError("");
-        signupCompletion.current?.();
-        return;
-      }
-      if (payload.event === "CANCEL" || payload.event === "ERROR") {
-        const detail = payload.data?.error_message || payload.data?.message || payload.data?.current_step || "Meta did not complete the WhatsApp connection.";
-        signupData.current = { error: String(detail) };
-        setSignupError(String(detail));
-        signupCompletion.current?.();
-      }
+      const current = signupAttempt.current;
+      if (!current?.listening || current.submitted) return;
+      const parsed = acceptEmbeddedSignupMessage(event.origin, event.data);
+      const next = reduceSignupAttempt(current, { type: 'message', parsed, generation: current.generation });
+      signupAttempt.current = next;
+      if (next.cancelled) setSignupError(next.error);
+      if (next.cancelled || next.completion) next.notify?.();
     };
     window.addEventListener("message", listener);
-    return () => window.removeEventListener("message", listener);
+    return () => {
+      window.removeEventListener("message", listener);
+      if (signupAttempt.current) signupAttempt.current.unmounted = true;
+    };
   }, []);
   const connectMeta = async (mode = 'standard') => {
+    if (signupAttempt.current?.listening && !signupAttempt.current.submitted) {
+      signupAttempt.current.listening = false;
+    }
+    const attempt = createSignupAttempt(mode);
+    signupAttempt.current = attempt;
     setConnecting(true);
     setSignupError("");
-    signupData.current = {};
     try {
       const config = await api(`/api/meta/embedded-signup/config?mode=${mode}`);
       const FB = await loadFacebookSdk(config.appId, config.graphVersion);
-      FB.login(metaSdkCallback(async (response) => {
-        const code = response?.authResponse?.code;
-        if (!code) {
-          const reason = response?.status === 'not_authorized' ? 'Meta did not authorize this app. Confirm the Embedded Signup configuration and app permissions.' : 'Meta sign-up was cancelled or did not return authorization. Confirm the configuration ID, app domain, and allowed OAuth domain in Meta.';
-          setSignupError(signupData.current.error || reason);
-          setConnecting(false);
-          return;
-        }
-        if (mode === 'coexistence' && !signupData.current.sessionEvent) {
-          await new Promise((resolve) => {
-            signupCompletion.current = resolve;
-            setTimeout(resolve, 15000);
-          });
-          signupCompletion.current = null;
-        }
-        if (mode === 'coexistence' && signupData.current.sessionEvent !== 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
-          setConnecting(false);
-          setSignupError(signupData.current.error || 'Meta did not complete Business App coexistence onboarding.');
-          return;
-        }
-        const completion = await postJson('/api/meta/embedded-signup/complete', { code, mode, sessionEvent: signupData.current.sessionEvent,
-          wabaId: signupData.current.waba_id, phoneNumberId: signupData.current.phone_number_id
+      signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'listen' });
+      const response = await new Promise((resolve, reject) => {
+        FB.login(metaSdkCallback(resolve, reject), {
+          config_id: config.configId,
+          response_type: 'code',
+          override_default_response_type: true,
+          extras: {
+            setup: {},
+            sessionInfoVersion: '3',
+            ...(config.flowVersion ? { version: config.flowVersion } : {}),
+            ...(mode === 'coexistence' ? { featureType: 'whatsapp_business_app_onboarding' } : {})
+          }
         });
-        await mutate(Promise.resolve(completion), 'WhatsApp Business connected');
+      });
+      if (signupAttempt.current?.unmounted || signupAttempt.current?.generation !== attempt.generation) return;
+      const code = response?.authResponse?.code || '';
+      signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'code', code });
+      if (!code) {
+        const reason = response?.status === 'not_authorized'
+          ? 'Meta did not authorize this app. Confirm the Embedded Signup configuration and app permissions.'
+          : 'Meta sign-up was cancelled or did not return authorization. Confirm the configuration ID, app domain, and allowed OAuth domain in Meta.';
+        setSignupError(signupAttempt.current.error || reason);
         setConnecting(false);
-      }, (error) => { setConnecting(false); setSignupError(error.message || 'Meta signup could not be completed.'); }), { config_id: config.configId, response_type: 'code', override_default_response_type: true,
-        extras: { setup: {}, sessionInfoVersion: '3', ...(mode === 'coexistence' ? { featureType: 'whatsapp_business_app_onboarding' } : {}) } });
-    } catch (error) { setConnecting(false); setSignupError(error.message || 'Meta signup could not be opened.'); }
+        return;
+      }
+      if (!signupSubmitPayload(signupAttempt.current)) {
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, SIGNUP_WAIT_MS);
+          signupAttempt.current.notify = () => { clearTimeout(timer); resolve(); };
+        });
+        if (signupAttempt.current?.generation === attempt.generation) {
+          signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'timeout' });
+        }
+      }
+      const latest = signupAttempt.current;
+      if (!latest || latest.generation !== attempt.generation || latest.unmounted) return;
+      if (latest.cancelled || !signupSubmitPayload(latest)) {
+        setConnecting(false);
+        setSignupError(latest.error || 'Meta did not finish the WhatsApp connection. Start it again.');
+        return;
+      }
+      if (latest.submitted) return;
+      latest.submitted = true;
+      const completion = await postJson('/api/meta/embedded-signup/complete', signupSubmitPayload(latest));
+      await mutate(Promise.resolve(completion), 'WhatsApp Business connected');
+      setConnecting(false);
+    } catch (error) {
+      setConnecting(false);
+      setSignupError(error.message || 'Meta signup could not be completed.');
+    }
   };
   const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}), "Connection check complete");
   const disconnect = () => mutate(postJson("/api/meta/connection/disconnect", {}), "WhatsApp Business disconnected");

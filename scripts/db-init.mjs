@@ -207,6 +207,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/provider-connectors.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/commerce-payments-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ads-growth-production.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/meta-review-hardening.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ad-credits.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/external-availability.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/crm-connectors.sql', import.meta.url), 'utf8'));
@@ -255,6 +256,7 @@ try {
   await client.query("CREATE TABLE IF NOT EXISTS platform_settings (id TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, label TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'general', value JSONB NOT NULL DEFAULT '{}'::jsonb, value_type TEXT NOT NULL DEFAULT 'text', is_public BOOLEAN NOT NULL DEFAULT FALSE, display_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), CONSTRAINT platform_settings_type_check CHECK (value_type IN ('text', 'rich_text', 'image_url', 'json', 'boolean', 'number')))");
   await client.query("CREATE INDEX IF NOT EXISTS idx_platform_settings_public ON platform_settings(is_public, category, display_order)");
   await client.query("CREATE INDEX IF NOT EXISTS idx_subscription_plans_display ON subscription_plans(visible, is_active, display_order)");
+  await client.query("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()");
   await client.query("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS automation_flow_id TEXT");
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS assigned_user_id TEXT");
   await client.query("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS automation_paused BOOLEAN NOT NULL DEFAULT FALSE");

@@ -40,10 +40,12 @@ export default async function DataDeletionStatusPage({ searchParams }) {
                 <div><dt>Completed</dt><dd>{displayDate(record.completed_at)}</dd></div>
               </dl>
               <p>{record.status === "completed"
-                ? "Processing has been completed. Company CRM records remain subject to the platform privacy policy and applicable retention requirements."
+                ? (record.result_code === "no_linked_data"
+                  ? "No Meta-linked data was found for this confirmation code."
+                  : "Meta-linked credentials and Meta-sourced records for the authorization were deleted or anonymized. Other company records follow the privacy policy.")
                 : record.status === "failed"
-                  ? "The review could not be completed. Contact the platform operator using the address below and include the confirmation code."
-                  : "Meta authorization has been disconnected. The platform owner is reviewing any remaining data and retention obligations before confirming completion."}</p>
+                  ? "Deletion did not finish. It can be retried. Contact the platform operator and include only this confirmation code."
+                  : "Deletion is in progress. This page does not list workspaces, Meta user ids, or deleted content."}</p>
             </div>
           ) : (
             <div className="deletionStatusDetails">
