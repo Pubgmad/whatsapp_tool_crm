@@ -1,6 +1,6 @@
 # Dev tickets — MathStrat WhatsApp CRM
 
-**Branch:** `feature/dev` (local only until GitHub write access)  
+**Branch:** `feature/dev` (synced with `origin/feature/dev`; merge to `main` via PR)  
 **Repo:** `whatsapp_tool_crm`  
 **Ops runbook:** [docs/PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md)  
 **Production:** https://crm.mathstrat-sites.com  
@@ -53,5 +53,5 @@
 
 ## Working agreement
 
-- Implement on **`feature/dev`**; keep commits local until collaborator access on `Pubgmad/whatsapp_tool_crm`.
+- Implement on **`feature/dev`**; push and open PR to **`main`** when a batch is ready for deploy.
 - Ops tickets: execute [PRODUCTION_RUNBOOK.md](../docs/PRODUCTION_RUNBOOK.md) on the VPS; evidence in Super Admin notes.

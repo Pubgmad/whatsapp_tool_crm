@@ -1,6 +1,6 @@
 # Production runbook — MathStrat WhatsApp CRM
 
-Operator steps for VPS **crm.mathstrat-sites.com**. Code on `feature/dev` is committed **locally** until GitHub collaborator access is granted.
+Operator steps for VPS **crm.mathstrat-sites.com**. Application code ships from `main` after merge of `feature/dev`; track release SHA in Super Admin notes (P0-002).
 
 ## What is “TURN env on the VPS”?
 
