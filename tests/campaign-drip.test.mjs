@@ -5,7 +5,9 @@ import test from 'node:test';
 import { createSessionToken } from '../lib/auth.js';
 import {
   campaignDripRequest,
+  DRIP_DELIVERY_ADVANCE_STATUSES,
   normalizeCampaignDripDefinition,
+  processCampaignDripDeliveryAdvance,
   runCampaignDripQueue,
   validateCampaignDripTimezone
 } from '../lib/campaign-drip.js';
@@ -31,6 +33,11 @@ test('drip definitions enforce names, IANA timezones, ordered delays and variabl
   assert.equal(definition.name, 'Welcome');
   assert.equal(definition.segmentId, 'segment_1');
   assert.deepEqual(definition.steps.map((step) => step.stepOrder), [0, 1]);
+});
+
+test('drip delivery gate advances only on delivered or read', () => {
+  assert.equal(DRIP_DELIVERY_ADVANCE_STATUSES.has('delivered'), true);
+  assert.equal(DRIP_DELIVERY_ADVANCE_STATUSES.has('sent'), false);
 });
 
 test('drip API validates tenancy and consent, audits lifecycle, and queues every due step', { skip: !process.env.TEST_DATABASE_URL }, async () => {
@@ -117,6 +124,26 @@ test('drip API validates tenancy and consent, audits lifecycle, and queues every
       'SELECT COUNT(*)::int AS count FROM campaign_jobs j JOIN campaign_recipients r ON r.id=j.campaign_recipient_id WHERE r.campaign_id=$1',
       [firstCampaign.id]
     )).rows[0].count, 1);
+    assert.equal(
+      (await query('SELECT status, current_step FROM campaign_drip_enrollments WHERE sequence_id=$1', [created.id])).rows[0].status,
+      'awaiting_delivery'
+    );
+    assert.equal((await processCampaignDripDeliveryAdvance({
+      businessId: business,
+      campaignId: firstCampaign.id,
+      deliveryStatus: 'sent'
+    })).waiting, true);
+    await processCampaignDripDeliveryAdvance({
+      businessId: business,
+      campaignId: firstCampaign.id,
+      deliveryStatus: 'delivered'
+    });
+    const afterFirstDelivery = (await query(
+      'SELECT status, current_step FROM campaign_drip_enrollments WHERE sequence_id=$1',
+      [created.id]
+    )).rows[0];
+    assert.equal(afterFirstDelivery.status, 'active');
+    assert.equal(afterFirstDelivery.current_step, 1);
 
     await post({ action: 'pause', id: created.id });
     enterSystemContext();
@@ -124,7 +151,24 @@ test('drip API validates tenancy and consent, audits lifecycle, and queues every
     assert.equal((await runCampaignDripQueue({ limit: 100 })).spawned, 0);
     await post({ action: 'resume', id: created.id });
     enterSystemContext();
-    assert.equal((await runCampaignDripQueue({ limit: 100 })).spawned >= 1, true);
+    const secondRun = await runCampaignDripQueue({ limit: 100 });
+    assert.equal(secondRun.spawned >= 1, true);
+    const secondCampaign = (await query(
+      `SELECT c.id FROM campaigns c
+       JOIN campaign_recipients r ON r.campaign_id=c.id
+       WHERE c.business_id=$1 AND r.contact_id=$2 AND c.id<>$3 ORDER BY c.created_at DESC LIMIT 1`,
+      [business, allowedContact, firstCampaign.id]
+    )).rows[0];
+    assert.ok(secondCampaign?.id);
+    assert.equal(
+      (await query('SELECT status FROM campaign_drip_enrollments WHERE sequence_id=$1', [created.id])).rows[0].status,
+      'awaiting_delivery'
+    );
+    await processCampaignDripDeliveryAdvance({
+      businessId: business,
+      campaignId: secondCampaign.id,
+      deliveryStatus: 'delivered'
+    });
     assert.equal((await query('SELECT status FROM campaign_drip_enrollments WHERE sequence_id=$1', [created.id])).rows[0].status, 'completed');
 
     await post({ action: 'enroll', sequenceId: created.id, contactIds: [allowedContact] });

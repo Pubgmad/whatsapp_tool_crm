@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS campaign_drip_enrollments (
   contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
   current_step INTEGER NOT NULL DEFAULT 0,
   next_run_at TIMESTAMPTZ NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','completed','cancelled','failed')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','awaiting_delivery','completed','cancelled','failed')),
   last_campaign_id TEXT REFERENCES campaigns(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
