@@ -317,6 +317,7 @@ Submit tier **after** or **with** permission resubmission, per Meta’s current 
 | WhatsApp number dropdown empty | Run Embedded Signup on **metareview** workspace first. |
 | Facebook Login fails | User must be app **Developer/Admin**; check MFA. |
 | Insights empty | Normal for new **paused** campaign — state that on video. |
+| Sign-in says “lengthen to 12 characters” | Browser was blocking the 10-character reviewer password. Sign-in no longer enforces signup min-length (deployed fix). Hard refresh `/login`. Temporary: DevTools → remove `minlength` on the password field → Sign in. |
 | `reviewer:init` fails for personal email | Use **metareview@gmail.com** only. |
 | Worker/webhook issues | Check https://crm.mathstrat-sites.com/api/health → `worker: ready`. |
 

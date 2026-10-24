@@ -737,9 +737,9 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
                 <Input name="businessName" label="Business name" autoComplete="organization" required />
               </>}
               <Input name="workspaceEmail" label="Email" type="email" autoComplete="email" defaultValue={prefillEmail} required />
-              <PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete={isSignup ? "new-password" : "current-password"} required hint={isSignup ? PASSWORD_POLICY_HINT : undefined} />
+              <PasswordField name="workspacePassword" label="Password" visible={showPassword} onToggle={() => setShowPassword((value) => !value)} autoComplete={isSignup ? "new-password" : "current-password"} required enforcePolicy={isSignup} hint={isSignup ? PASSWORD_POLICY_HINT : undefined} />
               {mfaRequired && !isSignup && <Input name="mfaCode" label="Authenticator or recovery code" autoComplete="one-time-code" required />}
-              {isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required />}
+              {isSignup && <PasswordField name="confirmPassword" label="Confirm password" visible={showConfirm} onToggle={() => setShowConfirm((value) => !value)} autoComplete="new-password" required enforcePolicy />}
             </>
           )}
           {error && <div className="formError" role="alert">{error}</div>}
@@ -2009,9 +2009,11 @@ function Panel({ title, subtitle, children }) { return <section className="panel
 function Metric({ label, value }) { return <div className="metric"><span>{label}</span><strong>{value}</strong></div>; }
 function Badge({ kind = "neutral", children }) { return <span className={`badge ${kind}`}>{children}</span>; }
 function Input({ label, ...props }) { return <label>{label}<input {...props} /></label>; }
-function PasswordField({ label, visible, onToggle, hint, ...props }) {
+function PasswordField({ label, visible, onToggle, hint, enforcePolicy = false, ...props }) {
   const inputId = props.id || props.name;
-  return <div className='fieldGroup'><label htmlFor={inputId}>{label}</label><span className="passwordWrap"><input {...props} id={inputId} type={visible ? "text" : "password"} minLength={PASSWORD_MIN_LENGTH} /><button type="button" onClick={onToggle} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span>{hint ? <small className="fieldHint">{hint}</small> : null}</div>;
+  // Sign-in must accept existing accounts (e.g. Meta reviewer password may predate 12-char signup policy).
+  const minLength = enforcePolicy ? PASSWORD_MIN_LENGTH : undefined;
+  return <div className='fieldGroup'><label htmlFor={inputId}>{label}</label><span className="passwordWrap"><input {...props} id={inputId} type={visible ? "text" : "password"} minLength={minLength} /><button type="button" onClick={onToggle} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span>{hint ? <small className="fieldHint">{hint}</small> : null}</div>;
 }
 function EmptyState({ text }) { return <div className="emptyState"><CircleAlert size={20} /><span>{text}</span></div>; }
 function Pagination({ meta, onChange, label = "Records" }) {
