@@ -8,7 +8,7 @@
 - Authenticated CRM had prior enterprise declutter; still needed shared marketing↔app visual consistency.
 - `sample_ui` path not present; design reference found at gitignored `sampleui/groverygiftz` (Next.js + Tailwind e-commerce).
 
-## 2. AiSensy reference (verified public observations)
+## 2. Industry UX reference (verified public observations)
 
 **Verified without login**
 
@@ -22,7 +22,7 @@
 - Exact authenticated sidebar IA and canvas UX after login.
 - Any gated docs behind account.
 
-We did **not** copy AiSensy branding, assets, or proprietary layouts.
+We use MathStrat-owned branding, assets, and layouts only.
 
 ## 3. `sampleui/groverygiftz` patterns adapted
 

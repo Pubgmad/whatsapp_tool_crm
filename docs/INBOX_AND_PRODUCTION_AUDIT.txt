@@ -2,7 +2,7 @@ WhatsApp CRM — Inbox Fix + Production Audit + Connector Explanation
 Branch: production_saas only (not main)
 Scope: Responsive web app only (no native mobile apps)
 Date: 2026-10-15
-AiSensy reference: public site / docs / tutorials only — authenticated AiSensy CRM was NOT audited
+External reference: public marketing materials only — third-party authenticated CRM was NOT audited
 
 ================================================================================
 A. INBOX ERROR REPORT
@@ -46,9 +46,9 @@ Final verification
 B. COMPLETE PRODUCTION AUDIT (code-level)
 ================================================================================
 
-Evidence limitation: AiSensy comparison uses public materials only.
+Evidence limitation: External comparison uses public materials only.
 
-| Module | Feature | Current Implementation | AiSensy Comparison (public) | Production Gap | Fix Implemented | Test Status |
+| Module | Feature | Current Implementation | Industry comparison (public) | Production Gap | Fix Implemented | Test Status |
 |---|---|---|---|---|---|---|
 | Inbox | Bootstrap / hard refresh | Broken (slim API) | Focused live-chat workspace | Crash on /app/inbox | Full loadState inbox API + shell guards | Unit pass |
 | Inbox | Conversations list/search/filter | Implemented | Standard | Agent filter leak on unread/etc. | Agent assignment clamp | Unit pass |
@@ -141,7 +141,7 @@ Test results
 - workspace-inbox-bootstrap + workspace-inbox-filters: pass
 - Broader suite not fully re-run in this session
 
-Remaining production blockers for AiSensy-comparable ops
+Remaining production blockers for production-ready ops
 - Worker + Meta connection health on the live host
 - Deploy this production_saas commit to crm.mathstrat-sites.com
 - CMS republish if public feature pages still thin

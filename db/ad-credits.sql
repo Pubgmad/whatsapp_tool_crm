@@ -1,4 +1,4 @@
--- Prepaid Meta Ads credit wallet (AiSensy-style Buy Credits)
+-- Prepaid Meta Ads credit wallet (Buy Credits)
 
 CREATE TABLE IF NOT EXISTS ad_credit_wallets (
   business_id TEXT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,

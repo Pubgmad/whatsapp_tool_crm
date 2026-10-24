@@ -6,7 +6,7 @@
 
 ## Context
 
-Multi-step **drip sequences** exist (`lib/campaign-drip.js`, Campaigns UI). Audit: steps currently advance after **enqueue**, not after Meta **delivery** (or read) confirmation — unlike AiSensy-style journey reliability expectations.
+Multi-step **drip sequences** exist (`lib/campaign-drip.js`, Campaigns UI). Audit: steps currently advance after **enqueue**, not after Meta **delivery** (or read) confirmation.
 
 ## Scope
 

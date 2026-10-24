@@ -14,7 +14,7 @@ export default function ParityReportPanel({
   parityPath = '/api/super-admin/parity',
   report: reportProp = null,
   title = 'Product parity',
-  subtitle = 'AiSensy & Meta benchmark vs this codebase (dynamic registry).'
+  subtitle = 'Product capability registry vs Meta entitlements and live readiness (dynamic).'
 }) {
   const [report, setReport] = useState(reportProp);
   const [error, setError] = useState('');
