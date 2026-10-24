@@ -573,7 +573,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
       <section className="workspace productWorkspace">
         <header className="productPageHead">
           <div>
-            <p className="kicker">{isMetaSetup ? 'Workspace' : (activeGroup?.label || 'Product')}</p>
+            <p className="kicker">{isMetaSetup ? 'WhatsApp' : (activeGroup?.label || 'Product')}</p>
             <h1>{pageHeading}</h1>
             {workspacePageIntro(activeView) ? <p className="pageIntro">{workspacePageIntro(activeView)}</p> : null}
           </div>
@@ -837,8 +837,8 @@ function UpgradeRequiredPanel({ planName, featureKey, onBilling, onSetup }) {
     <div className="contentGrid" aria-label="Upgrade required">
       <Panel title="Upgrade required" subtitle={`${label} is not included in ${planName}.`}>
         <p className="pageIntro" style={{ maxWidth: '40rem' }}>
-          Your workspace can keep using included Free / current-plan tools. This module stays locked until an Owner upgrades
-          (or Super Admin assigns a plan). You are not being redirected away — choose what to do next.
+          Your workspace can keep using tools included in your current plan. This module stays locked until an Owner upgrades.
+          You are not being redirected away — choose what to do next.
         </p>
         <div className="actionCluster">
           <button className="primaryAction" type="button" onClick={onBilling}>Review plans &amp; billing</button>
@@ -1069,26 +1069,35 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
   };
   const submitManual = (event) => { event.preventDefault(); mutate(postJson("/api/setup", Object.fromEntries(new FormData(event.currentTarget)), "PUT"), "Manual setup saved"); };
   const metadata = setup.connectionMetadata || {};
+  // Prefer the shell secondary nav (Connection / Numbers / Profile). Never stack a second identical tab bar.
+  const showInnerTabs = false;
+  const connected = (setup.status || 'Not connected') === 'Connected';
   return <div className="screenGrid metaSetupScreen">
-    <section className="metaConnectHero">
-      <div><p className="kicker">Workspace</p><h2>{(setup.status || 'Not connected') === 'Connected' ? (setup.businessName || 'WhatsApp connected') : 'Connect WhatsApp through Meta'}</h2><span>{(setup.status || 'Not connected') === 'Connected' ? 'Manage connection, numbers, and workspace messaging tools.' : 'Create or join a workspace, then complete Meta Embedded Signup or coexistence onboarding.'}</span></div>
+    <section className="metaConnectHero" aria-labelledby="meta-connect-heading">
+      <div>
+        <p className="kicker">Meta</p>
+        <h2 id="meta-connect-heading">{connected ? (setup.businessName || 'WhatsApp connected') : 'Connect your WhatsApp Business account'}</h2>
+        <span>{connected
+          ? 'Your WhatsApp Business account is linked. Use Numbers and Profile to manage assets, or reconnect if Meta access changes.'
+          : 'Securely connect your WhatsApp Business account through Meta to start using messaging tools in this workspace.'}</span>
+      </div>
       <div className="metaConnectActions">
-        <button className="primaryAction metaConnectButton" type="button" onClick={() => connectMeta('standard')} disabled={connecting || !meta.embeddedSignupAvailable}><Link2 size={18} /> Cloud API number</button>
-        <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !meta.embeddedSignupAvailable}><Smartphone size={18} /> Existing Business App number</button>
+        <button className="primaryAction metaConnectButton" type="button" onClick={() => connectMeta('standard')} disabled={connecting || !meta.embeddedSignupAvailable}><Link2 size={18} /> Connect with Meta</button>
+        <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !meta.embeddedSignupAvailable} title="For eligible WhatsApp Business App numbers"><Smartphone size={18} /> Existing Business App number</button>
       </div>
     </section>
-    {!meta.embeddedSignupAvailable && <div className="formError">WhatsApp connect isn&apos;t available yet. Contact support.</div>}
+    {!meta.embeddedSignupAvailable && <div className="formError">WhatsApp connection isn&apos;t available yet. Contact support.</div>}
     {signupError && <div className="formError" role="alert">{signupError}</div>}
     <CoexistenceProgress phones={operations.phoneNumbers.filter(phone=>phone.coexistence)} api={api} postJson={postJson}/>
-    {!hideSectionTabs && <nav className="operationsTabs" aria-label="WhatsApp connection">
+    {showInnerTabs && !hideSectionTabs && <nav className="operationsTabs" aria-label="WhatsApp connection">
       {[
         ["connection", Activity, "Connection", "setup"],
         ["numbers", Smartphone, "Numbers", "numbers"],
         ["profile", Building2, "Profile", "profile"]
       ].map(([id, Icon, label, viewId]) => <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => { setSection(id); if (onNavigateSection && viewId) onNavigateSection(viewId); }}><Icon size={16} /><span>{label}</span></button>)}
     </nav>}
-    {!hideSectionTabs && section === 'connection' && (
-      <p className="pageIntro" style={{ margin: '0 0 8px' }}>Flows, media, commerce, and other WhatsApp tools are available from the product switcher after connection.</p>
+    {section === 'connection' && !connected && (
+      <p className="pageIntro" style={{ margin: '0 0 8px' }}>After you connect, inbox, broadcasts, automation, and other WhatsApp tools unlock from the product menu.</p>
     )}
     {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={state.account.role}/>}
     {section === 'flows' && <WhatsAppFlowDesigner api={api} postJson={postJson} flows={operations.nativeFlows} onUploaded={()=>mutate(Promise.resolve({ok:true}), 'Flow uploaded')}/>}
@@ -1118,9 +1127,9 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
           </div>
           <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={(state.setup?.status || 'Not connected') !== "Connected"}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "WhatsApp assets synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={(state.setup?.status || 'Not connected') !== "Connected"}><Unplug size={17} /> Disconnect</button></div>
         </Panel>
-        <Panel title="Advanced" subtitle="IDs and webhook diagnostics">
-          <details className="techDetails"><summary>Technical IDs</summary><div className="connectionSummary"><div><span>WABA ID</span><strong>{setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{setup.phoneNumberId || "Not connected"}</strong></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div></details>
-          <details className="techDetails saasAdvancedBlock"><summary>Webhook details</summary><div className="webhookCard"><code>{setup.webhookUrl || meta.webhookUrl || "Configure APP_URL on the server"}</code><div><span>Signature verification</span><Badge kind="good">Server-side</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></details>
+        <Panel title="Advanced" subtitle="Optional diagnostics for support">
+          <details className="techDetails"><summary>Connection IDs</summary><div className="connectionSummary"><div><span>WABA ID</span><strong>{setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{setup.phoneNumberId || "Not connected"}</strong></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div></details>
+          <details className="techDetails saasAdvancedBlock"><summary>Webhook status</summary><div className="webhookCard"><code>{setup.webhookUrl || meta.webhookUrl || "Webhook URL not configured"}</code><div><span>Signature verification</span><Badge kind="good">Enabled</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></details>
         </Panel>
       </div>
       <details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Use only if Embedded Signup is unavailable"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>

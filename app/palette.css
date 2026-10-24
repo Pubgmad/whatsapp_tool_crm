@@ -1,106 +1,105 @@
 /*
- * MathStrat CRM — 60 / 30 / 10 attraction palette
- * 60% Dominant: clean light slate surfaces
- * 30% Secondary: trustworthy deep blue hierarchy
- * 10% Accent: electric orange for primary CTAs only
+ * MathStrat CRM — premium light-first palette (readable by default)
+ * Surfaces: slate · Hierarchy: blue · Status: teal/success/warn/error
+ * White text only on sufficiently dark fills (brand, CTA, nav active).
  */
 :root {
-  /* Semantic alias (from design brief) */
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --text-primary: #0f172a;
-  --text-secondary: #475569;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
   --border-color: #cbd5e1;
-  --brand-muted: #1e40af;
-  --accent-primary: #ff5a1f;
-  --accent-hover: #e04810;
-  --accent-glow: rgba(255, 90, 31, 0.15);
+  --brand-muted: #2563eb;
+  --brand-hover: #1d4ed8;
+  --surface-soft-blue: #eff6ff;
+  --teal-accent: #0f766e;
+  --success: #15803d;
+  --warning: #b45309;
+  --error: #b91c1c;
 
-  /* Map onto existing CRM tokens */
   --canvas: var(--bg-primary);
   --surface: var(--bg-secondary);
   --soft: #f1f5f9;
   --ink: var(--text-primary);
-  --ink-soft: #334155;
-  --muted: var(--text-secondary);
+  --ink-soft: var(--text-secondary);
+  --muted: var(--text-muted);
   --line: #e2e8f0;
   --line-strong: var(--border-color);
 
-  /* 30% — blue hierarchy (nav, links, kickers, focus) */
-  --brand: var(--brand-muted);
-  --brand-dark: #1e3a8a;
-  --brand-soft: #dbeafe;
-  --blue: var(--brand-muted);
-  --blue-soft: #eff6ff;
-  --indigo: #1e3a8a;
+  --brand: #2563eb;
+  --brand-dark: #1d4ed8;
+  --brand-soft: var(--surface-soft-blue);
+  --blue: var(--brand);
+  --blue-soft: var(--surface-soft-blue);
+  --indigo: #1e40af;
   --indigo-soft: #e0e7ff;
 
-  /* 10% — orange attractor (primary buttons / key CTAs) */
-  --cta: var(--accent-primary);
-  --cta-hover: var(--accent-hover);
-  --cta-glow: var(--accent-glow);
-  --cta-soft: #fff7ed;
+  /* Primary actions use brand blue for AA contrast on white label text */
+  --cta: var(--brand);
+  --cta-hover: var(--brand-hover);
+  --cta-glow: rgba(37, 99, 235, 0.2);
+  --cta-soft: var(--surface-soft-blue);
 
-  /* Teal reserved for success / Meta status (sparing) */
-  --accent: #0d9488;
+  --accent: var(--teal-accent);
   --accent-soft: #ccfbf1;
+  --amber-soft: #fff7ed;
+  --danger-soft: #fef2f2;
 
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 12px 32px rgba(30, 64, 175, 0.1);
-  --focus-ring: 0 0 0 3px rgba(30, 64, 175, 0.18);
-  --cta-shadow: 0 4px 14px var(--accent-glow);
+  --shadow-md: 0 12px 32px rgba(37, 99, 235, 0.1);
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.22);
+  --cta-shadow: 0 4px 14px var(--cta-glow);
 }
 
 [data-theme="dark"] {
   --bg-primary: #0b0f19;
   --bg-secondary: #131c2e;
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
   --border-color: #1e293b;
-  --brand-muted: #38bdf8;
-  --accent-primary: #ff6b35;
-  --accent-hover: #f95716;
-  --accent-glow: rgba(255, 107, 53, 0.3);
+  --brand-muted: #60a5fa;
+  --brand-hover: #93c5fd;
+  --surface-soft-blue: #0c1a33;
 
   --canvas: var(--bg-primary);
   --surface: var(--bg-secondary);
   --soft: #0f172a;
   --ink: var(--text-primary);
-  --ink-soft: #cbd5e1;
-  --muted: var(--text-secondary);
+  --ink-soft: var(--text-secondary);
+  --muted: var(--text-muted);
   --line: var(--border-color);
   --line-strong: #334155;
 
-  --brand: var(--brand-muted);
-  --brand-dark: #7dd3fc;
-  --brand-soft: #0c4a6e;
-  --blue: var(--brand-muted);
-  --blue-soft: #0c4a6e;
-  --indigo: #7dd3fc;
-  --indigo-soft: #0c4a6e;
+  --brand: #3b82f6;
+  --brand-dark: #93c5fd;
+  --brand-soft: #0c1a33;
+  --blue: var(--brand);
+  --blue-soft: #0c1a33;
+  --indigo: #93c5fd;
+  --indigo-soft: #0c1a33;
 
-  --cta: var(--accent-primary);
-  --cta-hover: var(--accent-hover);
-  --cta-glow: var(--accent-glow);
-  --cta-soft: #431407;
+  --cta: #3b82f6;
+  --cta-hover: #60a5fa;
+  --cta-glow: rgba(59, 130, 246, 0.35);
+  --cta-soft: #0c1a33;
 
   --accent: #2dd4bf;
   --accent-soft: #134e4a;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.5);
-  --focus-ring: 0 0 0 3px rgba(56, 189, 248, 0.25);
-  --cta-shadow: 0 4px 18px var(--accent-glow);
+  --focus-ring: 0 0 0 3px rgba(96, 165, 250, 0.3);
+  --cta-shadow: 0 4px 18px var(--cta-glow);
 }
 
-/* Prefer explicit data-theme; sync with OS only when theme is unset */
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) {
     color-scheme: dark;
   }
 }
 
-/* Primary attractor — orange CTAs (10%) */
 .primaryAction,
 .btn-primary,
 .btnPrimary,
@@ -117,22 +116,70 @@
 .btn.primary:hover {
   background-color: var(--cta-hover) !important;
   border-color: var(--cta-hover) !important;
-  box-shadow: 0 0 15px var(--accent-glow), 0 6px 18px var(--accent-glow);
+  box-shadow: 0 0 12px var(--cta-glow), 0 6px 18px var(--cta-glow);
 }
 
-/* Secondary stays blue hierarchy (30%) */
+.secondaryAction,
+.btnSecondary,
+.btn.secondary {
+  color: var(--ink-soft) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line-strong) !important;
+}
+.secondaryAction:hover,
+.btnSecondary:hover,
+.btn.secondary:hover {
+  color: var(--brand-dark) !important;
+  background: var(--brand-soft) !important;
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--line-strong)) !important;
+}
+
 .productSecondaryNav button.active,
 .saasSectionTabs button.active,
 .operationsTabs button.active {
   background: var(--brand);
   border-color: var(--brand);
-  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.2);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 }
 
 .kicker {
-  color: var(--brand-muted);
+  color: var(--brand);
 }
 
 .textButton {
-  color: var(--brand-muted);
+  color: var(--brand);
+}
+
+/* Meta onboarding — light card, dark readable text (never white-on-pale) */
+.metaSetupScreen .metaConnectHero,
+.metaConnectHero {
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--ink) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+.metaSetupScreen .metaConnectHero h2,
+.metaConnectHero h2 {
+  color: var(--ink) !important;
+}
+.metaSetupScreen .metaConnectHero span,
+.metaConnectHero span {
+  color: var(--muted) !important;
+}
+.metaSetupScreen .metaConnectHero .kicker,
+.metaConnectHero .kicker {
+  color: var(--brand) !important;
+}
+.metaSetupScreen .metaConnectActions .secondaryAction,
+.metaConnectActions .secondaryAction {
+  color: var(--ink-soft) !important;
+  background: var(--surface) !important;
+  border-color: var(--line-strong) !important;
+}
+.metaSetupScreen .metaConnectButton,
+.metaConnectButton {
+  background: var(--cta) !important;
+  border-color: var(--cta) !important;
+  color: #ffffff !important;
 }

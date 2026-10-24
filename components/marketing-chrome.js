@@ -299,22 +299,20 @@ export default function MarketingChrome({ brandName, logo, navigation = [], sign
         <div className={styles.headerActions}>
           {authenticated ? (
             <>
-              <Link className={styles.btnPrimary} href={DEFAULT_WORKSPACE_PATH} onClick={close}>Connect WhatsApp</Link>
+              <Link className={styles.btnPrimary} href={DEFAULT_WORKSPACE_PATH} onClick={close}>Open workspace</Link>
               <div className={styles.profileMenu}>
                 <button
                   type="button"
                   className={styles.profileTrigger}
                   aria-expanded={menuOpen}
                   aria-haspopup="menu"
-                  aria-label="Profile menu"
+                  aria-label="Account menu"
                   onClick={() => setMenuOpen((value) => !value)}
                 >
                   You <ChevronDown size={16} aria-hidden />
                 </button>
                 {menuOpen ? (
                   <div className={styles.profilePanel} role="menu">
-                    <Link role="menuitem" href={DEFAULT_WORKSPACE_PATH} onClick={close}>WhatsApp setup</Link>
-                    <Link role="menuitem" href="/app/settings/security" onClick={close}>Security settings</Link>
                     <button type="button" role="menuitem" onClick={signOut}>Sign out</button>
                   </div>
                 ) : null}

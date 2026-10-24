@@ -212,10 +212,15 @@ function resolveHeroImageUrl(hero, assets) {
 
 function resolveSecondaryHeroCta(page, hero) {
   if (hero?.secondaryCTA?.href) {
-    return {
-      href: hero.secondaryCTA.href,
-      label: hero.secondaryCTA.label || 'Learn more'
-    };
+    const primary = String(hero.ctaHref || '').trim();
+    const secondary = String(hero.secondaryCTA.href).trim();
+    // Skip duplicate destinations that would stack identical CTAs.
+    if (secondary && secondary !== primary) {
+      return {
+        href: secondary,
+        label: hero.secondaryCTA.label || 'Learn more'
+      };
+    }
   }
   const kind = page?.kind;
   if (kind === 'feature') return { href: '/features', label: 'Browse features' };
@@ -276,11 +281,7 @@ export function MarketingHero({ page, assets }) {
             <Link className={styles.btnPrimary} href={primaryHref}>{hero.ctaLabel}</Link>
           ) : null}
           {showSecondary ? (
-            <Link
-              className={styles.btnSecondary}
-              href={secondary.href}
-              style={{ color: '#fff', borderColor: 'rgba(255,255,255,.35)', background: 'rgba(255,255,255,.08)' }}
-            >
+            <Link className={styles.btnSecondary} href={secondary.href}>
               {secondary.label}
             </Link>
           ) : null}

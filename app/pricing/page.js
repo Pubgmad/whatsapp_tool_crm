@@ -56,7 +56,7 @@ export default async function PricingPage() {
               <p className={styles.eyebrow}>Platform subscription</p>
               <h2>MathStrat plans</h2>
               <p className={styles.sectionLead}>
-                Prices below come from Super Admin–managed subscription plans ({PRICING_ARCHITECTURE.status}).
+                Prices below reflect published subscription plans ({PRICING_ARCHITECTURE.status}).
                 They do not include Meta WhatsApp messaging fees, taxes, or optional add-ons unless listed on the plan.
               </p>
             </div>

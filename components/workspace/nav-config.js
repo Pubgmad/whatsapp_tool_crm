@@ -115,7 +115,7 @@ export const pageTitles = {
 /** One-line captions under page titles (keep short for premium density). */
 export const pageIntros = {
   overview: 'Workspace identity and WhatsApp connection status.',
-  setup: 'Manage this workspace and connect WhatsApp through Meta.',
+  setup: 'Securely connect your WhatsApp Business account through Meta to start messaging.',
 
   numbers: 'Phone numbers linked to this workspace.',
   profile: 'Public WhatsApp business profile.',
@@ -168,7 +168,7 @@ export const navGroups = [
     id: 'workspace',
     label: 'Workspace',
     items: [
-      { id: 'setup', label: 'Workspace', icon: 'Building2' },
+      { id: 'setup', label: 'Connection', icon: 'Link2' },
       { id: 'numbers', label: 'Numbers', icon: 'Smartphone' },
       { id: 'profile', label: 'Profile', icon: 'Building2' }
     ]

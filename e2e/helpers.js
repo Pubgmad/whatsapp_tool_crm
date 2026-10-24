@@ -1,4 +1,4 @@
-/** Post-login marketing home exposes multiple identical CTAs; target the hero banner. */
+/** Post-login marketing header primary action (workspace entry — not Meta connect). */
 export function postLoginConnectWhatsApp(page) {
-  return page.getByRole('banner').getByRole('link', { name: 'Connect WhatsApp' });
+  return page.getByRole('banner').getByRole('link', { name: /Open workspace|Get started/i });
 }

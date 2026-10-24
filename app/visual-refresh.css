@@ -19,15 +19,16 @@
 .readinessList>div.ready{background:var(--brand-soft);border-color:var(--line-strong)}
 .authShell::before,.superAuthShell::before{background:linear-gradient(90deg,transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px),linear-gradient(transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px);background-size:32px 32px}
 .authPanel,.superAuthPanel{box-shadow:var(--shadow-md)}
-.metaSetupScreen .metaConnectHero{background:linear-gradient(115deg,var(--brand-soft),color-mix(in srgb,var(--brand) 10%,#fff));border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink)}
+.metaSetupScreen .metaConnectHero{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink)}
+.metaSetupScreen .metaConnectHero h2{color:var(--ink)}
 .metaSetupScreen .metaConnectHero span{color:var(--muted)}
-.metaSetupScreen .metaConnectHero .kicker{color:var(--brand-dark)}
+.metaSetupScreen .metaConnectHero .kicker{color:var(--brand)}
 .metaSetupScreen .metaConnectHero .metaConnectActions{display:grid;flex:0 0 250px;width:250px;gap:10px}
 .metaSetupScreen .metaConnectActions button{min-height:46px;white-space:normal;overflow-wrap:normal}
-.metaSetupScreen .metaConnectButton{background:var(--brand);border-color:var(--brand)}
-.metaSetupScreen .metaConnectButton:hover{background:var(--brand-dark);border-color:var(--brand-dark)}
-.metaSetupScreen .metaConnectActions .secondaryAction{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));color:#eaf4ef}
-.metaSetupScreen .metaConnectActions .secondaryAction:hover{background:rgba(255,255,255,.08);border-color:var(--line-strong)}
+.metaSetupScreen .metaConnectButton{background:var(--cta);border-color:var(--cta);color:#fff}
+.metaSetupScreen .metaConnectButton:hover{background:var(--cta-hover);border-color:var(--cta-hover)}
+.metaSetupScreen .metaConnectActions .secondaryAction{border-color:var(--line-strong);color:var(--ink-soft);background:var(--surface)}
+.metaSetupScreen .metaConnectActions .secondaryAction:hover{background:var(--brand-soft);border-color:color-mix(in srgb,var(--brand) 40%,var(--line));color:var(--brand-dark)}
 .operationsTabs{background:var(--soft)}
 .phoneAsset.selected{background:var(--brand-soft);border-color:var(--line-strong)}
 .assetIcon,.capabilityIcon{border-color:var(--line-strong)}

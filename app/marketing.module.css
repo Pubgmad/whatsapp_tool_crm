@@ -2,8 +2,8 @@
 
 .site{
   /* 60% slate · 30% deep blue · 10% electric orange CTA */
-  --mk-primary:var(--cta,#ff5a1f);
-  --mk-primary-dark:var(--cta-hover,#e04810);
+  --mk-primary:var(--cta,#2563eb);
+  --mk-primary-dark:var(--cta-hover,#1d4ed8);
   --mk-brand:var(--brand-muted,#1e40af);
   --mk-indigo:var(--indigo,#1e3a8a);
   --mk-accent:var(--accent,#0D9488);
