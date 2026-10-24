@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_commerce_store_orders_contact ON commerce_store_o
 CREATE INDEX IF NOT EXISTS idx_commerce_store_orders_phone ON commerce_store_orders(business_id, customer_phone)
   WHERE customer_phone <> '';
 
--- Merchant Razorpay → WhatsApp automation activity bindings (AiSensy-style event→campaign mapping)
+-- Merchant Razorpay → WhatsApp automation activity bindings (event→campaign mapping)
 CREATE TABLE IF NOT EXISTS merchant_payment_activities (
   id TEXT PRIMARY KEY,
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,

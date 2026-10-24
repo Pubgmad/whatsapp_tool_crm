@@ -240,7 +240,7 @@ Prioritized engineering backlog (not Meta App Review itself):
 
 ### P2 — Commercial / UX polish
 
-11. Super Admin publishes paid plan prices only after commercial approval (do not copy AiSensy rates).
+11. Super Admin publishes paid plan prices only after commercial approval.
 12. Billing UI: invoices history if/when Razorpay provides them; messaging-rate disclosure remains CMS-managed.
 13. CMS: ensure production CMS published after defaults upgrades (Reset → review → Publish).
 14. Mobile / a11y regression on Inbox, Workspace setup, Billing.

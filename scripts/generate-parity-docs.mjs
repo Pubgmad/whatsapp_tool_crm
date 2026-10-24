@@ -26,5 +26,5 @@ for (const item of PRODUCT_CAPABILITIES) {
 }
 
 lines.push('', 'Live Meta entitlement and provider acceptance are merged at runtime via `GET /api/super-admin/parity` and `GET /api/workspace/parity?` (tenant-scoped).', '');
-fs.writeFileSync(path.join(root, 'AISENSY_GAP_MATRIX.md'), lines.join('\n'));
-console.log('Wrote AISENSY_GAP_MATRIX.md');
+fs.writeFileSync(path.join(root, 'PRODUCT_CAPABILITY_MATRIX.md'), lines.join('\n'));
+console.log('Wrote PRODUCT_CAPABILITY_MATRIX.md');
