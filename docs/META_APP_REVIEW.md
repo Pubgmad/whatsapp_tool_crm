@@ -89,9 +89,15 @@ Sources checked 2026-10-23:
 | Coexistence | WhatsApp Embedded Signup coexistence config | Connect WhatsApp → Existing Business App number |
 | Calling | WhatsApp calling product plus TURN on the server | Calling section. Skip if TURN is not configured. |
 | Flows | WhatsApp Flows on the same WABA | Flows designer. Skip if no Flow is published. |
-| Conversions | Not requested by the default CTWA connect | Record only if the submission includes the conversions permission |
+| Conversions | `/app/conversions` uses a **pasted** dataset token today (`lib/whatsapp-conversions.js`); it does **not** request `whatsapp_business_manage_events` via OAuth. Demo the conversions UI only if that is what you submit; do not claim the Graph events permission unless OAuth grants it. |
 
-`business_management` is not requested. This app does not assign Business Manager assets.
+### Why `business_management` is not submitted for customer App Review
+
+Customer CTWA / ads OAuth lists assets with Graph `me/adaccounts` and `me/accounts` (see `lib/ads-meta-oauth.js`). WhatsApp onboarding uses Embedded Signup (`whatsapp_business_management` / `whatsapp_business_messaging`), not Business Manager assignment APIs.
+
+`ADS_CAPABILITY_GROUPS.business_assets` is marked `implemented: false` in `lib/ads-capabilities.js`, so the product cannot request that capability through Facebook Login.
+
+The only code path that mentions `business_management` is **platform** extended-credit visibility (`lib/whatsapp-billing-visibility.js`) against a **system-user** token (`META_SYSTEM_USER_ACCESS_TOKEN` + portfolio ID)—not the customer Continue-with-Facebook flow. Do not resubmit `business_management` for Video B unless you ship Business Manager asset-assignment UX that calls Business APIs and can demo them.
 
 A CTWA connect must succeed when lead permissions are absent. Lead sync then asks for a reconnect with lead access enabled.
 

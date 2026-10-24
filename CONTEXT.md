@@ -130,18 +130,24 @@ These typically need **App Review → Advanced Access** for production customers
 
 ### 4.3 Click-to-WhatsApp Ads (CTWA)
 
-OAuth scopes requested in `lib/ads-meta-oauth.js` (`ADS_REQUIRED_SCOPES`):
+Default OAuth (`ADS_DEFAULT_REQUESTED` = `ctwa` + `reporting` in `lib/ads-capabilities.js`):
 
 | Permission (scope) | Purpose |
 |---|---|
 | **`ads_management`** | Create/manage ad campaigns |
 | **`ads_read`** | Read campaign / insights |
-| **`pages_show_list`** | List Facebook Pages |
-| **`pages_read_engagement`** | Page engagement data |
-| **`pages_manage_metadata`** | Page metadata / subscriptions |
+| **`pages_show_list`** | List Facebook Pages (`me/accounts`) |
+| **`pages_read_engagement`** | Required by Meta for CTWA Page advertise flow |
 | **`pages_manage_ads`** | Ads linked to Pages |
+
+Optional (checkbox **Include lead-form retrieval**):
+
+| Permission (scope) | Purpose |
+|---|---|
 | **`leads_retrieval`** | Lead form lead sync |
-| **`business_management`** | Business / ad account asset access |
+| **`pages_manage_metadata`** | Subscribe Page to `leadgen` webhooks |
+
+**Not requested** for customer Facebook Login: `business_management` (capability `business_assets` is `implemented: false`). Asset listing uses `me/adaccounts` + `me/accounts`.
 
 Also required operationally:
 

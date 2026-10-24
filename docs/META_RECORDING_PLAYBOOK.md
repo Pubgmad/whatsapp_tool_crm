@@ -73,7 +73,7 @@ These must be correct on the VPS (`/var/www/whatsapp-crm/.env.local`). You do **
 | `APP_URL` | `https://crm.mathstrat-sites.com` |
 | `META_APP_ID` | `2166072280614956` |
 | `META_APP_SECRET` | Webhook signature, OAuth, Embedded Signup |
-| `META_EMBEDDED_SIGNUP_CONFIG_ID` | **Must** be a Facebook Login for Business config with login variation **WhatsApp Embedded Signup** (ES v4). Known-good: `2130231251032936` (**WhatsApp Embedded Signup-2**). Production was incorrectly serving `2332269433979889` (OAuth dialog “Sorry, something went wrong” after code extras were fixed). |
+| `META_EMBEDDED_SIGNUP_CONFIG_ID` | **Must** be a Facebook Login for Business config with login variation **WhatsApp Embedded Signup** (ES v4). **Current production:** `1899877067645546` (verified live 2026-10-24). Older: `2130231251032936` (**WhatsApp Embedded Signup-2**). Do not use `2332269433979889`. |
 | `META_WEBHOOK_VERIFY_TOKEN` | WhatsApp webhook verification |
 | `ENCRYPTION_KEY`, `DATABASE_URL`, `AUTH_SECRET` | App runtime |
 | `REVIEWER_EMAIL` / `REVIEWER_PASSWORD` | `metareview@gmail.com` / `r_n@99balA` — after change run `npm run reviewer:init` |
@@ -87,7 +87,7 @@ Code on `main` already sends ES **v4** extras (`{}` / coexistence `featureType` 
    ```bash
    grep META_EMBEDDED_SIGNUP_CONFIG_ID /var/www/whatsapp-crm/.env.local
    # Set to the WhatsApp Embedded Signup configuration (not ads / regular login):
-   # META_EMBEDDED_SIGNUP_CONFIG_ID=2130231251032936
+   # META_EMBEDDED_SIGNUP_CONFIG_ID=1899877067645546
    pm2 restart whatsapp-crm whatsapp-crm-worker
    ```
 2. **Meta App Dashboard** → app `2166072280614956` → **Facebook Login for Business** → **Configurations**: open the ID used above and confirm login variation = **WhatsApp Embedded Signup** (products include WhatsApp Cloud API).
@@ -208,9 +208,9 @@ Code on `main` already sends ES **v4** extras (`{}` / coexistence `featureType` 
 
 ### Video D — Conversions / events (optional)
 
-**Unlocks:** `whatsapp_business_manage_events`
+**Product note (code):** Conversions is configured with a **manual access token** on `/app/conversions`. The CRM does **not** currently OAuth-request `whatsapp_business_manage_events`. Only submit that Graph permission if you add Login that requests it; otherwise demo the conversions feature without claiming that scope, or skip Video D.
 
-**Before recording:** Add permission in Meta; configure dataset in Events Manager; conversation with CTWA referral metadata if your flow requires it.
+**Before recording:** Dataset in Events Manager; conversation with CTWA referral metadata; token that can POST `{dataset_id}/events`.
 
 | Step | Login / place | Action | Must show on screen |
 |------|---------------|--------|---------------------|

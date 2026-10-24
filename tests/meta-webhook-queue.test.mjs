@@ -8,6 +8,46 @@ test('Meta queue rejects malformed webhook envelopes before database access', as
   const resolve = async () => ({ id: 'unused' });
   await assert.rejects(enqueueMetaWebhookChanges({}, resolve), { code: 'META_WEBHOOK_INVALID' });
   await assert.rejects(enqueueMetaWebhookChanges({ object: 'whatsapp_business_account', entry: [{ id: '1', changes: [{ field: '', value: {} }] }] }, resolve), { code: 'META_WEBHOOK_INVALID' });
+  await assert.rejects(enqueueMetaWebhookChanges({ object: 'user', entry: [] }, resolve), { code: 'META_WEBHOOK_INVALID' });
+});
+
+test('Page leadgen webhooks are accepted and resolve via ads Page connection', { skip: !process.env.TEST_DATABASE_URL }, async () => {
+  process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+  enterSystemContext();
+  const businessId = `meta_lead_b_${crypto.randomBytes(8).toString('hex')}`;
+  const pageId = String(Math.floor(1e12 + Math.random() * 9e12));
+  const payload = {
+    object: 'page',
+    entry: [{
+      id: pageId,
+      changes: [{ field: 'leadgen', value: { leadgen_id: 'lead_1', form_id: 'form_1', page_id: pageId } }]
+    }]
+  };
+  try {
+    await query('INSERT INTO businesses (id,name,slug) VALUES ($1,$1,$1)', [businessId]);
+    await query(
+      `INSERT INTO whatsapp_ads_connections (business_id,ad_account_id,page_id,phone_number_id,currency,access_token_encrypted,authorization_status)
+       VALUES ($1,'act_1',$2,'pn_1','USD','',$3)`,
+      [businessId, pageId, 'active']
+    );
+    const resolve = async () => ({ id: 'should-not-be-used-for-page' });
+    assert.equal(await enqueueMetaWebhookChanges(payload, resolve), 1);
+    assert.equal(await enqueueMetaWebhookChanges(payload, resolve), 1);
+    const row = (await query('SELECT business_id,waba_id,field FROM meta_webhook_queue WHERE business_id=$1', [businessId])).rows[0];
+    assert.equal(row.business_id, businessId);
+    assert.equal(row.waba_id, pageId);
+    assert.equal(row.field, 'leadgen');
+    // Non-leadgen page fields are ignored (not invalid)
+    assert.equal(await enqueueMetaWebhookChanges({
+      object: 'page',
+      entry: [{ id: pageId, changes: [{ field: 'feed', value: { item: 'status' } }] }]
+    }, resolve), 0);
+  } finally {
+    enterSystemContext();
+    await query('DELETE FROM meta_webhook_queue WHERE business_id=$1', [businessId]);
+    await query('DELETE FROM whatsapp_ads_connections WHERE business_id=$1', [businessId]);
+    await query('DELETE FROM businesses WHERE id=$1', [businessId]);
+  }
 });
 
 test('Meta events are acknowledged once, retried independently, and retain failed state', { skip: !process.env.TEST_DATABASE_URL }, async () => {
