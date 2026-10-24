@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertWorkspaceFeature, featureSettingKey, workspaceFeatureFlags, WORKSPACE_FEATURES, planAllowsFeature, resolveFeatureGate } from '../lib/feature-controls.js';
 
-function mockRun({ platformRows = [], overrides = {}, planFeatures = [], status = 'active' } = {}) {
+function mockRun({ platformRows = [], overrides = {}, planFeatures = [], status = 'active', reviewAccess = false } = {}) {
   return async (sql) => {
     if (sql.includes('business_subscriptions') || sql.includes('sp.features') || sql.includes('plan_features')) {
       return {
         rows: [{
+          review_access: reviewAccess,
           status,
           trial_ends_at: null,
           current_period_end: null,
@@ -89,6 +90,11 @@ test('plan entitlements further restrict platform-enabled features', async () =>
     assert.equal(expiredFlags.inbox, true);
     assert.equal(expiredFlags.calling, false);
     assert.equal(expiredFlags.campaigns, false);
+
+    const review = mockRun({ planFeatures: ['inbox'], reviewAccess: true });
+    const reviewFlags = await workspaceFeatureFlags('business-review', review);
+    assert.equal(reviewFlags.webviews, true);
+    assert.equal(reviewFlags.campaigns, true);
   } finally {
     if (previous === undefined) delete process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED;
     else process.env.SUBSCRIPTION_ENFORCEMENT_ENABLED = previous;

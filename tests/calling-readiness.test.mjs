@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { callingAccess, callingRelayReady, validateCallingPolicy } from '../lib/whatsapp-calling.js';
+import { callingAccess, callingPlatformCapability, callingRelayReady, callingWorkspaceBlockedReason, validateCallingPolicy } from '../lib/whatsapp-calling.js';
 
 test('calling policy validation rejects invalid roles and oversized agent lists', () => {
   assert.deepEqual(validateCallingPolicy({ roles: ['Owner', 'Agent'], agentIds: null }), { roles: ['Owner', 'Agent'], agentIds: null });
@@ -16,6 +16,34 @@ test('calling access combines platform and tenant policy', () => {
   assert.equal(deniedRole.canCall, false);
   const deniedMember = callingAccess({ role: 'Agent', userId: 'u2' }, { roles: ['Agent'] }, { roles: ['Agent'], agentIds: ['u1'] });
   assert.equal(deniedMember.canCall, false);
+});
+
+test('calling platform capability requires Meta enablement and TURN relay', () => {
+  const previousUrls = process.env.WHATSAPP_CALL_TURN_URLS;
+  const previousSecret = process.env.WHATSAPP_CALL_TURN_SECRET;
+  const phones = [{ metadata: { calling: { status: 'ENABLED' } } }];
+  try {
+    delete process.env.WHATSAPP_CALL_TURN_URLS;
+    delete process.env.WHATSAPP_CALL_TURN_SECRET;
+    assert.equal(callingPlatformCapability({ accountReady: true, accountPhones: phones }).status, 'setup');
+    assert.equal(callingPlatformCapability({ accountReady: true, accountPhones: phones }).diagnostics.reasonCode, 'CALL_RELAY_NOT_CONFIGURED');
+    process.env.WHATSAPP_CALL_TURN_URLS = 'turns:relay.example.com:5349';
+    process.env.WHATSAPP_CALL_TURN_SECRET = 'test-turn-secret';
+    assert.equal(callingPlatformCapability({ accountReady: true, accountPhones: phones }).status, 'available');
+    assert.equal(callingPlatformCapability({ accountReady: true, accountPhones: [] }).status, 'setup');
+  } finally {
+    if (previousUrls === undefined) delete process.env.WHATSAPP_CALL_TURN_URLS; else process.env.WHATSAPP_CALL_TURN_URLS = previousUrls;
+    if (previousSecret === undefined) delete process.env.WHATSAPP_CALL_TURN_SECRET; else process.env.WHATSAPP_CALL_TURN_SECRET = previousSecret;
+  }
+});
+
+test('calling workspace blocked reason surfaces Meta enablement after relay', () => {
+  const phones = [{ phone_number_id: 'pn1', calling: { status: 'DISABLED' } }];
+  assert.match(
+    callingWorkspaceBlockedReason({ phones, phoneId: 'pn1', relayConfigured: true, canCall: true }),
+    /Enable WhatsApp Calling/
+  );
+  assert.equal(callingWorkspaceBlockedReason({ phones: [{ phone_number_id: 'pn1', calling: { status: 'ENABLED' } }], phoneId: 'pn1', relayConfigured: true, canCall: true }), null);
 });
 
 test('calling relay readiness requires valid TURN URLs and secret', () => {

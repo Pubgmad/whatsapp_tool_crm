@@ -12,6 +12,92 @@ message history are paginated on the server. The dashboard uses aggregate querie
 of downloading complete tenant tables, and mutations return compact results before the
 visible section is refreshed.
 
+## MathStrat continuation (2026)
+
+Original build by Balaji; continued by **MathStrat** on branch **`feature/dev`** ([GitHub](https://github.com/Pubgmad/whatsapp_tool_crm.git)). Production CRM: **https://crm.mathstrat-sites.com** (Super Admin: `/super-admin`). Razorpay plan catalogue and list pricing were left unchanged per product agreement.
+
+### In-repo work on `feature/dev`
+
+| Area | Summary |
+|------|---------|
+| **DevEx** | Login `ThemeToggle` import; `db:seed` loads `.env.local` via `@next/env` |
+| **Campaigns** | Drip steps wait for Meta `delivered`/`read`; `campaigns.updated_at` ensured in `db:init` |
+| **Automation** | Simulate/runtime parity; Flow resume errors on `automation_sessions.last_error` |
+| **Inbox** | Media send via `/api/messages/reply-media` |
+| **Calling** | TURN env + readiness checks (`CONTEXT.md` §4.5) |
+| **Billing** | `GET /api/billing/invoices` + payment history UI |
+| **Coexistence** | Onboarding + history sync documented in runbook § P1-006 |
+| **QA** | E2E CI (`npm run test:e2e:ci`), integration suite (`npm run test:integration`), unit tests (`npm test`) |
+| **Ops docs** | `docs/PRODUCTION_RUNBOOK.md`, ticket index `dev-tickets/README.md` |
+
+Ticket status matrix: `dev-tickets/README.md`. Architecture and Meta scopes: `CONTEXT.md`.
+
+### Meta connect, review, and domain moves
+
+Click-to-WhatsApp connect requests `ads_management`, `pages_manage_ads`, `pages_read_engagement`, `pages_show_list`, and `ads_read` for reporting. Lead retrieval (`leads_retrieval`, `pages_manage_metadata`) is optional and is not required to connect or create a paused CTWA campaign. `business_management` is not requested.
+
+Embedded Signup waits for both the authorization code and the Meta completion event before it saves a number. If several WABAs or numbers are authorized and Meta does not identify the selection, the connect fails with a retry message instead of saving the first asset.
+
+Facebook Login for ads uses a single-use state bound to the owner, workspace, and browser session. Deauthorize clears the current WhatsApp or ads credential for that Meta user and keeps a revoked authorization row so a later data-deletion request can still find the workspace. Deletion removes credentials and Meta-sourced lead and insight payloads. It does not delete the whole company.
+
+Reviewer access is created with `npm run reviewer:init`. That account is email-verified and skips the CRM subscription. It does not skip Meta permissions or workspace roles. Recording steps: `docs/META_APP_REVIEW.md`. Hostname change: `docs/DOMAIN_MIGRATION.md`.
+
+Live readiness (`/api/workspace/live-readiness`) reports `ready`, `blocked`, `not_verified`, or `not_applicable`. A missing recent message does not fail a workspace that already recorded a signed webhook. Optional Flows do not block core WhatsApp readiness.
+
+### Production host (VPS)
+
+| Item | Value |
+|------|--------|
+| **Provider** | Hostinger KVM (Ubuntu 24.04, Kuala Lumpur) |
+| **App path** | `/var/www/whatsapp-crm` |
+| **Process user** | `deploy` — CRM PM2 apps run as this user (`sudo -u deploy pm2 list`) |
+| **PM2** | `whatsapp-crm` (web, port 3000) + **`whatsapp-crm-worker`** (required for healthy `/api/health`) |
+| **Env on server** | `.env.local` only (not committed); same keys as `.env.example` |
+| **Deployed git** | Track with `git log -1` on the host; set optional `GIT_SHA` in env for `/api/health` `release` |
+
+Operator checklist: `docs/PRODUCTION_RUNBOOK.md` (worker P0-001, deploy P0-002, MFA/RLS P0-003, Meta secret P0-004, TURN, OAuth, credentials OPS-001/002).
+
+**Typical deploy on the VPS** (as `deploy`, after SSH):
+
+```bash
+cd /var/www/whatsapp-crm
+git fetch origin && git checkout feature/dev && git pull origin feature/dev   # or main when merging
+npm ci
+npm run db:init          # uses DATABASE_MIGRATION_URL when set, else DATABASE_URL
+npm test                 # optional on host
+npm run build
+pm2 restart whatsapp-crm --update-env
+pm2 start ecosystem.config.cjs --only whatsapp-crm-worker   # if worker missing
+pm2 save
+curl -fsS https://crm.mathstrat-sites.com/api/health
+```
+
+### `/api/health` behavior (production)
+
+Returns **HTTP 200** and `"status":"ready"` only when PostgreSQL is up, schema checks pass, the DB role is not privileged (RLS posture), Meta webhook queue is healthy, campaign queue lag is OK, and the **queue worker** has completed a recent cycle **with no errors** recorded in `worker_heartbeats.last_cycle_errors`.
+
+Returns **HTTP 503** and `"status":"degraded"` when anything above fails. Common causes:
+
+| Symptom | Typical fix |
+|---------|-------------|
+| `"worker":"stale"` | Start worker: `pm2 start ecosystem.config.cjs --only whatsapp-crm-worker` (same `.env.local` as web) |
+| `"worker":"degraded"` + `workerFailures` | Inspect PM2 logs on web app; fix failing job (often DB grants via `npm run db:init`, or schema/code — see below) |
+| `databaseIsolation` not `ready` | Runtime `DATABASE_URL` must not be superuser / `BYPASSRLS`; migrations via `DATABASE_MIGRATION_URL` |
+
+**MathStrat production fix (Oct 2026, pre–`feature/dev` deploy):** health was degraded because the worker was not running and each job cycle failed on (1) missing `campaigns.updated_at` — fixed with `ALTER TABLE` / now in `db:init` — and (2) invalid CRM outbound SQL (`ORDER BY c.created_at` without selecting it) — fixed in `lib/crm-contact-export.js`. After worker + schema/SQL fixes, rebuild and restart both PM2 processes.
+
+### Verification before merge or deploy
+
+```bash
+npm test
+npm run test:integration    # separate Postgres DB; ~9 minutes
+npm run build && npm run test:e2e:ci
+```
+
+### Still outside this repository
+
+Meta App Review (CTWA live, P1-005), commercial sign-off to publish paid plans in Super Admin (P2-001), VPS secrets matrix, Google OAuth, TURN for calling, and optional full Playwright browser matrix — see runbook and `dev-tickets/`.
+
 ## Database Choice
 
 Use PostgreSQL for this product.
@@ -57,7 +143,7 @@ To send real WhatsApp messages, you need:
 - Webhook verify token matching `META_WEBHOOK_VERIFY_TOKEN`.
 - Message templates approved by Meta.
 
-Use a business-controlled number for production. Standard Cloud API onboarding may require moving a number off the WhatsApp Business app; eligible businesses can instead use Meta's separate Business App coexistence onboarding flow. This CRM does not yet implement coexistence onboarding or history synchronization.
+Use a business-controlled number for production. Standard Cloud API onboarding may require moving a number off the WhatsApp Business app. Eligible businesses can connect an **existing WhatsApp Business app number** via Meta Embedded Signup coexistence (**Meta Setup → Existing Business App number**). History and contact sync progress appear in the workspace coexistence panel; sync limits follow Meta's API (see `lib/coexistence.js` and `docs/PRODUCTION_RUNBOOK.md` § P1-006).
 
 ### Meta account lifecycle callbacks
 
@@ -303,13 +389,13 @@ The web process alone does not continuously process queued campaigns and automat
 
 The OpenAI support assistant requires server-only `OPENAI_API_KEY` and `OPENAI_MODEL`. A Super Admin can disable the feature globally or for a company; a company Owner must then add active knowledge and enable it in Team settings. Suggestions use recent conversation text and matching company knowledge, are requested only by a signed-in agent, and are never sent to WhatsApp automatically. Review your customer privacy notice and data-processing obligations before enabling this for live conversations. No provider key belongs in browser code or company settings.
 
-`GET /api/health` returns HTTP 200 only when PostgreSQL responds and a successful queue-worker cycle has been recorded recently. It returns HTTP 503 if the database is unavailable or the worker is stale. Run `npm run db:init` before restarting the worker to create the heartbeat and Meta deletion-review tables.
+`GET /api/health` returns HTTP 200 only when PostgreSQL responds, schema/RLS checks pass, and a recent queue-worker cycle completed with **empty** `last_cycle_errors` (not merely a heartbeat timestamp). It returns HTTP 503 if the database is unavailable, the worker is stale, or any isolated queue job failed on the last cycle. Run `npm run db:init` before restarting the worker to apply grants, `campaigns.updated_at`, and heartbeat tables.
 
 An interrupted send may have reached Meta even if its database result was not saved. Stale processing jobs are marked failed with an explicit *delivery unconfirmed* reason and are **not** automatically resent. Check Meta and the recipient before any manual retry. Provider rate-limit responses remain retryable.
 
 Authentication rate limits are shared through PostgreSQL and applied both per account and per client IP. On the VPS, keep the Next.js port private and configure Nginx to overwrite `X-Real-IP` with `$remote_addr` and `X-Forwarded-For` with `$remote_addr`; do not pass client-supplied forwarding headers through unchanged. Password reset revokes earlier company-user sessions. New production registrations require email verification even when `EMAIL_VERIFICATION_REQUIRED=false`; configure `RESEND_API_KEY`, `EMAIL_FROM`, and an HTTPS `APP_URL` or registration returns 503. Existing accounts are not retroactively locked out by this migration. Run `npm run db:init` before restarting the application after updating. Enable MFA for the Super Admin. Once the initial Super Admin account exists, remove `SUPER_ADMIN_PASSWORD` from the runtime environment; the database retains only its password hash.
 
-For each VPS deployment: pull the intended branch, run `npm ci`, `npm run db:init`, `npm test`, `npm run build`, then restart the web and worker PM2 processes. Back up PostgreSQL before schema changes. Test a Razorpay test-mode subscription checkout and its webhook before entering live keys. Do not commit `.env.local` or paste payment keys into commands, tickets, or logs.
+For each VPS deployment: pull the intended branch, run `npm ci`, `npm run db:init`, `npm test`, `npm run build`, then restart **both** `whatsapp-crm` and `whatsapp-crm-worker` under PM2 (often as the `deploy` user on MathStrat's host). Confirm `curl -fsS https://your-domain/api/health` returns 200. Back up PostgreSQL before schema changes. Test a Razorpay test-mode subscription checkout and its webhook before entering live keys. Do not commit `.env.local` or paste payment keys into commands, tickets, or logs.
 
 This migration requires every WhatsApp Business Account ID and Phone Number ID to belong to only one company. If `db:init` reports duplicate ownership, resolve the affected tenant connections before retrying; do not delete assets blindly. For database integration coverage, set `TEST_DATABASE_URL` to a **separate test database** initialized with `db:init` and run `npm test`. Never point integration tests at the live database.
 

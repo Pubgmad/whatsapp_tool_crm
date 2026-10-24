@@ -40,15 +40,13 @@ test('authenticated owner navigates core workspace on mobile viewport', async ({
   await expect(page.getByText('Unable to load this page')).toHaveCount(0);
   await page.goto('/app/inbox');
   await expect(page.getByText('Unable to load this page')).toHaveCount(0);
-  const nav = page.locator('.sideRail');
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  await nav.getByRole('button', { name: 'Audience', exact: true }).click();
+  const commNav = page.getByRole('navigation', { name: 'Communication sections' });
+  await commNav.getByRole('button', { name: 'Audience', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Audience' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  await nav.getByRole('button', { name: 'Broadcasting', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Broadcasts' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  await nav.getByRole('button', { name: 'Analytics', exact: true }).click();
+  const product = page.getByRole('combobox', { name: 'Switch product' });
+  await product.selectOption({ label: 'Automation' });
+  await expect(page.getByRole('heading', { name: 'Automation' })).toBeVisible();
+  await product.selectOption({ label: 'Analytics' });
   await expect(page.getByRole('heading', { name: 'Analytics' })).toBeVisible();
   await expect(page.getByText(/Campaign insights|delivery|retarget|Go-live/i)).toBeVisible();
   } finally {

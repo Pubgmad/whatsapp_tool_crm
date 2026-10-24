@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { resolveAutomationRoute } from '../lib/automation-ai-router.js';
+import { resolveAutomationRoute, resolveAutomationRouteDetailed } from '../lib/automation-ai-router.js';
 
 test('resolveAutomationRoute matches keywords and handoff intent', () => {
   const definition = {
@@ -23,4 +23,10 @@ test('resolveAutomationRoute matches keywords and handoff intent', () => {
   assert.equal(resolveAutomationRoute(definition, { text: 'What is your pricing?' }), 'sales');
   assert.equal(resolveAutomationRoute(definition, { text: 'I need a human agent' }), 'human');
   assert.equal(resolveAutomationRoute(definition, { text: 'hello' }), 'start');
+  const keyword = resolveAutomationRouteDetailed(definition, { text: 'pricing plan' }, 'router');
+  assert.equal(keyword.matched, true);
+  assert.equal(keyword.source, 'rule');
+  const fallback = resolveAutomationRouteDetailed(definition, { text: 'hello' }, 'router');
+  assert.equal(fallback.matched, false);
+  assert.equal(fallback.source, 'fallback');
 });

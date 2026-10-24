@@ -36,9 +36,16 @@ test("Meta deletion disconnects tokens and reuses a pending confirmation on retr
     const second = await handleMetaDataDeletion(request());
     assert.equal(second.status, 200);
     assert.equal((await second.json()).confirmation_code, confirmationCode);
-    const record = await client.query("SELECT status,businesses_affected FROM meta_data_deletion_requests WHERE confirmation_code=$1", [confirmationCode]);
-    assert.equal(record.rows[0].status, "pending");
+    const record = await client.query("SELECT status,businesses_affected,result_code,work_log FROM meta_data_deletion_requests WHERE confirmation_code=$1", [confirmationCode]);
+    assert.equal(record.rows[0].status, "completed");
+    assert.equal(record.rows[0].result_code, "deleted");
     assert.equal(record.rows[0].businesses_affected, 1);
+    assert.ok(Array.isArray(record.rows[0].work_log) && record.rows[0].work_log.length > 0);
+    const { getDeletionStatus } = await import("../lib/meta-data-controls.js");
+    const status = await getDeletionStatus(confirmationCode);
+    assert.equal(status.status, "completed");
+    assert.equal(status.business_id, undefined);
+    assert.equal(status.meta_user_id, undefined);
     const business = await client.query("SELECT access_token_encrypted FROM businesses WHERE id=$1", [businessId]);
     assert.equal(business.rows[0].access_token_encrypted, "");
     const accounts = await client.query("SELECT COUNT(*)::int AS total FROM whatsapp_accounts WHERE business_id=$1", [businessId]);

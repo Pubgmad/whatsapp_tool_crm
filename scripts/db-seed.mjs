@@ -1,6 +1,9 @@
 import crypto from "node:crypto";
 import process from "node:process";
+import nextEnv from "@next/env";
 import pg from "pg";
+
+nextEnv.loadEnvConfig(process.cwd());
 import { databaseSslConfig } from "../lib/db.js";
 
 const { Pool } = pg;

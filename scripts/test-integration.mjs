@@ -16,7 +16,17 @@ if (!process.env.TEST_DATABASE_ADMIN_URL && !["localhost", "127.0.0.1", "[::1]"]
 const databaseName = `wcrm_test_${crypto.randomBytes(8).toString("hex")}`;
 const testUrl = new URL(source);
 testUrl.pathname = `/${databaseName}`;
-const env = { ...process.env, DATABASE_URL: testUrl.toString(), DATABASE_MIGRATION_URL: testUrl.toString(), TEST_DATABASE_URL: testUrl.toString() };
+const integrationBase = process.env.APP_URL || "https://crm.example.test";
+const env = {
+  ...process.env,
+  DATABASE_URL: testUrl.toString(),
+  DATABASE_MIGRATION_URL: testUrl.toString(),
+  TEST_DATABASE_URL: testUrl.toString(),
+  APP_URL: integrationBase,
+  // Integration DB exercises product behavior, not Free Forever plan matrices.
+  SUBSCRIPTION_ENFORCEMENT_ENABLED: "false",
+  EMAIL_VERIFICATION_REQUIRED: "false"
+};
 const admin = new pg.Client({ connectionString: source, ssl: databaseSslConfig() });
 let created = false;
 
@@ -33,6 +43,23 @@ try {
   await admin.query(`CREATE DATABASE "${databaseName}"`);
   created = true;
   await run(["scripts/db-init.mjs"]);
+  const seed = new pg.Client({ connectionString: testUrl.toString(), ssl: databaseSslConfig() });
+  await seed.connect();
+  try {
+    await seed.query("SELECT set_config('app.system_access','true',false)");
+    await seed.query(
+      `UPDATE platform_settings SET value = 'true'::jsonb
+       WHERE key IN (
+         'feature_checkout_recovery_enabled',
+         'feature_webviews_enabled',
+         'feature_ai_agent_enabled',
+         'feature_ai_auto_reply_enabled',
+         'feature_connectors_enabled'
+       )`
+    );
+  } finally {
+    await seed.end();
+  }
   const requested = process.env.TEST_FILE;
   const tests = (await readdir("tests")).filter((name) => name.endsWith(".test.mjs") && (!requested || name === requested)).map((name) => `tests/${name}`);
   if (!tests.length) throw new Error('No matching integration test file.');

@@ -34,11 +34,13 @@ import AudienceBulkTagsPanel from './audience-bulk-tags-panel';
 import CampaignDripManager from './campaign-drip-manager';
 import InboxContact360 from './inbox-contact-360';
 import { summarizeAnalyticsPayload } from '../lib/whatsapp-analytics-summary.js';
+import { acceptEmbeddedSignupMessage, createSignupAttempt, reduceSignupAttempt, SIGNUP_WAIT_MS, signupSubmitPayload } from '../lib/embedded-signup-attempt.js';
 import { campaignSourceLabel } from '../lib/campaign-source-labels.js';
 import WhatsAppRetargetingPanel from './whatsapp-retargeting-panel';
 import ApprovedTemplatePicker from './approved-template-picker';
 import SearchableOptionPicker from './searchable-option-picker';
 import AiSupportSettings from './ai-support-settings';
+import ThemeToggle from './theme-toggle';
 import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation';
 import { DEFAULT_POST_AUTH_PATH, DEFAULT_WORKSPACE_PATH, safeAuthReturnPath, withAuthReturn } from '../lib/auth-return.js';
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../lib/password-policy.js';
@@ -494,7 +496,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const activeContact = activeConversation ? contacts.find((contact) => contact.id === activeConversation.contactId) || null : null;
   const latestCampaign = campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const screenProps = { state, mutate, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
+  const screenProps = { state, mutate, notify, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
 
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
@@ -855,12 +857,21 @@ function Billing({ state, role }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [confirmPlan, setConfirmPlan] = useState('');
+  const [invoices, setInvoices] = useState([]);
+  const [invoiceNote, setInvoiceNote] = useState('');
   useEffect(() => {
     api('/api/billing/plans').then((result) => {
       setPlans(result.plans || []);
       setBillingAvailable(Boolean(result.billingAvailable));
     }).catch((reason) => setError(reason.message));
   }, []);
+  useEffect(() => {
+    if (role !== 'Owner') return;
+    api('/api/billing/invoices').then((result) => {
+      setInvoices(result.invoices || []);
+      setInvoiceNote(result.message || '');
+    }).catch(() => {});
+  }, [role]);
   const openBilling = async (path, body = {}) => {
     try {
       setPending(true);
@@ -902,6 +913,10 @@ function Billing({ state, role }) {
       {!plans.length && <EmptyState text="No public subscription plans are available" />}
     </section>
     <Panel title="Included features" subtitle={plan.name || "Current plan"}><div className="readinessList">{planMarketingFeatures(plan.features).map((feature) => <div className="ready" key={feature}><span>{feature}</span><Badge kind="good">Included</Badge></div>)}{!planMarketingFeatures(plan.features).length && <EmptyState text="No plan features have been configured" />}</div></Panel>
+    {role === 'Owner' && <Panel title="Payment history" subtitle="Razorpay subscription invoices when billing is active">
+      {invoiceNote && <p className="pageIntro">{invoiceNote}</p>}
+      {invoices.length ? <div className="wa-module-table"><table><thead><tr><th>Invoice</th><th>Status</th><th>Amount</th><th>Paid</th></tr></thead><tbody>{invoices.map((row) => <tr key={row.id + (row.paidAt || '')}><td>{row.id || '—'}</td><td>{row.status}</td><td>{row.currency ? money(row.amountPaid, row.currency) : row.amountPaid}</td><td>{row.paidAt ? formatTime(row.paidAt) : '—'}</td></tr>)}</tbody></table></div> : <EmptyState text="No invoices yet — use Open Razorpay subscription after your first paid checkout." />}
+    </Panel>}
   </div>;
 }
 
@@ -936,9 +951,8 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   </div>;
 }
 
-function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
-  const signupData = useRef({});
-  const signupCompletion = useRef(null);
+function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
+  const signupAttempt = useRef(null);
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
   const [section, setSection] = useState(forcedSection || "connection");
@@ -952,64 +966,100 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
   const activePhone = operations.phoneNumbers.find((item) => item.isDefault) || operations.phoneNumbers[0];
   useEffect(() => {
     const listener = (event) => {
-      if (!/^https:\/\/([a-z0-9-]+\.)*facebook\.com$/i.test(event.origin)) return;
-      let payload = event.data;
-      if (typeof payload === "string") { try { payload = JSON.parse(payload); } catch { return; } }
-      if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
-      if (payload.event === 'FINISH' || payload.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
-        signupData.current = { ...(payload.data || {}), sessionEvent: payload.event };
-        setSignupError("");
-        signupCompletion.current?.();
-        return;
-      }
-      if (payload.event === "CANCEL" || payload.event === "ERROR") {
-        const detail = payload.data?.error_message || payload.data?.message || payload.data?.current_step || "Meta did not complete the WhatsApp connection.";
-        signupData.current = { error: String(detail) };
-        setSignupError(String(detail));
-        signupCompletion.current?.();
-      }
+      const current = signupAttempt.current;
+      if (!current?.listening || current.submitted) return;
+      const parsed = acceptEmbeddedSignupMessage(event.origin, event.data);
+      const next = reduceSignupAttempt(current, { type: 'message', parsed, generation: current.generation });
+      signupAttempt.current = next;
+      if (next.cancelled) setSignupError(next.error);
+      if (next.cancelled || next.completion) next.notify?.();
     };
     window.addEventListener("message", listener);
-    return () => window.removeEventListener("message", listener);
+    return () => {
+      window.removeEventListener("message", listener);
+      if (signupAttempt.current) signupAttempt.current.unmounted = true;
+    };
   }, []);
   const connectMeta = async (mode = 'standard') => {
+    if (signupAttempt.current?.listening && !signupAttempt.current.submitted) {
+      signupAttempt.current.listening = false;
+    }
+    const attempt = createSignupAttempt(mode);
+    signupAttempt.current = attempt;
     setConnecting(true);
     setSignupError("");
-    signupData.current = {};
     try {
       const config = await api(`/api/meta/embedded-signup/config?mode=${mode}`);
       const FB = await loadFacebookSdk(config.appId, config.graphVersion);
-      FB.login(metaSdkCallback(async (response) => {
-        const code = response?.authResponse?.code;
-        if (!code) {
-          const reason = response?.status === 'not_authorized' ? 'Meta did not authorize this app. Confirm the Embedded Signup configuration and app permissions.' : 'Meta sign-up was cancelled or did not return authorization. Confirm the configuration ID, app domain, and allowed OAuth domain in Meta.';
-          setSignupError(signupData.current.error || reason);
-          setConnecting(false);
-          return;
-        }
-        if (mode === 'coexistence' && !signupData.current.sessionEvent) {
-          await new Promise((resolve) => {
-            signupCompletion.current = resolve;
-            setTimeout(resolve, 15000);
-          });
-          signupCompletion.current = null;
-        }
-        if (mode === 'coexistence' && signupData.current.sessionEvent !== 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
-          setConnecting(false);
-          setSignupError(signupData.current.error || 'Meta did not complete Business App coexistence onboarding.');
-          return;
-        }
-        const completion = await postJson('/api/meta/embedded-signup/complete', { code, mode, sessionEvent: signupData.current.sessionEvent,
-          wabaId: signupData.current.waba_id, phoneNumberId: signupData.current.phone_number_id
+      signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'listen' });
+      const response = await new Promise((resolve, reject) => {
+        FB.login(metaSdkCallback(resolve, reject), {
+          config_id: config.configId,
+          response_type: 'code',
+          override_default_response_type: true,
+          extras: {
+            setup: {},
+            sessionInfoVersion: '3',
+            ...(config.flowVersion ? { version: config.flowVersion } : {}),
+            ...(mode === 'coexistence' ? { featureType: 'whatsapp_business_app_onboarding' } : {})
+          }
         });
-        await mutate(Promise.resolve(completion), 'WhatsApp Business connected');
+      });
+      if (signupAttempt.current?.unmounted || signupAttempt.current?.generation !== attempt.generation) return;
+      const code = response?.authResponse?.code || '';
+      signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'code', code });
+      if (!code) {
+        const reason = response?.status === 'not_authorized'
+          ? 'Meta did not authorize this app. Confirm the Embedded Signup configuration and app permissions.'
+          : 'Meta sign-up was cancelled or did not return authorization. Confirm the configuration ID, app domain, and allowed OAuth domain in Meta.';
+        setSignupError(signupAttempt.current.error || reason);
         setConnecting(false);
-      }, (error) => { setConnecting(false); setSignupError(error.message || 'Meta signup could not be completed.'); }), { config_id: config.configId, response_type: 'code', override_default_response_type: true,
-        extras: { setup: {}, sessionInfoVersion: '3', ...(mode === 'coexistence' ? { featureType: 'whatsapp_business_app_onboarding' } : {}) } });
-    } catch (error) { setConnecting(false); setSignupError(error.message || 'Meta signup could not be opened.'); }
+        return;
+      }
+      if (!signupSubmitPayload(signupAttempt.current)) {
+        await new Promise((resolve) => {
+          const timer = setTimeout(resolve, SIGNUP_WAIT_MS);
+          signupAttempt.current.notify = () => { clearTimeout(timer); resolve(); };
+        });
+        if (signupAttempt.current?.generation === attempt.generation) {
+          signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'timeout' });
+        }
+      }
+      const latest = signupAttempt.current;
+      if (!latest || latest.generation !== attempt.generation || latest.unmounted) return;
+      if (latest.cancelled || !signupSubmitPayload(latest)) {
+        setConnecting(false);
+        setSignupError(latest.error || 'Meta did not finish the WhatsApp connection. Start it again.');
+        return;
+      }
+      if (latest.submitted) return;
+      latest.submitted = true;
+      const completion = await postJson('/api/meta/embedded-signup/complete', signupSubmitPayload(latest));
+      await mutate(Promise.resolve(completion), 'WhatsApp Business connected');
+      setConnecting(false);
+    } catch (error) {
+      setConnecting(false);
+      setSignupError(error.message || 'Meta signup could not be completed.');
+    }
   };
   const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}), "Connection check complete");
-  const disconnect = () => mutate(postJson("/api/meta/connection/disconnect", {}), "WhatsApp Business disconnected");
+  const disconnectMessageForRemoteCleanup = (remoteCleanup) => {
+    if (remoteCleanup === "pending") {
+      return "Disconnected in this workspace. Meta remote cleanup is queued and will finish in the background.";
+    }
+    if (remoteCleanup === "unavailable") {
+      return "Disconnected locally. Remote Meta cleanup could not be queued—contact support if messaging still appears linked in Meta.";
+    }
+    return "WhatsApp Business disconnected";
+  };
+  const disconnect = async () => {
+    try {
+      const body = await postJson("/api/meta/connection/disconnect", {});
+      await mutate(Promise.resolve(body), disconnectMessageForRemoteCleanup(body?.remoteCleanup));
+    } catch (error) {
+      notify(error.message);
+    }
+  };
   const runOperation = (body, message) => mutate(postJson("/api/whatsapp/operations", body), message);
   const uploadMedia = (event) => {
     event.preventDefault();
@@ -1692,6 +1742,8 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const [suggestionError, setSuggestionError] = useState('');
   const [suggestionContext, setSuggestionContext] = useState(null);
   const [sendingConversationId, setSendingConversationId] = useState(null);
+  const [pendingMedia, setPendingMedia] = useState(null);
+  const mediaInputRef = useRef(null);
   const [aiAvailable, setAiAvailable] = useState(false);
   const suggestionRevision = useRef(0);
   const sendingReply = useRef(false);
@@ -1746,17 +1798,29 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const reply = async (event) => {
     event.preventDefault();
     const body = replyDraft.trim();
-    if (!conversationId || !activeContact || !body || sendingReply.current || staleSuggestion) return;
+    const mediaFile = pendingMedia;
+    if (!conversationId || !activeContact || (!body && !mediaFile) || sendingReply.current || staleSuggestion) return;
     const contactId = activeContact.id;
     const sentDraft = replyDraft;
     sendingReply.current = true;
     setSendingConversationId(conversationId);
     try {
-      await mutate(postJson('/api/messages/reply', { contactId, body }).then(result => {
+      const afterSend = (result) => {
         setReplyDrafts(current => clearSentConversationDraft(current, conversationId, sentDraft));
         setSuggestionContext(current => current?.conversationId === conversationId && current.draft === sentDraft ? null : current);
+        setPendingMedia(null);
+        if (mediaInputRef.current) mediaInputRef.current.value = '';
         return result;
-      }), 'Message sent');
+      };
+      if (mediaFile) {
+        const form = new FormData();
+        form.set('contactId', contactId);
+        form.set('file', mediaFile);
+        if (body) form.set('caption', body);
+        await mutate(uploadForm('/api/messages/reply-media', form).then(afterSend), 'Media sent');
+      } else {
+        await mutate(postJson('/api/messages/reply', { contactId, body }).then(afterSend), 'Message sent');
+      }
     } finally {
       sendingReply.current = false;
       setSendingConversationId(null);
@@ -1804,7 +1868,13 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
       <div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div>
       <div className="messages">{(activeConversation.messages || []).map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>
       {activeConversation.status !== "closed" && activeConversation.canReply && <div className="aiReplyComposer">
-        <form className="composer" onSubmit={reply}><textarea name="body" value={replyDraft} onChange={event => editReplyDraft(event.target.value)} placeholder="Write a WhatsApp reply" required /><button className="primaryAction" disabled={sendingConversationId !== null || staleSuggestion}><Send size={18} /> {sendingConversationId === conversationId ? "Sending" : "Send"}</button></form>
+        <form className="composer" onSubmit={reply}>
+          <input ref={mediaInputRef} type="file" hidden accept="image/jpeg,image/png,video/mp4,video/3gpp,audio/*,application/pdf,text/plain" onChange={(event) => setPendingMedia(event.target.files?.[0] || null)} />
+          <button className="iconButton" type="button" title="Attach image, video, audio, or document" onClick={() => mediaInputRef.current?.click()} disabled={sendingConversationId !== null}><Paperclip size={18} /></button>
+          {pendingMedia && <span className="composerAttachment">{pendingMedia.name} <button type="button" className="iconButton" title="Remove attachment" onClick={() => { setPendingMedia(null); if (mediaInputRef.current) mediaInputRef.current.value = ''; }}><X size={14} /></button></span>}
+          <textarea name="body" value={replyDraft} onChange={event => editReplyDraft(event.target.value)} placeholder={pendingMedia ? 'Optional caption' : 'Write a WhatsApp reply'} required={!pendingMedia} />
+          <button className="primaryAction" type="submit" disabled={sendingConversationId !== null || staleSuggestion || (!replyDraft.trim() && !pendingMedia)}><Send size={18} /> {sendingConversationId === conversationId ? "Sending" : "Send"}</button>
+        </form>
         {staleSuggestion && <small className="errorLine" role="alert">A new message arrived. Review and edit this suggestion before sending.</small>}
         {aiAvailable && <button className="secondaryAction" type="button" onClick={suggestReply} disabled={suggesting}><Bot size={16} /> {suggesting ? "Preparing suggestion" : "Suggest reply"}</button>}
         {suggestionError && <small className="errorLine" role="alert">{suggestionError}</small>}
