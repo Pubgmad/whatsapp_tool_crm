@@ -18,6 +18,20 @@ test('signed Ads OAuth state round-trips without database', () => {
     assert.equal(oauthCompletionAllowed({ user_id: 'user_456', business_id: 'biz_123', session_version: 4 }, { userId: 'user_456', businessId: 'biz_123', sessionVersion: 4 }).ok, true);
     assert.equal(oauthCompletionAllowed({ user_id: 'user_456', business_id: 'biz_123', session_version: 4 }, { userId: 'other', businessId: 'biz_123', sessionVersion: 4 }).code, 'META_OAUTH_SESSION');
     assert.equal(oauthCompletionAllowed({ user_id: 'user_456', business_id: 'biz_123', session_version: 4 }, { userId: 'user_456', businessId: 'other', sessionVersion: 4 }).code, 'META_OAUTH_TENANT');
+    assert.equal(
+      oauthCompletionAllowed(
+        { user_id: 'user_456', business_id: 'biz_123', session_version: 4, login_session_id: 'browser-a' },
+        { userId: 'user_456', businessId: 'biz_123', sessionVersion: 4, loginSessionId: 'browser-b' }
+      ).ok,
+      false
+    );
+    assert.equal(
+      oauthCompletionAllowed(
+        { user_id: 'user_456', business_id: 'biz_123', session_version: 4, login_session_id: 'browser-a' },
+        { userId: 'user_456', businessId: 'biz_123', sessionVersion: 4, loginSessionId: 'browser-a' }
+      ).ok,
+      true
+    );
   } finally {
     if (previous === undefined) delete process.env.AUTH_SECRET;
     else process.env.AUTH_SECRET = previous;

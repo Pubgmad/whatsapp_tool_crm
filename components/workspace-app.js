@@ -496,7 +496,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const activeContact = activeConversation ? contacts.find((contact) => contact.id === activeConversation.contactId) || null : null;
   const latestCampaign = campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const screenProps = { state, mutate, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
+  const screenProps = { state, mutate, notify, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
 
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
@@ -951,7 +951,7 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   </div>;
 }
 
-function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
+function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
   const signupAttempt = useRef(null);
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
@@ -1043,7 +1043,23 @@ function Setup({ state, mutate, forcedSection = null, hideSectionTabs = false, o
     }
   };
   const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}), "Connection check complete");
-  const disconnect = () => mutate(postJson("/api/meta/connection/disconnect", {}), "WhatsApp Business disconnected");
+  const disconnectMessageForRemoteCleanup = (remoteCleanup) => {
+    if (remoteCleanup === "pending") {
+      return "Disconnected in this workspace. Meta remote cleanup is queued and will finish in the background.";
+    }
+    if (remoteCleanup === "unavailable") {
+      return "Disconnected locally. Remote Meta cleanup could not be queued—contact support if messaging still appears linked in Meta.";
+    }
+    return "WhatsApp Business disconnected";
+  };
+  const disconnect = async () => {
+    try {
+      const body = await postJson("/api/meta/connection/disconnect", {});
+      await mutate(Promise.resolve(body), disconnectMessageForRemoteCleanup(body?.remoteCleanup));
+    } catch (error) {
+      notify(error.message);
+    }
+  };
   const runOperation = (body, message) => mutate(postJson("/api/whatsapp/operations", body), message);
   const uploadMedia = (event) => {
     event.preventDefault();

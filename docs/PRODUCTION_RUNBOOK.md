@@ -81,6 +81,19 @@ Meta, Razorpay, email (`RESEND_*`), OpenAI, TURN, Google login/calendar, Shopify
 
 ---
 
+## Meta integration defects release — forward-only migration
+
+This release adds `db/meta-integration-defects.sql` (remote cleanup jobs, ads OAuth `login_session_id`, lead provenance columns, deletion cycle metadata). **Treat deployment as forward-only.**
+
+1. **Order of operations:** On the target database, run `npm run db:init` with `DATABASE_MIGRATION_URL` (or apply `db/meta-integration-defects.sql` once) **before** starting new web **and** worker processes. Do not start new app binaries against an unmigrated schema.
+2. **No application rollback after migration:** Older builds ignore `meta_remote_cleanup_jobs`, may mishandle disconnect without remote cleanup, and do not bind ads OAuth to the browser session. Reverting the app while the schema is migrated is unsupported.
+3. **Recovery:** Fix-forward only—deploy a corrected newer release, drain or complete `meta_remote_cleanup_jobs`, replay Meta deletion callbacks if needed, and use Super Admin → **Deletion review** for `partial_legacy` outcomes.
+4. **Validation:** Optional throwaway check: `node scripts/migration-matrix.mjs` against local Postgres (creates and drops `wcrm_mig_*`).
+
+See also `docs/META_APP_REVIEW.md` (rollback note).
+
+---
+
 ## P1-004 — Calling TURN
 
 See **TURN env** section above + `CONTEXT.md` §4.5.

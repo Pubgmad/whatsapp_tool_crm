@@ -92,3 +92,11 @@ Sources checked 2026-10-23:
 `business_management` is not requested. This app does not assign Business Manager assets.
 
 A CTWA connect must succeed when lead permissions are absent. Lead sync then asks for a reconnect with lead access enabled.
+
+## Data deletion and backups
+
+Meta user data deletion callbacks remove Meta-sourced lead payloads and copies stored on contacts, events, and audit logs for the requesting principal. Deletion runs in cycles: reconnecting and collecting new data requires a new deletion pass; duplicate callbacks in the same cycle return the same confirmation code.
+
+Database backups can reintroduce rows that were already deleted. After restoring a backup, replay Meta deletion callbacks or use the super-admin deletion queue to resume incomplete work before telling a user erasure is complete.
+
+**Rollback:** After `db/meta-integration-defects.sql` is applied in production, do not roll back the application binary. Migrate the database first, then run only the new (or newer fix-forward) web and worker builds. Details: `docs/PRODUCTION_RUNBOOK.md` → *Meta integration defects release — forward-only migration*.

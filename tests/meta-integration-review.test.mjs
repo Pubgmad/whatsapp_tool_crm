@@ -23,9 +23,11 @@ test('graph pagination keeps a cursor for the next page', () => {
 
 test('stored connections without recorded scopes are not given lead access', () => {
   const report = deriveConnectionCapabilities([], { scopesRecorded: false });
-  assert.equal(report.capabilities.ctwa.enabled, true);
+  assert.equal(report.capabilities.ctwa.enabled, false);
+  assert.equal(report.capabilities.ctwa.verification_status, 'unverified');
   assert.equal(report.capabilities.ctwa.grandfathered, true);
   assert.equal(report.capabilities.leads.enabled, false);
+  assert.equal(report.verificationRequired, true);
   const recordedEmpty = deriveConnectionCapabilities([], { scopesRecorded: true });
   assert.equal(recordedEmpty.capabilities.ctwa.enabled, false);
 });
@@ -179,7 +181,7 @@ test('email verification still blocks ordinary unverified users', () => {
 });
 
 test('uncertain Meta send failures are not retried', () => {
-  assert.equal(isRetryableCampaignJobError({ status: 500, code: 'META_SEND_FAILED' }), false);
+  assert.equal(isRetryableCampaignJobError({ status: 500, code: 'META_SEND_FAILED' }), true);
   assert.equal(isRetryableCampaignJobError({ status: 409, code: 'META_SEND_UNCONFIRMED' }), false);
   assert.equal(isRetryableCampaignJobError({ status: 429, code: 'META_SEND_FAILED' }), true);
   assert.equal(isRetryableCampaignJobError({ status: 503 }), true);

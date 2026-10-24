@@ -208,6 +208,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/commerce-payments-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ads-growth-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/meta-review-hardening.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/meta-integration-defects.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ad-credits.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/external-availability.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/crm-connectors.sql', import.meta.url), 'utf8'));
@@ -326,6 +327,7 @@ try {
     "INSERT INTO privacy_policy_drafts (id,document) SELECT 'current',document FROM privacy_policy_versions ORDER BY version DESC LIMIT 1 ON CONFLICT (id) DO NOTHING"
   );
   await seedSubscriptionPlans(client);
+  await client.query(await fs.readFile(new URL('../db/publish-paid-plans.sql', import.meta.url), 'utf8'));
   await backfillSubscriptions(client);
   await seedSuperAdmin(client);
   await client.query("COMMIT");

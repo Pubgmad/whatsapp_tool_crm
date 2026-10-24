@@ -33,16 +33,19 @@ export default async function DataDeletionStatusPage({ searchParams }) {
         <section>
           {record ? (
             <div className="deletionStatusDetails">
-              <span className={`badge ${record.status === "completed" ? "good" : "warn"}`}>{record.status}</span>
+              <span className={`badge ${record.status === "completed" && record.result_code !== "partial_legacy" ? "good" : "warn"}`}>{record.status}</span>
               <dl>
                 <div><dt>Confirmation code</dt><dd>{record.confirmation_code}</dd></div>
                 <div><dt>Requested</dt><dd>{displayDate(record.requested_at)}</dd></div>
                 <div><dt>Completed</dt><dd>{displayDate(record.completed_at)}</dd></div>
+                {record.result_code && <div><dt>Outcome</dt><dd>{record.result_code}</dd></div>}
               </dl>
               <p>{record.status === "completed"
                 ? (record.result_code === "no_linked_data"
                   ? "No Meta-linked data was found for this confirmation code."
-                  : "Meta-linked credentials and Meta-sourced records for the authorization were deleted or anonymized. Other company records follow the privacy policy.")
+                  : record.result_code === "partial_legacy"
+                    ? "Deletion finished for verified Meta-linked records. Some older lead data could not be matched to a Meta principal safely and may still need operator review. Contact support with this confirmation code only."
+                    : "Meta-linked credentials and Meta-sourced records for the authorization were deleted or anonymized. Other company records follow the privacy policy.")
                 : record.status === "failed"
                   ? "Deletion did not finish. It can be retried. Contact the platform operator and include only this confirmation code."
                   : "Deletion is in progress. This page does not list workspaces, Meta user ids, or deleted content."}</p>
