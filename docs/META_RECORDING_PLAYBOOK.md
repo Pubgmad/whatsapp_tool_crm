@@ -73,7 +73,7 @@ These must be correct on the VPS (`/var/www/whatsapp-crm/.env.local`). You do **
 | `APP_URL` | `https://crm.mathstrat-sites.com` |
 | `META_APP_ID` | `2166072280614956` |
 | `META_APP_SECRET` | Webhook signature, OAuth, Embedded Signup |
-| `META_EMBEDDED_SIGNUP_CONFIG_ID` | `2130231251032936` (config **WhatsApp Embedded Signup-2**, ES v4) |
+| `META_EMBEDDED_SIGNUP_CONFIG_ID` | Production currently serves `2332269433979889` (verify in Meta → Facebook Login for Business → Configurations that this is a **WhatsApp Embedded Signup** / ES **v4** config). Alternate documented config: `2130231251032936` (**WhatsApp Embedded Signup-2**). Do not send retired `extras.sessionInfoVersion` / `v2`/`v3` `extras.version` after 2026-10-15. |
 | `META_WEBHOOK_VERIFY_TOKEN` | WhatsApp webhook verification |
 | `ENCRYPTION_KEY`, `DATABASE_URL`, `AUTH_SECRET` | App runtime |
 | `REVIEWER_EMAIL` / `REVIEWER_PASSWORD` | `metareview@gmail.com` / `r_n@99balA` — after change run `npm run reviewer:init` |

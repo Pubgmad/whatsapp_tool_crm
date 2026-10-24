@@ -4,7 +4,9 @@ import { nextGraphPath } from '../lib/ads-capabilities.js';
 import { deriveConnectionCapabilities } from '../lib/ads-capabilities.js';
 import {
   acceptEmbeddedSignupMessage,
+  buildEmbeddedSignupLoginOptions,
   createSignupAttempt,
+  describeEmbeddedSignupFailure,
   reduceSignupAttempt,
   signupSubmitPayload
 } from '../lib/embedded-signup-attempt.js';
@@ -30,6 +32,37 @@ test('stored connections without recorded scopes are not given lead access', () 
   assert.equal(report.verificationRequired, true);
   const recordedEmpty = deriveConnectionCapabilities([], { scopesRecorded: true });
   assert.equal(recordedEmpty.capabilities.ctwa.enabled, false);
+});
+
+test('embedded signup v4 login options omit retired extras', () => {
+  const standard = buildEmbeddedSignupLoginOptions({ configId: '2130231251032936', mode: 'standard' });
+  assert.equal(standard.config_id, '2130231251032936');
+  assert.equal(standard.response_type, 'code');
+  assert.equal(standard.override_default_response_type, true);
+  assert.deepEqual(standard.extras, { setup: {} });
+  assert.equal(Object.hasOwn(standard.extras, 'sessionInfoVersion'), false);
+  assert.equal(Object.hasOwn(standard.extras, 'version'), false);
+
+  const coexistence = buildEmbeddedSignupLoginOptions({ configId: '2130231251032936', mode: 'coexistence' });
+  assert.deepEqual(coexistence.extras, {
+    setup: {},
+    featureType: 'whatsapp_business_app_onboarding'
+  });
+
+  const preview = buildEmbeddedSignupLoginOptions({
+    configId: '2130231251032936',
+    mode: 'standard',
+    flowVersion: 'v4-public-preview'
+  });
+  assert.equal(preview.extras.version, 'v4-public-preview');
+
+  const ignoredRetired = buildEmbeddedSignupLoginOptions({
+    configId: '2130231251032936',
+    flowVersion: 'v3'
+  });
+  assert.equal(Object.hasOwn(ignoredRetired.extras, 'version'), false);
+  assert.throws(() => buildEmbeddedSignupLoginOptions({ configId: '' }), /configuration ID/);
+  assert.match(describeEmbeddedSignupFailure({ status: 'unknown' }), /Allowed Domains/);
 });
 
 test('embedded signup accepts either arrival order once', () => {

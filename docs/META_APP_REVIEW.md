@@ -45,7 +45,7 @@ Recording:
 4. Send that template to the consented test recipient.
 5. Show the webhook status or reply in the inbox.
 
-`sessionInfoVersion` `3` is the browser event shape (it carries `waba_id` and `phone_number_id`). The Embedded Signup flow version is the configuration in Meta, optionally `META_EMBEDDED_SIGNUP_FLOW_VERSION`. They are not the same setting.
+Embedded Signup **v4** is selected by the Facebook Login for Business configuration ID (`META_EMBEDDED_SIGNUP_CONFIG_ID`). Do not send `extras.sessionInfoVersion` or retired `extras.version` values (`v2` / `v3`) — Meta retired those flows on 2026-10-15. Session `WA_EMBEDDED_SIGNUP` postMessages still include `waba_id` and `phone_number_id` automatically on v4.
 
 ## Click-to-WhatsApp
 

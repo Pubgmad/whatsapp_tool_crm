@@ -34,7 +34,7 @@ import AudienceBulkTagsPanel from './audience-bulk-tags-panel';
 import CampaignDripManager from './campaign-drip-manager';
 import InboxContact360 from './inbox-contact-360';
 import { summarizeAnalyticsPayload } from '../lib/whatsapp-analytics-summary.js';
-import { acceptEmbeddedSignupMessage, createSignupAttempt, reduceSignupAttempt, SIGNUP_WAIT_MS, signupSubmitPayload } from '../lib/embedded-signup-attempt.js';
+import { acceptEmbeddedSignupMessage, buildEmbeddedSignupLoginOptions, createSignupAttempt, describeEmbeddedSignupFailure, reduceSignupAttempt, SIGNUP_WAIT_MS, signupSubmitPayload } from '../lib/embedded-signup-attempt.js';
 import { campaignSourceLabel } from '../lib/campaign-source-labels.js';
 import WhatsAppRetargetingPanel from './whatsapp-retargeting-panel';
 import ApprovedTemplatePicker from './approved-template-picker';
@@ -992,27 +992,19 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
       const config = await api(`/api/meta/embedded-signup/config?mode=${mode}`);
       const FB = await loadFacebookSdk(config.appId, config.graphVersion);
       signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'listen' });
+      const loginOptions = buildEmbeddedSignupLoginOptions({
+        configId: config.configId,
+        mode,
+        flowVersion: config.flowVersion
+      });
       const response = await new Promise((resolve, reject) => {
-        FB.login(metaSdkCallback(resolve, reject), {
-          config_id: config.configId,
-          response_type: 'code',
-          override_default_response_type: true,
-          extras: {
-            setup: {},
-            sessionInfoVersion: '3',
-            ...(config.flowVersion ? { version: config.flowVersion } : {}),
-            ...(mode === 'coexistence' ? { featureType: 'whatsapp_business_app_onboarding' } : {})
-          }
-        });
+        FB.login(metaSdkCallback(resolve, reject), loginOptions);
       });
       if (signupAttempt.current?.unmounted || signupAttempt.current?.generation !== attempt.generation) return;
       const code = response?.authResponse?.code || '';
       signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'code', code });
       if (!code) {
-        const reason = response?.status === 'not_authorized'
-          ? 'Meta did not authorize this app. Confirm the Embedded Signup configuration and app permissions.'
-          : 'Meta sign-up was cancelled or did not return authorization. Confirm the configuration ID, app domain, and allowed OAuth domain in Meta.';
-        setSignupError(signupAttempt.current.error || reason);
+        setSignupError(describeEmbeddedSignupFailure(response, signupAttempt.current.error));
         setConnecting(false);
         return;
       }
