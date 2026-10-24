@@ -1,7 +1,5 @@
 # Meta App Review demonstration
 
-**Step-by-step recordings (beginner checklist):** [META_RECORDING_PLAYBOOK.md](./META_RECORDING_PLAYBOOK.md) — includes live dashboard status for app **crm** (`2166072280614956`) and which videos to submit.
-
 This guide maps permissions this product actually requests to a recording path. It does not grant Meta approval. App Review, business verification, and Advanced Access are completed in the Meta dashboard. Do not invent metrics, message ids, or ad ids for a recording.
 
 Payment split:
