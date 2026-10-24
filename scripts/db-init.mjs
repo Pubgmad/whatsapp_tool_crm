@@ -7,6 +7,7 @@ import { seedPlatformSettings } from "../lib/platform.js";
 import { DEFAULT_PRIVACY_POLICY } from "../lib/privacy-policy.js";
 import { databaseSslConfig } from "../lib/db.js";
 import { builtInSubscriptionPlans, DEFAULT_FREE_PLAN_CODE, ensureDefaultSubscriptionPlans } from "../lib/default-plans.js";
+import { persistSanitizedPublicSiteDocuments } from "../lib/customer-facing-copy.js";
 
 const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd());
@@ -330,6 +331,13 @@ try {
   await client.query(await fs.readFile(new URL('../db/publish-paid-plans.sql', import.meta.url), 'utf8'));
   await backfillSubscriptions(client);
   await seedSuperAdmin(client);
+  // Persist known customer-facing jargon scrub into draft + published CMS (no overwrite of unrelated edits).
+  const cmsSanitize = await persistSanitizedPublicSiteDocuments(client);
+  if (cmsSanitize.updated) {
+    console.log(
+      `Public site CMS sanitized (draft=${cmsSanitize.draftChanged}, published=${cmsSanitize.publishedChanged}).`
+    );
+  }
   await client.query("COMMIT");
   console.log("Database schema is ready.");
 } catch (error) {

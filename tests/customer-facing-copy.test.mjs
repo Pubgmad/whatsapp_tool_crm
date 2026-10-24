@@ -32,3 +32,12 @@ test('scrubs Super Admin phrases nested in documents', () => {
   assert.match(doc.pages[0].sections[0].blocks[0].text, /platform settings/i);
   assert.ok(!/Super Admin/i.test(JSON.stringify(doc)));
 });
+
+test('sanitize is idempotent for already-clean documents', () => {
+  const clean = {
+    pages: [{ hero: { subtitle: HOME_HERO_SUBTITLE, title: 'Broadcast, automate, and support on WhatsApp' } }]
+  };
+  const once = sanitizeCustomerFacingDocument(clean);
+  const twice = sanitizeCustomerFacingDocument(once);
+  assert.deepEqual(once, twice);
+});

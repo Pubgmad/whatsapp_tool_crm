@@ -1117,7 +1117,7 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
         <Panel title="Connection health" subtitle="Status for this workspace">
           <div className="connectionSummary">
             <div><span>Connection</span><Badge kind={(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}>{state.setup?.status || "Not connected"}</Badge></div>
-            <div><span>Onboarding</span><strong>{setup.onboardingMethod === 'coexistence' ? 'Business App coexistence' : setup.onboardingMethod === 'embedded_signup' ? 'Embedded Signup' : 'Manual'}</strong></div>
+            <div><span>Onboarding</span><strong>{setup.onboardingMethod === 'coexistence' ? 'Existing Business App number' : setup.onboardingMethod === 'embedded_signup' ? 'Meta Cloud API signup' : 'Manual'}</strong></div>
             <div><span>Events</span><Badge kind={setup.webhookSubscribed ? "good" : "warn"}>{setup.webhookSubscribed ? "Receiving" : "Not verified"}</Badge></div>
             <div><span>Business number</span><strong>{setup.whatsappNumber || "Not connected"}</strong></div>
             <div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div>
@@ -1902,7 +1902,7 @@ function AiAgentsWorkspace({ state }) {
     return (
       <div className="contentGrid">
         <Panel title="AI Agents unavailable" subtitle="This feature is disabled for your workspace or plan.">
-          <p>Ask your workspace owner or platform administrator to enable AI Agents.</p>
+          <p>Ask your workspace owner to enable AI Agents for this company.</p>
         </Panel>
       </div>
     );
