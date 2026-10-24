@@ -73,18 +73,33 @@ These must be correct on the VPS (`/var/www/whatsapp-crm/.env.local`). You do **
 | `APP_URL` | `https://crm.mathstrat-sites.com` |
 | `META_APP_ID` | `2166072280614956` |
 | `META_APP_SECRET` | Webhook signature, OAuth, Embedded Signup |
-| `META_EMBEDDED_SIGNUP_CONFIG_ID` | Production currently serves `2332269433979889` (verify in Meta → Facebook Login for Business → Configurations that this is a **WhatsApp Embedded Signup** / ES **v4** config). Alternate documented config: `2130231251032936` (**WhatsApp Embedded Signup-2**). Do not send retired `extras.sessionInfoVersion` / `v2`/`v3` `extras.version` after 2026-10-15. |
+| `META_EMBEDDED_SIGNUP_CONFIG_ID` | **Must** be a Facebook Login for Business config with login variation **WhatsApp Embedded Signup** (ES v4). Known-good: `2130231251032936` (**WhatsApp Embedded Signup-2**). Production was incorrectly serving `2332269433979889` (OAuth dialog “Sorry, something went wrong” after code extras were fixed). |
 | `META_WEBHOOK_VERIFY_TOKEN` | WhatsApp webhook verification |
 | `ENCRYPTION_KEY`, `DATABASE_URL`, `AUTH_SECRET` | App runtime |
 | `REVIEWER_EMAIL` / `REVIEWER_PASSWORD` | `metareview@gmail.com` / `r_n@99balA` — after change run `npm run reviewer:init` |
 | **PM2** `whatsapp-crm` + `whatsapp-crm-worker` | Webhooks, campaigns, insights jobs |
 
-**Meta console (verified 2026-10-24 — should stay as-is)**
+### 2.3.1 Fix “Sorry, something went wrong” on Connect with Meta
+
+Code on `main` already sends ES **v4** extras (`{}` / coexistence `featureType` only). If the Facebook popup still errors **before** WABA selection:
+
+1. **VPS** (`/var/www/whatsapp-crm/.env.local`):
+   ```bash
+   grep META_EMBEDDED_SIGNUP_CONFIG_ID /var/www/whatsapp-crm/.env.local
+   # Set to the WhatsApp Embedded Signup configuration (not ads / regular login):
+   # META_EMBEDDED_SIGNUP_CONFIG_ID=2130231251032936
+   pm2 restart whatsapp-crm whatsapp-crm-worker
+   ```
+2. **Meta App Dashboard** → app `2166072280614956` → **Facebook Login for Business** → **Configurations**: open the ID used above and confirm login variation = **WhatsApp Embedded Signup** (products include WhatsApp Cloud API).
+3. **Facebook Login for Business → Settings**: Allowed Domains + Valid OAuth Redirect URIs must include `https://crm.mathstrat-sites.com/` (and the whatsapp settings URL above). Toggles: Client OAuth, Web OAuth, Enforce HTTPS, Embedded Browser OAuth, Strict Mode, Login with JavaScript SDK = Yes.
+4. Hard-refresh CRM → **Connect with Meta** while logged into the Meta admin Facebook account (e.g. balajirajlat).
+
+**Meta console (verified 2026-10-24 — update OAuth URIs per table if Connect still fails)**
 
 | Setting | Value |
 |---------|--------|
-| Valid OAuth Redirect URI | `https://crm.mathstrat-sites.com/api/whatsapp/ads/oauth/callback` |
-| JS SDK domain | `https://crm.mathstrat-sites.com/` |
+| Valid OAuth Redirect URIs | **Required for Embedded Signup (add all):** `https://crm.mathstrat-sites.com/` · `https://crm.mathstrat-sites.com/app/settings/whatsapp` · `https://crm.mathstrat-sites.com/api/whatsapp/ads/oauth/callback` |
+| Allowed Domains (JS SDK) | `https://crm.mathstrat-sites.com/` |
 | Deauthorize URL | `https://crm.mathstrat-sites.com/api/meta/deauthorize` |
 | Data deletion URL | `https://crm.mathstrat-sites.com/api/meta/data-deletion` |
 | App domain | `crm.mathstrat-sites.com` |
