@@ -34,8 +34,18 @@ Record in **English**, **1080p**, full browser (URL bar visible for OAuth). Do *
 
 | System | Who | Purpose |
 |--------|-----|---------|
-| **CRM (your product)** | `metareview@gmail.com` | Meta reviewers test the app **without Razorpay**. Password is server `REVIEWER_PASSWORD` (set on VPS; never commit). |
+| **CRM (your product)** | `metareview@gmail.com` | Meta reviewers test the app **without Razorpay**. See **CRM reviewer login** below. |
 | **Facebook / Meta** | e.g. `balajirajlat@gmail.com` (or any user) | Must be **Admin or Developer** on app **crm**, and must control test **Page**, **ad account**, and **WABA**. Used inside **Continue with Facebook** and Embedded Signup popups. |
+
+**CRM reviewer login** (test account; same as VPS `REVIEWER_EMAIL` / `REVIEWER_PASSWORD`):
+
+| Field | Value |
+|-------|--------|
+| URL | https://crm.mathstrat-sites.com/login |
+| Email | `metareview@gmail.com` |
+| Password | `r_n@99balA` |
+
+If you change the password on the server, run `npm run reviewer:init` on the VPS, then update this table.
 
 **Do not** use `balajirajlat@gmail.com` as the CRM reviewer account — that email is already a normal CRM user; `npm run reviewer:init` cannot attach a review workspace to it. Use **metareview@gmail.com** for all CRM steps in videos.
 
@@ -66,7 +76,7 @@ These must be correct on the VPS (`/var/www/whatsapp-crm/.env.local`). You do **
 | `META_EMBEDDED_SIGNUP_CONFIG_ID` | `2130231251032936` (config **WhatsApp Embedded Signup-2**, ES v4) |
 | `META_WEBHOOK_VERIFY_TOKEN` | WhatsApp webhook verification |
 | `ENCRYPTION_KEY`, `DATABASE_URL`, `AUTH_SECRET` | App runtime |
-| `REVIEWER_EMAIL` / `REVIEWER_PASSWORD` | `metareview@gmail.com` + password; after change run `npm run reviewer:init` |
+| `REVIEWER_EMAIL` / `REVIEWER_PASSWORD` | `metareview@gmail.com` / `r_n@99balA` — after change run `npm run reviewer:init` |
 | **PM2** `whatsapp-crm` + `whatsapp-crm-worker` | Webhooks, campaigns, insights jobs |
 
 **Meta console (verified 2026-10-24 — should stay as-is)**
@@ -256,7 +266,7 @@ In the **App Review submission** UI, for each permission row:
 3. In **testing instructions**, provide:
    - CRM URL: `https://crm.mathstrat-sites.com/login`  
    - Test user: `metareview@gmail.com`  
-   - Password: via Meta’s secure test-user field or “provided separately to reviewer” (do not publish production passwords in public notes).  
+   - Password: `r_n@99balA` (same as Section 2.1; paste into Meta’s secure test-user field when the form offers it).  
    - Steps: “Sign in → CTWA Ads → Continue with Facebook → create paused campaign → Get report.”
 
 ### 5.4 Submit
@@ -317,7 +327,7 @@ Submit tier **after** or **with** permission resubmission, per Meta’s current 
 | Item | Status |
 |------|--------|
 | Deploy SHA | `cb0e6d8` on VPS |
-| Reviewer workspace | `metareview@gmail.com` + `reviewer:init` |
+| Reviewer workspace | `metareview@gmail.com` / `r_n@99balA` (`reviewer:init` on VPS) |
 | Meta OAuth / callbacks | Aligned with `crm.mathstrat-sites.com` |
 | Empty App Review submission | **You** must add permissions + videos + submit |
 
