@@ -269,6 +269,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
 
   const loadScope = useCallback(async (location = workspaceLocation(pathname), updatePlatform = true, overrides = {}) => {
     const forceApply = overrides.forceApply === true;
+    const preserveConnected = overrides.preserveConnected === true;
     const request = scopeGate.current.begin();
     const currentPages = pagesRef.current;
     const page = overrides.page || currentPages[location.view] || 1;
@@ -287,7 +288,30 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
     }
     // forceApply keeps post-connect refresh from being discarded by the 15s poll gate.
     if (!forceApply && !scopeGate.current.current(request)) return null;
-    setState((current) => mergeWorkspaceState(current, nextState));
+    setState((current) => {
+      let incoming = nextState;
+      // After Meta complete, do not let a stale Needs setup reload wipe Connected.
+      if (
+        preserveConnected
+        && current?.setup?.status === 'Connected'
+        && current?.setup?.wabaId
+        && incoming?.setup?.status !== 'Connected'
+      ) {
+        incoming = {
+          ...incoming,
+          setup: {
+            ...(incoming?.setup || {}),
+            ...current.setup,
+            status: 'Connected'
+          },
+          meta: {
+            ...(incoming?.meta || {}),
+            liveMetaReady: true
+          }
+        };
+      }
+      return mergeWorkspaceState(current, incoming);
+    });
     if (location.view === 'inbox') {
       const appliedFilter = nextState.pagination?.inbox?.appliedFilter;
       if (appliedFilter) {
@@ -498,7 +522,8 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const activeContact = activeConversation ? contacts.find((contact) => contact.id === activeConversation.contactId) || null : null;
   const latestCampaign = campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const reloadSetup = () => loadScope(workspaceLocation(pathname), true, { forceApply: true });
+  // Always hit the setup API section so heal + whatsappOperations run after connect.
+  const reloadSetup = () => loadScope({ view: 'setup', conversationId: '' }, true, { forceApply: true, preserveConnected: true });
   const applyWhatsAppConnection = (connection) => {
     if (!connection?.wabaId) return;
     setState((current) => mergeWorkspaceState(current, {
