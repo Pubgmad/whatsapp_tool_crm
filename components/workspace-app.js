@@ -880,7 +880,7 @@ function Screens({ activeView, setupSection = null, ...props }) {
     ads: <WhatsAppAds api={api} postJson={postJson} uploadForm={uploadForm} role={props.role} />,
     calling: <WhatsAppCalling api={api} postJson={postJson} role={props.role} />,
     conversions: <WhatsAppConversions api={api} postJson={postJson} role={props.role} />,
-    commerce: <><CommerceOpsPanel api={api} role={props.role} /><WhatsAppCommerce api={api} postJson={postJson} role={props.role} /></>,
+    commerce: <><CommerceOpsPanel api={api} role={props.role} /><WhatsAppCommerce api={api} postJson={postJson} role={props.role} automationEnabled={Boolean(props.state?.featureFlags?.automation)} /></>,
     // Overview dashboard retired from navigation; keep alias → Workspace/Meta setup.
     overview: <Setup {...props} forcedSection="connection" hideSectionTabs={false} onNavigateSection={props.setActiveView} />,
     setup: <Setup {...props} forcedSection={setupSection || 'connection'} hideSectionTabs={Boolean(setupSection && activeView !== 'setup')} onNavigateSection={props.setActiveView} />,
