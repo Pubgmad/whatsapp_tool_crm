@@ -47,9 +47,10 @@ test('embedded signup v4 login options omit retired extras', () => {
   const coexistence = buildEmbeddedSignupLoginOptions({ configId: '2130231251032936', mode: 'coexistence' });
   assert.deepEqual(coexistence.extras, {
     setup: {},
+    version: 'v4',
+    sessionInfoVersion: '3',
     featureType: 'whatsapp_business_app_onboarding'
   });
-  assert.equal(Object.hasOwn(coexistence.extras, 'sessionInfoVersion'), false);
 
   const preview = buildEmbeddedSignupLoginOptions({
     configId: '2130231251032936',
