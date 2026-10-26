@@ -28,6 +28,7 @@ export default function AdvancedTemplateComposer({postJson,onCreated,api,account
         await postJson('/api/whatsapp/flow-templates',{action:'create',name:values.get('name'),language:values.get('language'),category:values.get('flowCategory'),body,flowId,flowAction,flowScreen:flowAction==='navigate'?flowScreen:undefined,flowButtonText:values.get('flowButtonText'),bodyExamples:slots(body).map(slot=>values.get('body_example_'+slot))});
         setBody('');form.reset();await onCreated();return;
       }
+      if(!accountId)throw new Error('Select a connected WhatsApp account first.');
       await postJson('/api/templates',{accountId,name:values.get('name'),language:values.get('language'),category:'MARKETING',kind,body,catalogButtonText:values.get('catalogButtonText'),couponExample:values.get('couponExample'),offerText:values.get('offerText'),hasExpiration:values.get('hasExpiration')==='on',offerUrl:values.get('offerUrl'),offerButtonText:values.get('offerButtonText'),offerUrlExample:values.get('offerUrlExample'),bodyExamples:slots(body).map(slot=>values.get('body_example_'+slot)),cards:cards.map(card=>({...card,examples:slots(card.body).map(slot=>values.get(card.id+'_example_'+slot))})),submitToMeta:true});
       setCards([]);setBody('');form.reset();await onCreated();
     }catch(cause){setError(cause.message);}finally{setPending(false);}
@@ -63,7 +64,7 @@ export default function AdvancedTemplateComposer({postJson,onCreated,api,account
         <button className="secondaryAction" type="button" disabled={cards.length>=10} onClick={()=>setCards(current=>[...current,emptyCard()])}><Plus size={16}/> Add card</button>
       </>}
       {error&&<div className="formError" role="alert">{error}</div>}
-      <button className="primaryAction" type="submit" disabled={pending||(['CAROUSEL','PRODUCT_CAROUSEL'].includes(kind)&&cards.length<2)||(kind==='FLOW'&&(flowLoading||!selectedFlow||(flowAction==='navigate'&&!flowScreen)))}><Send size={16}/> Submit to Meta</button>
+      <button className="primaryAction" type="submit" disabled={pending||(kind!=='FLOW'&&!accountId)||(['CAROUSEL','PRODUCT_CAROUSEL'].includes(kind)&&cards.length<2)||(kind==='FLOW'&&(flowLoading||!selectedFlow||(flowAction==='navigate'&&!flowScreen)))}><Send size={16}/> Submit to Meta</button>
     </form>
   </section>;
 }

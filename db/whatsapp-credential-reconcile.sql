@@ -39,6 +39,11 @@ UPDATE whatsapp_accounts
 SET status = 'disconnected', is_default = FALSE, updated_at = NOW()
 WHERE status = 'connected' AND COALESCE(access_token_encrypted, '') = '';
 
+-- Empty-token rows must never stay default, even if already disconnected.
+UPDATE whatsapp_accounts
+SET is_default = FALSE, updated_at = NOW()
+WHERE is_default = TRUE AND COALESCE(access_token_encrypted, '') = '';
+
 -- 1) Prefer the live default account; heal businesses when credentials are missing OR divergent.
 UPDATE businesses b
 SET
