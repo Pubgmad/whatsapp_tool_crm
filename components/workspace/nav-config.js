@@ -31,7 +31,8 @@ export const featureForView = {
   flows: 'whatsapp_flows',
   media: 'templates',
   entry_points: 'entry_points',
-  integrations: 'automation',
+  // Integrations hosts connectors/crm/webviews/segments/API keys — panels gate themselves.
+  // Do not bind the whole view to `automation` or entitled connector workspaces get blocked.
   journeys: 'automation',
   groups: 'whatsapp_groups',
   ai_agents: 'ai_agent'
