@@ -3,16 +3,18 @@ import process from "node:process";
 import nextEnv from "@next/env";
 import pg from "pg";
 import { databaseSslConfig } from "../lib/db.js";
+import { ensureMetaReviewerWorkspaceAccess, reviewerEnv } from "../lib/reviewer-access.js";
 
 const { loadEnvConfig } = nextEnv;
 const { Pool } = pg;
 loadEnvConfig(process.cwd());
 
 const clean = (value) => String(value || "").trim();
-const email = clean(process.env.REVIEWER_EMAIL).toLowerCase();
+const { email: envEmail, businessName: envBusinessName } = reviewerEnv();
+const email = clean(process.env.REVIEWER_EMAIL || envEmail).toLowerCase();
 const password = String(process.env.REVIEWER_PASSWORD || "");
 const reviewerName = clean(process.env.REVIEWER_NAME);
-const businessName = clean(process.env.REVIEWER_BUSINESS_NAME);
+const businessName = clean(process.env.REVIEWER_BUSINESS_NAME || envBusinessName);
 const id = (prefix) => `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
 
 function hashPassword(value) {
@@ -75,7 +77,7 @@ try {
   }
 
   await client.query("UPDATE businesses SET name = $1, account_status = 'active', review_access = TRUE, updated_at = NOW() WHERE id = $2", [businessName, businessId]);
-  await client.query("DELETE FROM business_subscriptions WHERE business_id = $1", [businessId]);
+  await ensureMetaReviewerWorkspaceAccess(client);
   await client.query(
     "INSERT INTO audit_logs (id, business_id, user_id, action, metadata) VALUES ($1, $2, $3, 'reviewer_access_initialized', $4)",
     [id("a"), businessId, userId, JSON.stringify({ email, billingBypass: true })]
