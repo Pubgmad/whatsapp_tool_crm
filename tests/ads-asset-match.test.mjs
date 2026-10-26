@@ -29,7 +29,7 @@ test('assertPageWhatsAppMatchesCrm passes with string status and local meta digi
   assert.equal(result.currency, 'INR');
 });
 
-test('assertPageWhatsAppMatchesCrm explains empty page whatsapp', () => {
+test('assertPageWhatsAppMatchesCrm explains empty page whatsapp without hard-coded assets', () => {
   assert.throws(
     () =>
       assertPageWhatsAppMatchesCrm({
@@ -39,6 +39,9 @@ test('assertPageWhatsAppMatchesCrm explains empty page whatsapp', () => {
         pageId: '999',
         crmDisplayPhone: '918807111304'
       }),
-    (error) => error.code === 'ADS_ASSET_MISMATCH' && /did not return a WhatsApp number/i.test(error.message)
+    (error) =>
+      error.code === 'ADS_ASSET_MISMATCH' &&
+      /did not return a WhatsApp number/i.test(error.message) &&
+      !/Mathstrat|Sandbox|88071/i.test(error.message)
   );
 });
