@@ -29,6 +29,7 @@ import AutomationAdvancedNodeFields from './automation-advanced-node-fields';
 import AutomationConnections from './automation-connections';
 import AutomationFlowCanvas from './automation-flow-canvas';
 import AutomationLiveOpsPanel from './automation-live-ops-panel';
+import { AUTOMATION_NODE_PALETTE } from '../lib/automation-canvas-layout.js';
 import AudienceSegmentComposer from './audience-segment-composer';
 import AudienceBulkTagsPanel from './audience-bulk-tags-panel';
 import CampaignDripManager from './campaign-drip-manager';
@@ -1408,6 +1409,13 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
   }), { active: 0, completed: 0, handoff: 0, pending: 0 });
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
 
+  const allowedCanvasNodeTypes = useMemo(() => {
+    const allowed = new Set(AUTOMATION_NODE_PALETTE.map((item) => item.type));
+    if (!state.featureFlags?.whatsapp_flows) ['send_native_flow'].forEach((type) => allowed.delete(type));
+    if (!state.featureFlags?.webviews) ['send_webview_cta'].forEach((type) => allowed.delete(type));
+    if (!state.featureFlags?.commerce) ['single_product', 'multi_product'].forEach((type) => allowed.delete(type));
+    return allowed;
+  }, [state.featureFlags?.whatsapp_flows, state.featureFlags?.webviews, state.featureFlags?.commerce]);
   const createNode = (type = "question", position = {}) => ({
     id: `node_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
     type,
@@ -1430,7 +1438,8 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
   const updateMeta = (key, value) => setFlowMeta((current) => ({ ...current, [key]: value }));
   const updateNode = (nodeId, key, value) => setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, [key]: value } : node));
   const addNode = (type = "question", position = {}) => {
-    const node = createNode(type, position);
+    const nextType = allowedCanvasNodeTypes.has(type) ? type : 'question';
+    const node = createNode(nextType, position);
     setNodes((current) => [...current, node]);
     setSelectedNodeId(node.id);
   };
@@ -1544,6 +1553,7 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
     const types = new Set((definitionNodes || []).map((item) => item.type));
     if (types.has('send_native_flow') && !state.featureFlags?.whatsapp_flows) return 'This flow uses WhatsApp Flows, which are not on your plan.';
     if (types.has('send_webview_cta') && !state.featureFlags?.webviews) return 'This flow uses hosted pages, which are not on your plan.';
+    if ((types.has('single_product') || types.has('multi_product')) && !state.featureFlags?.commerce) return 'This flow uses product messages, which are not on your plan.';
     return '';
   };
   const updateStatus = (flow, status) => {
@@ -1574,8 +1584,8 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
         <button className="secondaryAction" type="button" onClick={() => addNode('question')}><Plus size={18} /> Add node</button>
         {editingId && <button className="secondaryAction" type="button" onClick={reset}>Cancel edit</button>}
         <details className="techDetails automationOpsMenu">
-          <summary>Ops</summary>
-          <button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Process queue</button>
+          <summary>Advanced</summary>
+          <button className="secondaryAction" type="button" onClick={process}><RefreshCcw size={18} /> Run pending steps</button>
           <span className="fieldHint">Sessions: {analytics.active} active · {analytics.pending} pending · {analytics.completed} completed</span>
         </details>
       </div>
@@ -1605,7 +1615,7 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
       {node && <Panel title="Node inspector" subtitle={`Editing ${node.id}`}>
         <div className="nodeFields">
           <label>Node ID<input value={node.id} onChange={(event) => { const nextId = event.target.value; setNodes((current) => current.map((item) => item.id === node.id ? { ...item, id: nextId } : item)); setSelectedNodeId(nextId); }} /></label>
-          <label>Type<select value={node.type} onChange={(event) => { const value = event.target.value; setNodes((current) => current.map((item) => item.id === node.id ? { ...item, type: value, ...(value === "section_list" ? { inputKind: "list" } : {}), ...(['send_native_flow', 'send_webview_cta'].includes(value) ? { inputKind: 'none' } : {}) } : item)); }}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option>{state.featureFlags?.whatsapp_flows && <option value="send_native_flow">Send native WhatsApp Flow</option>}{state.featureFlags?.webviews && <option value="send_webview_cta">Send hosted page CTA</option>}<option value="section_list">Section list</option><option value="single_product">Single product</option><option value="multi_product">Multi-product list</option><option value="ai_route">AI route</option><option value="handoff">Human handoff</option><option value="end">End</option><option value="attribute_condition">Contact condition</option><option value="set_contact_attribute">Set contact field</option><option value="api_request">API request</option><option value="order_lookup">Order lookup</option><option value="set_order_status">Update order status</option></select></label>
+          <label>Type<select value={node.type} onChange={(event) => { const value = event.target.value; setNodes((current) => current.map((item) => item.id === node.id ? { ...item, type: value, ...(value === "section_list" ? { inputKind: "list" } : {}), ...(['send_native_flow', 'send_webview_cta', 'single_product', 'multi_product'].includes(value) ? { inputKind: 'none' } : {}) } : item)); }}><option value="question">Question</option><option value="message">Message</option><option value="template">Template follow-up</option>{state.featureFlags?.whatsapp_flows && <option value="send_native_flow">Send native WhatsApp Flow</option>}{state.featureFlags?.webviews && <option value="send_webview_cta">Send hosted page CTA</option>}<option value="section_list">Section list</option>{state.featureFlags?.commerce && <option value="single_product">Single product</option>}{state.featureFlags?.commerce && <option value="multi_product">Multi-product list</option>}<option value="ai_route">AI route</option><option value="handoff">Human handoff</option><option value="end">End</option><option value="attribute_condition">Contact condition</option><option value="set_contact_attribute">Set contact field</option><option value="api_request">API request</option><option value="order_lookup">Order lookup</option><option value="set_order_status">Update order status</option></select></label>
           <label>Input<select value={node.type === "section_list" ? "list" : node.inputKind} disabled={node.type === "section_list"} onChange={(event) => updateNode(node.id, "inputKind", event.target.value)}><option value="buttons">Buttons</option><option value="list">List</option><option value="text">Free text</option><option value="none">No input</option></select></label>
           {node.type === "section_list" && <div className="nodeFields"><label>List button text<input maxLength={20} value={node.buttonText || ""} onChange={(event) => updateNode(node.id, "buttonText", event.target.value)} placeholder="Choose" /></label><label>Section title<input maxLength={24} value={node.sectionTitle || ""} onChange={(event) => updateNode(node.id, "sectionTitle", event.target.value)} placeholder="Options" /></label></div>}
           <label>Next node<select value={node.next} onChange={(event) => updateNode(node.id, "next", event.target.value)}><option value="">None</option>{nodes.filter((item) => item.id !== node.id).map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label>
@@ -1635,6 +1645,7 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
         connectingFrom={connectingFrom}
         onStartConnect={setConnectingFrom}
         onCancelConnect={() => setConnectingFrom("")}
+        allowedNodeTypes={allowedCanvasNodeTypes}
       />
     </form>
 

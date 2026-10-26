@@ -30,8 +30,12 @@ export default function AutomationFlowCanvas({
   onConnect,
   connectingFrom,
   onStartConnect,
-  onCancelConnect
+  onCancelConnect,
+  allowedNodeTypes = null
 }) {
+  const palette = allowedNodeTypes
+    ? AUTOMATION_NODE_PALETTE.filter((item) => allowedNodeTypes.has(item.type))
+    : AUTOMATION_NODE_PALETTE;
   const surfaceRef = useRef(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -98,10 +102,13 @@ export default function AutomationFlowCanvas({
           <span>Drag onto the canvas</span>
         </header>
         <div className="automationPaletteGroups">
-          {['Chat', 'Meta', 'Commerce', 'Logic', 'AI', 'End'].map((group) => (
+          {['Chat', 'Meta', 'Commerce', 'Logic', 'AI', 'End'].map((group) => {
+            const items = palette.filter((item) => item.group === group);
+            if (!items.length) return null;
+            return (
             <div key={group} className="automationPaletteGroup">
               <small>{group}</small>
-              {AUTOMATION_NODE_PALETTE.filter((item) => item.group === group).map((item) => (
+              {items.map((item) => (
                 <button
                   key={item.type}
                   type="button"
@@ -119,7 +126,8 @@ export default function AutomationFlowCanvas({
                 </button>
               ))}
             </div>
-          ))}
+            );
+          })}
         </div>
         <div className="automationCanvasTools">
           <button type="button" className="secondaryAction" onClick={() => onNodesChange(autoLayoutNodes(positioned))}>
