@@ -618,7 +618,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
           </label>
         ) : null}
         <div className="productTopActions">
-          <span className={`statusPill ${(state.setup?.status || 'Needs setup') === 'Connected' ? 'good' : 'warn'}`}>{state.setup?.status || 'Needs setup'}</span>
+          <span className={`statusPill ${(state.setup?.status || 'Needs setup') === 'Connected' && Boolean(state.meta?.liveMetaReady) ? 'good' : 'warn'}`}>{(state.setup?.status || 'Needs setup') === 'Connected' && Boolean(state.meta?.liveMetaReady) ? 'Connected' : 'Needs setup'}</span>
           <button className="iconButton" type="button" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button>
           <details className="productProfileMenu">
             <summary aria-label="Account menu">{account.user.email?.split('@')[0] || 'Profile'}</summary>
@@ -2027,7 +2027,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   };
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
   const groupsEnabled = Boolean(state.featureFlags?.whatsapp_groups);
-  const whatsappConnected = (state?.setup?.status || 'Needs setup') === 'Connected' || Boolean(state?.meta?.liveMetaReady);
+  const whatsappConnected = (state?.setup?.status || 'Needs setup') === 'Connected' && Boolean(state?.meta?.liveMetaReady);
   return <>
     {!whatsappConnected && (
       <div className="saasBanner" role="status">

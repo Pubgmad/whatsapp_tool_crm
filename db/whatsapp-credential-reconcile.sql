@@ -39,37 +39,44 @@ UPDATE whatsapp_accounts
 SET status = 'disconnected', is_default = FALSE, updated_at = NOW()
 WHERE status = 'connected' AND COALESCE(access_token_encrypted, '') = '';
 
--- 1) Copy live account token onto businesses when the business row is missing credentials.
+-- 1) Prefer the live default account; heal businesses when credentials are missing OR divergent.
 UPDATE businesses b
 SET
-  waba_id = COALESCE(NULLIF(b.waba_id, ''), a.waba_id),
-  phone_number_id = COALESCE(NULLIF(b.phone_number_id, ''), p.phone_number_id),
-  whatsapp_number = COALESCE(NULLIF(b.whatsapp_number, ''), p.display_phone_number, b.whatsapp_number),
+  waba_id = a.waba_id,
+  phone_number_id = COALESCE(p.phone_number_id, b.phone_number_id),
+  whatsapp_number = COALESCE(NULLIF(p.display_phone_number, ''), b.whatsapp_number),
   access_token_encrypted = a.access_token_encrypted,
   meta_token_expires_at = COALESCE(a.token_expires_at, b.meta_token_expires_at),
   webhook_subscribed = COALESCE(a.webhook_subscribed, b.webhook_subscribed),
   meta_connected_at = COALESCE(b.meta_connected_at, NOW()),
   status = 'Connected',
   updated_at = NOW()
-FROM whatsapp_accounts a
+FROM (
+  SELECT DISTINCT ON (a.business_id)
+         a.business_id, a.waba_id, a.access_token_encrypted, a.token_expires_at, a.webhook_subscribed, a.id AS account_id
+    FROM whatsapp_accounts a
+   WHERE a.status = 'connected' AND COALESCE(a.access_token_encrypted, '') <> ''
+   ORDER BY a.business_id, a.is_default DESC, a.created_at DESC
+) a
 LEFT JOIN LATERAL (
   SELECT phone_number_id, display_phone_number
     FROM whatsapp_phone_numbers
-   WHERE business_id = a.business_id AND whatsapp_account_id = a.id
+   WHERE business_id = a.business_id AND whatsapp_account_id = a.account_id
    ORDER BY is_default DESC, created_at DESC
    LIMIT 1
 ) p ON TRUE
 WHERE a.business_id = b.id
-  AND a.status = 'connected'
-  AND COALESCE(a.access_token_encrypted, '') <> ''
   AND (
     COALESCE(b.access_token_encrypted, '') = ''
     OR COALESCE(b.waba_id, '') = ''
     OR COALESCE(b.phone_number_id, '') = ''
     OR b.status IS DISTINCT FROM 'Connected'
+    OR b.access_token_encrypted IS DISTINCT FROM a.access_token_encrypted
+    OR b.waba_id IS DISTINCT FROM a.waba_id
+    OR (p.phone_number_id IS NOT NULL AND b.phone_number_id IS DISTINCT FROM p.phone_number_id)
   );
 
--- 2) Copy business token onto empty whatsapp_accounts for the same WABA.
+-- 2) Fill empty account tokens from businesses for the same WABA (never overwrite a live account token).
 UPDATE whatsapp_accounts a
 SET
   access_token_encrypted = b.access_token_encrypted,
