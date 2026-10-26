@@ -2008,7 +2008,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   };
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
   const groupsEnabled = Boolean(state.featureFlags?.whatsapp_groups);
-  const whatsappConnected = (state?.setup?.status || 'Needs setup') === 'Connected';
+  const whatsappConnected = (state?.setup?.status || 'Needs setup') === 'Connected' || Boolean(state?.meta?.liveMetaReady);
   return <>
     {!whatsappConnected && (
       <div className="saasBanner" role="status">
