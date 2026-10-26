@@ -154,6 +154,10 @@ function mergeWorkspaceState(current, incoming) {
   merged.automationFlows = asArray(merged.automationFlows);
   merged.audienceSegments = asArray(merged.audienceSegments);
   merged.events = asArray(merged.events);
+  merged.campaigns = asArray(merged.campaigns).map((campaign) => ({
+    ...campaign,
+    recipients: asArray(campaign?.recipients)
+  }));
   if (merged.whatsappOperations) {
     const ops = merged.whatsappOperations;
     merged.whatsappOperations = {
@@ -616,7 +620,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
           </label>
         ) : null}
         <div className="productTopActions">
-          <span className={`statusPill ${(state.setup?.status || 'Not connected') === 'Connected' ? 'good' : 'warn'}`}>{state.setup?.status || 'Not connected'}</span>
+          <span className={`statusPill ${(state.setup?.status || 'Needs setup') === 'Connected' ? 'good' : 'warn'}`}>{state.setup?.status || 'Needs setup'}</span>
           <button className="iconButton" type="button" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button>
           <details className="productProfileMenu">
             <summary aria-label="Account menu">{account.user.email?.split('@')[0] || 'Profile'}</summary>
@@ -1008,7 +1012,7 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   const currentCampaign = overview.latestCampaign || latestCampaign;
   const usage = state?.subscription?.usage || {};
   const limits = state?.subscription?.limits || {};
-  const setupStatus = setup.status || 'Not connected';
+  const setupStatus = setup.status || 'Needs setup';
   const setupItems = [
     { label: "WhatsApp connection", ready: Boolean(meta.liveMetaReady) },
     { label: "Approved template", ready: (overview.approvedTemplates || 0) > 0 },
@@ -1025,7 +1029,7 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   </div>;
 }
 
-function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
+function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, role, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
   const signupAttempt = useRef(null);
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
@@ -1035,6 +1039,7 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, fo
   }, [forcedSection]);
   const setup = state?.setup || {};
   const meta = state?.meta || {};
+  const accountRole = role || state?.account?.role;
   const rawOps = state?.whatsappOperations || {};
   const operations = {
     accounts: asArray(rawOps.accounts),
@@ -1160,7 +1165,7 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, fo
   const metadata = setup.connectionMetadata || {};
   // Prefer the shell secondary nav (Connection / Numbers / Profile). Never stack a second identical tab bar.
   const showInnerTabs = false;
-  const connected = (setup.status || 'Not connected') === 'Connected';
+  const connected = (setup.status || 'Needs setup') === 'Connected';
   return <div className="screenGrid metaSetupScreen">
     <section className="metaConnectHero" aria-labelledby="meta-connect-heading">
       <div>
@@ -1188,36 +1193,36 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, fo
     {section === 'connection' && !connected && (
       <p className="pageIntro" style={{ margin: '0 0 8px' }}>After you connect, inbox, broadcasts, automation, and other WhatsApp tools unlock from the product menu.</p>
     )}
-    {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={state.account.role}/>}
+    {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={accountRole}/>}
     {section === 'flows' && <WhatsAppFlowDesigner api={api} postJson={postJson} flows={operations.nativeFlows} onUploaded={()=>mutate(Promise.resolve({ok:true}), 'Flow uploaded')}/>}
-    {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={state.account.role}/>}
+    {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={accountRole}/>}
     {section === 'journeys' && <WhatsAppJourneyAnalytics api={api}/>}
     {section === 'groups' && <WhatsAppGroups api={api} postJson={postJson} enabled={state.featureFlags?.whatsapp_groups} />}
-    {section === 'integrations' && isWorkspaceManager(state.account.role) && <>
+    {section === 'integrations' && isWorkspaceManager(accountRole) && <>
       <IntegrationMarketplace api={api} />
-      <ProviderConnectors api={api} postJson={postJson} canEdit={state.account.role === 'Owner'} />
-      <TrackedLinks api={api} postJson={postJson} role={state.account.role}/>
+      <ProviderConnectors api={api} postJson={postJson} canEdit={accountRole === 'Owner'} />
+      <TrackedLinks api={api} postJson={postJson} role={accountRole}/>
       {state.featureFlags?.webviews&&<WhatsAppWebviews api={api} postJson={postJson}/>}
-      {state.featureFlags?.crm_sync&&state.account.role==='Owner'&&<><HubSpotConnection api={api} postJson={postJson} role={state.account.role}/><HubSpotConnection provider="salesforce" api={api} postJson={postJson} role={state.account.role}/></>}
+      {state.featureFlags?.crm_sync&&accountRole==='Owner'&&<><HubSpotConnection api={api} postJson={postJson} role={accountRole}/><HubSpotConnection provider="salesforce" api={api} postJson={postJson} role={accountRole}/></>}
       <details className="techDetails saasAdvancedBlock"><summary>Developer API · keys and signed webhooks</summary><WorkspaceIntegrations api={api} postJson={postJson}/></details>
     </>}
     {section === "connection" && <>
       <div className="contentGrid twoColumns">
         <Panel title="Connection health" subtitle="Status for this workspace">
           <div className="connectionSummary">
-            <div><span>Connection</span><Badge kind={(state.setup?.status || "Not connected") === "Connected" ? "good" : "warn"}>{state.setup?.status || "Not connected"}</Badge></div>
+            <div><span>Connection</span><Badge kind={(state.setup?.status || "Needs setup") === "Connected" ? "good" : "warn"}>{state.setup?.status || "Needs setup"}</Badge></div>
             <div><span>Onboarding</span><strong>{setup.onboardingMethod === 'coexistence' ? 'Existing Business App number' : setup.onboardingMethod === 'embedded_signup' ? 'Meta Cloud API signup' : 'Manual'}</strong></div>
             <div><span>Events</span><Badge kind={setup.webhookSubscribed ? "good" : "warn"}>{setup.webhookSubscribed ? "Receiving" : "Not verified"}</Badge></div>
             <div><span>Business number</span><strong>{setup.whatsappNumber || "Not connected"}</strong></div>
             <div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div>
             <div><span>Quality rating</span><strong>{metadata.qualityRating || activePhone?.qualityRating || "Unavailable"}</strong></div>
-            <div><span>Token health</span><Badge kind={activeAccount?.token.status === "healthy" ? "good" : "warn"}>{activeAccount?.token.status || "Unknown"}</Badge></div>
+            <div><span>Token health</span><Badge kind={activeAccount?.token?.status === "healthy" ? "good" : "warn"}>{activeAccount?.token?.status || "Unknown"}</Badge></div>
             <div><span>Meta health</span><Badge kind={activeAccount?.health?.status === "healthy" ? "good" : "warn"}>{activeAccount?.health?.status === "healthy" ? "Healthy" : activeAccount?.health?.status === "reconnect_required" ? "Reconnect needed" : activeAccount?.health?.status === "degraded" ? "Needs attention" : "Awaiting check"}</Badge></div>
           </div>
-          <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={(state.setup?.status || 'Not connected') !== "Connected"}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "WhatsApp assets synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={(state.setup?.status || 'Not connected') !== "Connected"}><Unplug size={17} /> Disconnect</button></div>
+          <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={(state.setup?.status || 'Needs setup') !== "Connected"}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", accountId: activeAccount?.id }, "WhatsApp assets synchronized")} disabled={!activeAccount}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={(state.setup?.status || 'Needs setup') !== "Connected"}><Unplug size={17} /> Disconnect</button></div>
         </Panel>
         <Panel title="Advanced" subtitle="Optional diagnostics for support">
-          <details className="techDetails"><summary>Connection IDs</summary><div className="connectionSummary"><div><span>Meta App ID</span><strong>{meta.appId || "Not configured"}</strong></div><div><span>Embedded Signup config ID</span><strong>{meta.embeddedSignupConfigId || "Not configured"}</strong></div><div><span>WABA ID</span><strong>{setup.wabaId || "Not connected"}</strong></div><div><span>Phone Number ID</span><strong>{setup.phoneNumberId || "Not connected"}</strong></div><div><span>Token expiry</span><strong>{activeAccount?.token.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div></details>
+          <details className="techDetails"><summary>Connection IDs</summary><div className="connectionSummary"><div><span>Meta App ID</span><strong>{meta.appId || "Not configured"}</strong></div><div><span>Embedded Signup config ID</span><strong>{meta.embeddedSignupConfigId || "Not configured"}</strong></div><div><span>WABA ID</span><strong>{setup.wabaId || "Needs setup"}</strong></div><div><span>Phone Number ID</span><strong>{setup.phoneNumberId || "Needs setup"}</strong></div><div><span>Token expiry</span><strong>{activeAccount?.token?.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div></details>
           <details className="techDetails saasAdvancedBlock"><summary>Webhook status</summary><div className="webhookCard"><code>{setup.webhookUrl || meta.webhookUrl || "Webhook URL not configured"}</code><div><span>Signature verification</span><Badge kind="good">Enabled</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></details>
         </Panel>
       </div>
@@ -1282,10 +1287,12 @@ function Contacts({ state, mutate }) {
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [editContact, setEditContact] = useState(null);
   const [contactsRefreshKey, setContactsRefreshKey] = useState(0);
-  const canManage = isWorkspaceManager(state.account.role);
+  const canManage = isWorkspaceManager(state?.account?.role);
   const modeParam = permissionFilter === "allowed" ? "marketable" : permissionFilter === "blocked" ? "suppressed" : "all";
+  const businessId = state?.account?.business?.id || "";
   useEffect(() => {
     let active = true;
+    if (!businessId) return () => { active = false; };
     const timer = setTimeout(async () => {
       setLoadingContacts(true);
       try {
@@ -1302,7 +1309,7 @@ function Contacts({ state, mutate }) {
       }
     }, search ? 300 : 0);
     return () => { active = false; clearTimeout(timer); };
-  }, [page, search, modeParam, state.account.business.id, contactsRefreshKey]);
+  }, [page, search, modeParam, businessId, contactsRefreshKey]);
   const refreshContacts = () => setContactsRefreshKey((key) => key + 1);
   const add = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/contacts", { name: form.get("name"), phone: form.get("phone"), tags: form.get("tags"), optInSource: form.get("optInSource"), consentEvidence: form.get("consentEvidence"), marketingPermission: form.get("marketingPermission") === "on" }).then(() => { refreshContacts(); }), "Contact saved"); event.currentTarget.reset(); };
   const importRows = (event) => { event.preventDefault(); if (!csvText.trim()) return; mutate(postJson("/api/contacts/import", { csv: csvText }).then((next) => { setCsvText(""); setFileName(""); refreshContacts(); return next; }), "Contacts imported"); };
@@ -1617,7 +1624,7 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
       {flows.map((flow) => <article className="templateCard flowCard" key={flow.id}><div className="cardHead"><div><h3>{flow.name}</h3><p>{flow.description || 'No description'}</p></div><Badge kind={flow.status === 'active' ? 'good' : flow.status === 'paused' ? 'warn' : 'neutral'}>{flow.status}</Badge></div><div className="chipRow">{(flow.triggerKeywords || []).map((keyword) => <span key={keyword}>{keyword}</span>)}{!(flow.triggerKeywords || []).length && <span>{flow.triggerMode}</span>}</div><div className="flowActions"><button className="secondaryAction" type="button" onClick={() => loadFlow(flow)}>Edit</button><button className="secondaryAction" type="button" onClick={() => updateStatus(flow, flow.status === 'active' ? 'paused' : 'active')}>{flow.status === 'active' ? 'Pause' : 'Activate'}</button><button className="secondaryAction dangerSoft" type="button" onClick={() => archive(flow)}><Trash2 size={16} /> Archive</button></div></article>)}
       {!flows.length && <Panel title="No workflows yet"><EmptyState text="Create a flow above, connect nodes on the canvas, then activate it to automate WhatsApp replies." /></Panel>}
     </div>
-    <details className="techDetails saasAdvancedBlock"><summary>API connections (advanced)</summary><AutomationConnections api={api} postJson={postJson} role={state.account.role}/></details>
+    <details className="techDetails saasAdvancedBlock"><summary>API connections (advanced)</summary><AutomationConnections api={api} postJson={postJson} role={state?.account?.role}/></details>
   </div>;
 }
 function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setActiveView, campaignRetarget, setCampaignRetarget }) {
@@ -1665,7 +1672,7 @@ function Campaigns({ state, approvedTemplates, marketableContacts, mutate, setAc
     } catch (error) { mutate(Promise.reject(error)); }
   };
   const targetCount = segment ? segment.contactCount : selectedContactIds.length;
-  return <><CampaignPolicy role={state.account.role} businessId={state.account.business.id} api={api} postJson={postJson} /><div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Sending number<select value={phoneNumberId} onChange={(event) => { setPhoneNumberId(event.target.value); setTemplateId(""); setSelectedTemplate(null); setDeliveryMethod("cloud_api"); }} required><option value="">Select a number</option>{phones.map((phone) => <option key={phone.phoneNumberId} value={phone.phoneNumberId}>{phone.displayPhoneNumber || phone.verifiedName || phone.phoneNumberId}</option>)}</select></label><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates.filter((item) => item.wabaId === selectedAccount?.wabaId || (!item.wabaId && selectedAccount?.wabaId === state?.setup?.wabaId))} wabaId={selectedAccount?.wabaId || ""} value={templateId} onChange={value => { setTemplateId(value); setVariables({}); setDeliveryMethod('cloud_api'); }} onTemplate={setSelectedTemplate} /></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {selectedAccount?.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<SearchableOptionPicker api={api} endpoint="/api/segments?active=1" itemsKey="segments" initialOptions={segments} value={segmentId} onChange={(value, item) => { setSegmentId(value); setSelectedSegment(item); if (value) setSelectedContactIds([]); }} label="Saved segment" placeholder="Find a saved segment" noneLabel="Select contacts manually" formatOption={item => item.name + " (" + item.contactCount + ")"} /></label><label>Schedule<input name="scheduledAt" type="datetime-local" /><small>Schedule up to {state.operationsPolicy?.campaignMaxScheduleDays ?? 60} days ahead (deployment policy).</small></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label>Recurring broadcast (days)<input name="recurringIntervalDays" type="number" min="0" max="365" step="1" defaultValue="0" title="After a campaign completes, spawn the next one after this many days (0 = off)" /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<SearchableOptionPicker api={api} endpoint="/api/automation/options" itemsKey="flows" initialOptions={activeFlows} value={automationFlowId} onChange={setAutomationFlowId} label="Reply automation" placeholder="Find an active flow" noneLabel="No follow-up flow" formatOption={item => item.name} /></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}{template && !templateMatchesSender && <small className="errorLine">This template belongs to another WhatsApp account. Select a matching number or template.</small>}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!templateMatchesSender || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div><CampaignDripManager api={api} postJson={postJson} role={state.account.role} businessId={state.account.business.id} segments={segments} approvedTemplates={approvedTemplates} /></>;
+  return <><CampaignPolicy role={state?.account?.role} businessId={state?.account?.business?.id || ''} api={api} postJson={postJson} /><div className="campaignLayout"><Panel title="Campaign" subtitle="Send an approved template to contacts or a saved segment"><form className="formGrid" onSubmit={submit}><Input name="name" label="Campaign name" required /><label>Sending number<select value={phoneNumberId} onChange={(event) => { setPhoneNumberId(event.target.value); setTemplateId(""); setSelectedTemplate(null); setDeliveryMethod("cloud_api"); }} required><option value="">Select a number</option>{phones.map((phone) => <option key={phone.phoneNumberId} value={phone.phoneNumberId}>{phone.displayPhoneNumber || phone.verifiedName || phone.phoneNumberId}</option>)}</select></label><label>Approved template<ApprovedTemplatePicker api={api} initialTemplates={approvedTemplates.filter((item) => item.wabaId === selectedAccount?.wabaId || (!item.wabaId && selectedAccount?.wabaId === state?.setup?.wabaId))} wabaId={selectedAccount?.wabaId || ""} value={templateId} onChange={value => { setTemplateId(value); setVariables({}); setDeliveryMethod('cloud_api'); }} onTemplate={setSelectedTemplate} /></label><label>Delivery API<select value={deliveryMethod} onChange={(event) => setDeliveryMethod(event.target.value)}><option value="cloud_api">Cloud API</option>{template?.category === "MARKETING" && <option value="marketing_messages_api" disabled={!marketingMessagesReady}>Marketing Messages API</option>}</select>{template?.category === "MARKETING" && <small>Meta status: {selectedAccount?.marketingMessagesStatus || "UNKNOWN"}</small>}</label><label>Saved segment<SearchableOptionPicker api={api} endpoint="/api/segments?active=1" itemsKey="segments" initialOptions={segments} value={segmentId} onChange={(value, item) => { setSegmentId(value); setSelectedSegment(item); if (value) setSelectedContactIds([]); }} label="Saved segment" placeholder="Find a saved segment" noneLabel="Select contacts manually" formatOption={item => item.name + " (" + item.contactCount + ")"} /></label><label>Schedule<input name="scheduledAt" type="datetime-local" /><small>Schedule up to {state.operationsPolicy?.campaignMaxScheduleDays ?? 60} days ahead (deployment policy).</small></label><label>Marketing interval (hours)<input name="frequencyHours" type="number" min="0" max="8760" step="1" defaultValue="0" required /></label><label>Recurring broadcast (days)<input name="recurringIntervalDays" type="number" min="0" max="365" step="1" defaultValue="0" title="After a campaign completes, spawn the next one after this many days (0 = off)" /></label><label className="checkboxLabel"><input name="requireApproval" type="checkbox" />Require owner approval</label><label>Reply automation<SearchableOptionPicker api={api} endpoint="/api/automation/options" itemsKey="flows" initialOptions={activeFlows} value={automationFlowId} onChange={setAutomationFlowId} label="Reply automation" placeholder="Find an active flow" noneLabel="No follow-up flow" formatOption={item => item.name} /></label>{editableVariables.map((variable) => <label key={variable}>{variable}<input value={variables[variable] || ""} onChange={(event) => setVariables((current) => ({ ...current, [variable]: event.target.value }))} placeholder={`Value for {{${variable}}}`} /></label>)}{template && !templateMatchesSender && <small className="errorLine">This template belongs to another WhatsApp account. Select a matching number or template.</small>}<TemplateParameterFields template={template} value={templateParameters} onChange={setTemplateParameters} /><div className="recipientHeader"><label className="searchBox recipientSearch"><Search size={17} /><input value={recipientSearch} onChange={(event) => setRecipientSearch(event.target.value)} placeholder="Search eligible contacts" /></label><span>{segment ? `${segment.contactCount} from segment` : `${selectedContactIds.length} selected`}</span></div><div className="recipientBox">{filteredRecipients.map((contact) => <label key={contact.id}><span>{contact.name}<small>{contact.phone}</small></span><input checked={selectedContactIds.includes(contact.id)} onChange={() => toggleContact(contact.id)} type="checkbox" /></label>)}{!marketableContacts.length && <EmptyState text="No eligible contacts" />}</div><button className="primaryAction" type="submit" disabled={!templateMatchesSender || (!segmentId && !selectedContactIds.length)}><Clock3 size={18} /> Queue campaign{targetCount ? ` (${targetCount})` : ""}</button></form></Panel><Panel title="WhatsApp preview" subtitle={template ? `${template.name} | ${template.language}` : "No approved template selected"}><div className="phonePreview"><div className="waBubble">{template?.headerText && <strong>{template.headerText}</strong>}<p>{preview}</p>{template?.footerText && <small>{template.footerText}</small>}{template?.buttons?.length > 0 && <div className="waQuickReplies">{template.buttons.map((button) => <span key={button.text}>{button.text}</span>)}</div>}</div></div></Panel></div><CampaignDripManager api={api} postJson={postJson} role={state?.account?.role} businessId={state?.account?.business?.id || ''} segments={segments} approvedTemplates={approvedTemplates} /></>;
 }
 function WhatsAppReferralReport() {
   const [days, setDays] = useState(30);
@@ -1704,7 +1711,7 @@ function WhatsAppReferralReport() {
 }
 function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
   const processQueue = () => mutate(postJson("/api/campaigns/process", { limit: 25 }), "Queue processed");
-  const canManage = isWorkspaceManager(state.account.role);
+  const canManage = isWorkspaceManager(state?.account?.role);
   const segmentsEnabled = state.featureFlags?.segments !== false;
   const lifecycle = (campaign, action) => mutate(postJson(`/api/campaigns/${campaign.id}`, { action }, "PATCH"), `Campaign ${action}d`);
   const control = async (campaign, action, values) => { await postJson(`/api/campaigns/${campaign.id}`, { action, ...values }, 'PATCH'); await mutate(Promise.resolve({ ok: true }), 'Campaign updated'); };
@@ -1744,7 +1751,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
             {canManage && campaign.status === "paused" && <button className="secondaryAction compactAction" onClick={() => lifecycle(campaign, "resume")}><Play size={15} /> Resume</button>}
             {canManage && ["queued", "scheduled", "processing", "paused"].includes(campaign.status) && <button className="secondaryAction compactAction dangerSoft" onClick={() => lifecycle(campaign, "cancel")}><X size={15} /> Cancel</button>}
           </div>
-          <CampaignControls campaign={campaign} role={state.account.role} submit={control} />
+          <CampaignControls campaign={campaign} role={state?.account?.role} submit={control} />
           <ResultMeters stats={campaign.stats} />
           {campaign.statsOnly && <p className="wa-module-note">Delivery summary for agents. Per-recipient rows are available to owners and managers.</p>}
           {segmentsEnabled && canManage && (campaign.stats?.total || 0) > 0 && (
@@ -1758,7 +1765,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
             />
           )}
           {!campaign.statsOnly && <DataTable headers={["Customer", "Status", "Message"]}>
-            {campaign.recipients.map((recipient) => {
+            {asArray(campaign.recipients).map((recipient) => {
               const contact = state.contacts.find((item) => item.id === recipient.contactId) || {};
               return (
                 <tr key={recipient.id || recipient.metaMessageId}>
@@ -1945,7 +1952,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   };
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
   const groupsEnabled = Boolean(state.featureFlags?.whatsapp_groups);
-  const whatsappConnected = (state?.setup?.status || 'Not connected') === 'Connected';
+  const whatsappConnected = (state?.setup?.status || 'Needs setup') === 'Connected';
   return <>
     {!whatsappConnected && (
       <div className="saasBanner" role="status">
@@ -2014,7 +2021,7 @@ function AiAgentsWorkspace({ state, role: roleProp }) {
 }
 
 function Team({ state, mutate }) {
-  return <><TeamMembers state={state} mutate={mutate}/>{['Owner','Manager'].includes(state.account?.role)&&<SupportPolicy endpoint="/api/team/support-policy" canEdit={state.account.role==='Owner'} api={api} postJson={postJson}/>}{/* AI Agents have a dedicated workspace at /app/ai-agents */}</>;
+  return <><TeamMembers state={state} mutate={mutate}/>{['Owner','Manager'].includes(state.account?.role)&&<SupportPolicy endpoint="/api/team/support-policy" canEdit={state.account?.role==='Owner'} api={api} postJson={postJson}/>}{/* AI Agents have a dedicated workspace at /app/ai-agents */}</>;
 }
 
 function TeamMembers({ state, mutate }) {
@@ -2037,8 +2044,8 @@ function Unsubscribes({ state, suppressedContacts, mutate }) {
   const [restoreContact, setRestoreContact] = useState(null);
   const [consentSettings, setConsentSettings] = useState(null);
   const [customFields, setCustomFields] = useState([]);
-  const canManage = isWorkspaceManager(state.account.role);
-  const isOwner = state.account.role === "Owner";
+  const canManage = isWorkspaceManager(state?.account?.role);
+  const isOwner = state?.account?.role === "Owner";
   useEffect(() => {
     let active = true;
     api("/api/workspace/consent").then((result) => { if (active) setConsentSettings(result.settings || null); }).catch(() => {});
