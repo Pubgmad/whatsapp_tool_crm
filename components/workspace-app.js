@@ -1523,6 +1523,10 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
     const definition = buildDefinition();
     if (!definition.nodes.length) { setFormError("Add at least one node before saving."); return; }
     if (["keywords", "regex"].includes(flowMeta.triggerMode) && !flowMeta.triggerKeywords.trim()) { setFormError("Add triggers or choose another trigger mode."); return; }
+    if (flowMeta.status === 'active') {
+      const blocked = gatedNodeTypesBlocked(definition.nodes);
+      if (blocked) { setFormError(blocked); return; }
+    }
     const wasEditing = Boolean(editingId);
     const saved = await mutate(postJson("/api/automation/flows", {
       id: editingId,
@@ -1536,10 +1540,23 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
     if (saved && !wasEditing) await changePage("automation", 1);
   };
 
-  const updateStatus = (flow, status) => mutate(postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH"), status === "active" ? "Flow activated" : "Flow paused");
+  const gatedNodeTypesBlocked = (definitionNodes = []) => {
+    const types = new Set((definitionNodes || []).map((item) => item.type));
+    if (types.has('send_native_flow') && !state.featureFlags?.whatsapp_flows) return 'This flow uses WhatsApp Flows, which are not on your plan.';
+    if (types.has('send_webview_cta') && !state.featureFlags?.webviews) return 'This flow uses hosted pages, which are not on your plan.';
+    return '';
+  };
+  const updateStatus = (flow, status) => {
+    if (status === 'active') {
+      const blocked = gatedNodeTypesBlocked(flow.definition?.nodes || flow.nodes);
+      if (blocked) { mutate(Promise.reject(new Error(blocked))); return; }
+    }
+    mutate(postJson(`/api/automation/flows/${flow.id}`, { status }, "PATCH"), status === "active" ? "Flow activated" : "Flow paused");
+  };
   const archive = (flow) => mutate(postJson(`/api/automation/flows/${flow.id}`, {}, "DELETE"), "Flow archived");
   const process = () => mutate(postJson("/api/automation/process", { limit: 25 }), "Automation queue processed");
   const node = selectedNode;
+  const selectedGatedWarning = gatedNodeTypesBlocked(nodes);
 
   const flowLimit = state?.subscription?.limits?.automationFlows;
   const flowUsage = state?.subscription?.usage?.automationFlows ?? flows.length;
@@ -1574,6 +1591,7 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
           <div className="formSplit"><label>Status<select value={flowMeta.status} onChange={(event) => updateMeta("status", event.target.value)}><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select></label><label>Trigger mode<select value={flowMeta.triggerMode} onChange={(event) => updateMeta("triggerMode", event.target.value)}><option value="keywords">Keywords</option><option value="regex">Safe regex</option><option value="any_inbound">Any inbound message</option><option value="manual">Manual only</option></select></label></div>
           <label>{flowMeta.triggerMode === 'regex' ? 'Regex triggers' : 'Trigger keywords'}<textarea rows="3" maxLength="4000" value={flowMeta.triggerKeywords} onChange={(event) => updateMeta("triggerKeywords", event.target.value)} placeholder="Comma or line separated triggers"></textarea></label>
           {formError && <div className="formError" role="alert">{formError}</div>}
+          {selectedGatedWarning && <div className="formError" role="alert">{selectedGatedWarning}</div>}
           <details className="techDetails"><summary>Test this flow</summary>
             <div className="formSplit"><label>Sample reply<input value={simulateText} onChange={(event) => setSimulateText(event.target.value)} placeholder="Text a customer might send" /></label><label>API outcome<select value={simulateApiOutcome} onChange={(event) => setSimulateApiOutcome(event.target.value)}><option value="success">Success</option><option value="timeout">Timeout</option><option value="error">Error</option></select></label></div>
             <div className="formSplit"><label>API status<input value={simulateApiStatus} onChange={(event) => setSimulateApiStatus(event.target.value)} placeholder="200 or 4xx" /></label><label>Advanced node outcome<select value={simulateAdvancedOutcome} onChange={(event) => setSimulateAdvancedOutcome(event.target.value)}><option value="success">Success</option><option value="error">Error</option></select></label></div>
