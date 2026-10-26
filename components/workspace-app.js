@@ -154,6 +154,18 @@ function mergeWorkspaceState(current, incoming) {
   merged.automationFlows = asArray(merged.automationFlows);
   merged.audienceSegments = asArray(merged.audienceSegments);
   merged.events = asArray(merged.events);
+  if (merged.whatsappOperations) {
+    const ops = merged.whatsappOperations;
+    merged.whatsappOperations = {
+      ...ops,
+      accounts: asArray(ops.accounts),
+      phoneNumbers: asArray(ops.phoneNumbers),
+      nativeFlows: asArray(ops.nativeFlows),
+      mediaAssets: asArray(ops.mediaAssets),
+      capabilities: asArray(ops.capabilities),
+      analytics: asArray(ops.analytics)
+    };
+  }
   return merged;
 }
 
@@ -1010,7 +1022,16 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, fo
   }, [forcedSection]);
   const setup = state?.setup || {};
   const meta = state?.meta || {};
-  const operations = state?.whatsappOperations || { accounts: [], phoneNumbers: [], nativeFlows: [], mediaAssets: [], capabilities: [], analytics: [] };
+  const rawOps = state?.whatsappOperations || {};
+  const operations = {
+    accounts: asArray(rawOps.accounts),
+    phoneNumbers: asArray(rawOps.phoneNumbers),
+    nativeFlows: asArray(rawOps.nativeFlows),
+    mediaAssets: asArray(rawOps.mediaAssets),
+    capabilities: asArray(rawOps.capabilities),
+    analytics: asArray(rawOps.analytics),
+    activationChecklist: rawOps.activationChecklist || null
+  };
   const activeAccount = operations.accounts.find((item) => item.isDefault) || operations.accounts[0];
   const activePhone = operations.phoneNumbers.find((item) => item.isDefault) || operations.phoneNumbers[0];
   useEffect(() => {
@@ -1950,8 +1971,8 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
     <InboxContact360 contactId={activeContact?.id || null} api={api} />
   </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>}</>;
 }
-function AiAgentsWorkspace({ state }) {
-  const role = state?.account?.role;
+function AiAgentsWorkspace({ state, role: roleProp }) {
+  const role = roleProp || state?.account?.role;
   const canManage = ['Owner', 'Manager'].includes(role);
   if (!state?.featureFlags?.ai_agent) {
     return (
