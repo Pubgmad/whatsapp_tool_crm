@@ -66,9 +66,11 @@ npm ci
 npm run db:init          # uses DATABASE_MIGRATION_URL when set, else DATABASE_URL
 npm test                 # optional on host
 npm run build
-pm2 restart whatsapp-crm --update-env
-pm2 start ecosystem.config.cjs --only whatsapp-crm-worker   # if worker missing
-pm2 save
+npm run pm2:restart
+# or explicitly:
+#   pm2 restart whatsapp-crm whatsapp-crm-worker --update-env
+# Worker name is exactly `whatsapp-crm-worker` (not whatsapp-crm-workercd).
+# If the worker is missing: pm2 start ecosystem.config.cjs --only whatsapp-crm-worker
 curl -fsS https://crm.mathstrat-sites.com/api/health
 ```
 

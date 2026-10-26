@@ -23,7 +23,9 @@ Typical setup: run [Coturn](https://github.com/coturn/coturn) on the VPS or use 
 
 ```bash
 cd /path/to/whatsapp_tool_crm
-pm2 start ecosystem.config.cjs --only whatsapp-crm-worker
+# Correct worker name is whatsapp-crm-worker (not whatsapp-crm-workercd)
+npm run pm2:restart
+# or: pm2 start ecosystem.config.cjs --only whatsapp-crm-worker
 # or: pm2 start ecosystem.config.cjs   # web + worker
 ```
 

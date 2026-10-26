@@ -116,17 +116,17 @@ const uploadForm = async (path, form, csrfRetry = false) => {
 };
 const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Never";
 function connectionHealthMessage(health) {
-  if (health?.reason === "authorization_invalid" || health?.reason === "scope_missing") return "Meta access has expired or changed. Reconnect WhatsApp to restore messaging.";
-  if (health?.reason === "authorization_expiring") return "Meta access expires soon. Reconnect WhatsApp before it stops working.";
-  if (health?.reason === "webhook_unsubscribed") return "The WhatsApp webhook subscription could not be restored. Verify the connection.";
-  if (health?.reason === "monitor_stale") return "Connection checks have stopped updating. Ask the platform owner to check the background worker.";
-  if (health?.reason === "platform_configuration") return "The platform's Meta configuration needs attention.";
-  return "Meta connection checks are failing. Verify the connection before sending campaigns.";
+  if (health?.reason === "authorization_invalid" || health?.reason === "scope_missing") return "WhatsApp access expired. Reconnect to keep messaging.";
+  if (health?.reason === "authorization_expiring") return "WhatsApp access expires soon. Reconnect when convenient.";
+  if (health?.reason === "webhook_unsubscribed") return "Message delivery checks need attention. Verify the connection.";
+  if (health?.reason === "monitor_stale") return "Connection checks are delayed. Try Verify, or contact support.";
+  if (health?.reason === "platform_configuration") return "WhatsApp connection needs attention. Contact support.";
+  return "Connection check failed. Verify WhatsApp before sending campaigns.";
 }
 const emptyWorkspaceState = {
   contacts: [], audienceSegments: [], templates: [], campaigns: [], conversations: [],
   events: [], automationFlows: [], teamMembers: [], pagination: {},
-  setup: { status: 'Not connected', health: null },
+  setup: { status: 'Needs setup', health: null },
   featureFlags: {},
   meta: {}
 };
@@ -663,6 +663,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
           <UpgradeRequiredPanel
             planName={state.subscription?.plan?.name || state.plan?.name || 'your current plan'}
             featureKey={featureForView[activeView]}
+            role={account.role}
             onBilling={() => navigate('billing')}
             onSetup={() => navigate('setup')}
           />
@@ -902,18 +903,20 @@ function Screens({ activeView, setupSection = null, ...props }) {
   </>;
 }
 
-function UpgradeRequiredPanel({ planName, featureKey, onBilling, onSetup }) {
+function UpgradeRequiredPanel({ planName, featureKey, role, onBilling, onSetup }) {
   const label = WORKSPACE_FEATURES[featureKey] || featureKey || 'This feature';
+  const canBilling = role === 'Owner';
   return (
     <div className="contentGrid" aria-label="Upgrade required">
       <Panel title="Upgrade required" subtitle={`${label} is not included in ${planName}.`}>
         <p className="pageIntro" style={{ maxWidth: '40rem' }}>
-          Your workspace can keep using tools included in your current plan. This module stays locked until an Owner upgrades.
-          You are not being redirected away — choose what to do next.
+          {canBilling
+            ? 'This module stays locked until you upgrade. Other tools on your plan keep working.'
+            : 'Ask a workspace owner to upgrade the plan for this module.'}
         </p>
         <div className="actionCluster">
-          <button className="primaryAction" type="button" onClick={onBilling}>Review plans &amp; billing</button>
-          <button className="secondaryAction" type="button" onClick={onSetup}>Continue with WhatsApp setup</button>
+          {canBilling && <button className="primaryAction" type="button" onClick={onBilling}>Review plans</button>}
+          <button className="secondaryAction" type="button" onClick={onSetup}>Back to WhatsApp setup</button>
         </div>
       </Panel>
     </div>
