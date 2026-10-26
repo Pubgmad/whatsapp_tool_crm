@@ -35,6 +35,46 @@ function clean(value) {
   return String(value || "").trim();
 }
 
+/** Username from DATABASE_URL — the runtime app role that needs table grants after migrations. */
+function databaseUrlRole(connectionString = process.env.DATABASE_URL) {
+  const raw = clean(connectionString);
+  if (!raw) return '';
+  try {
+    const withProtocol = raw.includes('://') ? raw : `postgresql://${raw}`;
+    return decodeURIComponent(new URL(withProtocol).username || '').trim();
+  } catch {
+    const match = raw.match(/^postgres(?:ql)?:\/\/([^:/?#@]+):/i);
+    return match ? decodeURIComponent(match[1]).trim() : '';
+  }
+}
+
+async function grantRuntimeAppRole(client) {
+  const appRole = databaseUrlRole(process.env.DATABASE_URL);
+  const migrationRole = databaseUrlRole(process.env.DATABASE_MIGRATION_URL || process.env.DATABASE_URL);
+  if (!appRole) {
+    console.warn('DATABASE_URL username missing; skipped app-role GRANTs.');
+    return;
+  }
+  if (appRole === migrationRole && !clean(process.env.DATABASE_MIGRATION_URL)) {
+    // Same role owns objects — privileges already apply. Still grant for safety on shared schemas.
+  }
+  // Quote identifier safely; only allow simple Postgres role names.
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(appRole)) {
+    console.warn(`DATABASE_URL role "${appRole}" is not a plain identifier; skipped GRANTs.`);
+    return;
+  }
+  await client.query(`GRANT USAGE ON SCHEMA public TO ${appRole}`);
+  await client.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${appRole}`);
+  await client.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${appRole}`);
+  await client.query(
+    `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${appRole}`
+  );
+  await client.query(
+    `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${appRole}`
+  );
+  console.log(`Granted public schema DML to runtime role ${appRole}.`);
+}
+
 function optionalNumber(...values) {
   for (const value of values) {
     const number = Number(value);
@@ -336,6 +376,15 @@ try {
   if (cmsSanitize.updated) {
     console.log(
       `Public site CMS sanitized (draft=${cmsSanitize.draftChanged}, published=${cmsSanitize.publishedChanged}).`
+    );
+  }
+  // Migration role (DATABASE_MIGRATION_URL) often owns tables; GRANT TO CURRENT_USER in SQL
+  // files never privileges the runtime DATABASE_URL role — fix that here.
+  try {
+    await grantRuntimeAppRole(client);
+  } catch (grantError) {
+    console.warn(
+      `App-role GRANTs failed (${grantError.message}). Run as a superuser/migration owner, or GRANT manually to the DATABASE_URL role.`
     );
   }
   await client.query("COMMIT");
