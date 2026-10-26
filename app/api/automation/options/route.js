@@ -1,9 +1,11 @@
 import { currentAccount } from '@/lib/auth';
 import { AppError, errorJson, json, query } from '@/lib/db';
+import { withWorkspaceFeature } from '@/lib/feature-controls';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-export async function GET(request) {
+async function getAutomationOptions(request) {
   try {
     const account = await currentAccount(request);
     const params = new URL(request.url).searchParams;
@@ -19,3 +21,5 @@ export async function GET(request) {
     return json({ flows: result.rows.slice(0, 25), hasMore: result.rows.length > 25, page });
   } catch (error) { return errorJson(error); }
 }
+
+export const GET = withWorkspaceFeature('automation', getAutomationOptions);
