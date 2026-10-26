@@ -1019,7 +1019,7 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
       }
       const latest = signupAttempt.current;
       if (!latest || latest.generation !== attempt.generation || latest.unmounted) return;
-      // Capture payload before flipping submitted — signupSubmitPayload returns null once submitted.
+      // Capture payload before marking submitted so the complete request always gets a JSON object.
       const payload = signupSubmitPayload(latest);
       if (latest.cancelled || !payload) {
         setConnecting(false);
