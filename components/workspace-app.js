@@ -1010,16 +1010,16 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   const currentCampaign = overview.latestCampaign || latestCampaign;
   const usage = state?.subscription?.usage || {};
   const limits = state?.subscription?.limits || {};
-  const setupStatus = setup.status || 'Needs setup';
+  const setupConnected = (setup.status || 'Needs setup') === 'Connected' && Boolean(meta.liveMetaReady);
   const setupItems = [
-    { label: "WhatsApp connection", ready: Boolean(meta.liveMetaReady) },
+    { label: "WhatsApp connection", ready: setupConnected },
     { label: "Approved template", ready: (overview.approvedTemplates || 0) > 0 },
     { label: "Opted-in audience", ready: marketableCount > 0 },
     { label: "Automation flow", ready: (overview.activeFlows || 0) > 0 }
   ];
   return <div className="screenGrid">
-    <section className="heroPanel"><div><span className="softLabel">{setupStatus === 'Connected' ? 'Connected' : 'Setup required'}</span><h2>{setup.businessName || "Workspace"}</h2><p>{setupStatus === 'Connected' ? (platform?.workspace_intro || 'Ready for inbox, broadcasts, and automation.') : 'Connect WhatsApp to start messaging.'}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
-    <section className="actionBand">{setupStatus !== 'Connected' && canManage && <button className="primaryAction" type="button" onClick={() => setActiveView('setup')}><Link2 size={18} /> Connect WhatsApp <ChevronRight size={18} /></button>}{canManage && <button className={setupStatus === 'Connected' ? 'primaryAction' : 'secondaryAction'} onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform?.primary_cta_label || 'Broadcast'} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button></section>
+    <section className="heroPanel"><div><span className="softLabel">{setupConnected ? 'Connected' : 'Setup required'}</span><h2>{setup.businessName || "Workspace"}</h2><p>{setupConnected ? (platform?.workspace_intro || 'Ready for inbox, broadcasts, and automation.') : 'Connect WhatsApp to start messaging.'}</p></div><div className="heroMetrics"><Metric label="Marketable" value={marketableCount} /><Metric label="Open chats" value={openConversations} /><Metric label="Campaigns" value={campaignCount} /></div></section>
+    <section className="actionBand">{!setupConnected && canManage && <button className="primaryAction" type="button" onClick={() => setActiveView('setup')}><Link2 size={18} /> Connect WhatsApp <ChevronRight size={18} /></button>}{canManage && <button className={setupConnected ? 'primaryAction' : 'secondaryAction'} onClick={() => setActiveView("campaigns")}><Send size={18} /> {platform?.primary_cta_label || 'Broadcast'} <ChevronRight size={18} /></button>}<button className={canManage ? "secondaryAction" : "primaryAction"} onClick={() => setActiveView("inbox")}><Inbox size={18} /> Open inbox</button><button className="secondaryAction" onClick={() => setActiveView("contacts")}><UsersRound size={18} /> {canManage ? "Add audience" : "Contacts"}</button></section>
     <Panel title="Support queue" subtitle="Waiting conversations and SLA"><InboxSlaWidget api={api} role={role} onOpenInbox={() => setActiveView("inbox")} onOpenConversation={(conversationId) => { openConversation?.(conversationId); setActiveView("inbox"); }} /></Panel>
     <div className="overviewGrid"><Panel title="Delivery pulse" subtitle="Campaign recipients"><div className="statusGrid"><Metric label="Delivered" value={delivered} /><Metric label="Read" value={read} /><Metric label="Failed" value={failed} /><Metric label="Open chats" value={openConversations} /></div></Panel><Panel title="Workspace readiness" subtitle="Before scaling sends"><div className="readinessList">{setupItems.map((item) => <div key={item.label} className={item.ready ? "ready" : ""}><span>{item.label}</span><Badge kind={item.ready ? "good" : "warn"}>{item.ready ? "Ready" : "Action needed"}</Badge></div>)}</div></Panel></div>
     <details className="techDetails saasAdvancedBlock"><summary>Plan usage · {state.subscription?.plan?.name || "No plan"}</summary><div className="meterGrid usageGrid"><Metric label="Contacts" value={limits.contacts == null ? usage.contacts || 0 : (usage.contacts || 0) + " / " + limits.contacts} /><Metric label="Campaigns" value={limits.campaigns == null ? usage.campaigns || 0 : (usage.campaigns || 0) + " / " + limits.campaigns} /><Metric label="Messages" value={limits.messages == null ? usage.messages || 0 : (usage.messages || 0) + " / " + limits.messages} /><Metric label="Flows" value={limits.automationFlows == null ? usage.automationFlows || 0 : (usage.automationFlows || 0) + " / " + limits.automationFlows} /></div></details>
@@ -1182,7 +1182,8 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
   const metadata = setup.connectionMetadata || {};
   // Prefer the shell secondary nav (Connection / Numbers / Profile). Never stack a second identical tab bar.
   const showInnerTabs = false;
-  const connected = (setup.status || 'Needs setup') === 'Connected';
+  // Same gate as Connection badge / Verify — never paint "connected" from setup.status alone.
+  const connected = metaLinked;
   return <div className="screenGrid metaSetupScreen">
     <section className="metaConnectHero" aria-labelledby="meta-connect-heading">
       <div>
@@ -1227,7 +1228,7 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
       <div className="contentGrid twoColumns">
         <Panel title="Connection health" subtitle="Status for this workspace">
           <div className="connectionSummary">
-            <div><span>Connection</span><Badge kind={metaLinked ? "good" : "warn"}>{metaLinked ? (state.setup?.status === "Connected" ? "Connected" : "Ready") : (state.setup?.status || "Needs setup")}</Badge></div>
+            <div><span>Connection</span><Badge kind={metaLinked ? "good" : "warn"}>{metaLinked ? "Connected" : "Needs setup"}</Badge></div>
             <div><span>Onboarding</span><strong>{setup.onboardingMethod === 'coexistence' ? 'Existing Business App number' : setup.onboardingMethod === 'embedded_signup' ? 'Meta Cloud API signup' : 'Manual'}</strong></div>
             <div><span>Events</span><Badge kind={setup.webhookSubscribed ? "good" : "warn"}>{setup.webhookSubscribed ? "Receiving" : "Not verified"}</Badge></div>
             <div><span>Business number</span><strong>{setup.whatsappNumber || "Not connected"}</strong></div>
