@@ -498,7 +498,8 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const activeContact = activeConversation ? contacts.find((contact) => contact.id === activeConversation.contactId) || null : null;
   const latestCampaign = campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
-  const screenProps = { state, mutate, notify, changePage, reloadInbox, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
+  const reloadSetup = () => loadScope(workspaceLocation(pathname), true, { forceApply: true });
+  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
 
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
@@ -953,7 +954,7 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   </div>;
 }
 
-function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
+function Setup({ state, mutate, notify, reloadSetup, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
   const signupAttempt = useRef(null);
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
@@ -1029,8 +1030,8 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
       if (latest.submitted) return;
       latest.submitted = true;
       const completion = await postJson('/api/meta/embedded-signup/complete', payload);
-      let nextState = await loadScope(workspaceLocation(pathname), true, { forceApply: true });
-      if (!nextState) nextState = await loadScope(workspaceLocation(pathname), true, { forceApply: true });
+      let nextState = typeof reloadSetup === 'function' ? await reloadSetup() : null;
+      if (!nextState && typeof reloadSetup === 'function') nextState = await reloadSetup();
       if (nextState?.setup?.status === 'Connected') {
         notify('WhatsApp Business connected');
       } else {
