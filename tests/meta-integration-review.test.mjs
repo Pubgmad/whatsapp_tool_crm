@@ -99,6 +99,8 @@ test('embedded signup code can arrive before the completion event', () => {
   }));
   attempt = reduceSignupAttempt(attempt, { type: 'message', parsed: event, generation: attempt.generation });
   assert.equal(signupSubmitPayload(attempt).mode, 'coexistence');
+  // UI must capture payload before setting submitted; payload builder ignores that flag.
+  assert.equal(signupSubmitPayload({ ...attempt, submitted: true }).code, 'code-1');
   const cancelled = reduceSignupAttempt(reduceSignupAttempt(createSignupAttempt('standard'), { type: 'listen' }), {
     type: 'message',
     generation: undefined,

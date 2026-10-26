@@ -1019,14 +1019,16 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
       }
       const latest = signupAttempt.current;
       if (!latest || latest.generation !== attempt.generation || latest.unmounted) return;
-      if (latest.cancelled || !signupSubmitPayload(latest)) {
+      // Capture payload before flipping submitted — signupSubmitPayload returns null once submitted.
+      const payload = signupSubmitPayload(latest);
+      if (latest.cancelled || !payload) {
         setConnecting(false);
         setSignupError(latest.error || 'Meta did not finish the WhatsApp connection. Start it again.');
         return;
       }
       if (latest.submitted) return;
       latest.submitted = true;
-      const completion = await postJson('/api/meta/embedded-signup/complete', signupSubmitPayload(latest));
+      const completion = await postJson('/api/meta/embedded-signup/complete', payload);
       await mutate(Promise.resolve(completion), 'WhatsApp Business connected');
       setConnecting(false);
     } catch (error) {
