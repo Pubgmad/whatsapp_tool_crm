@@ -308,9 +308,17 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
     if (!forceApply && !scopeGate.current.current(request)) return null;
     setState((current) => {
       let incoming = nextState;
-      // After Meta complete, keep Connected only when this client still has credential markers.
+      // After Meta complete, keep Connected only while the server still has credential signals.
+      // Never preserve across Disconnect (empty waba / liveMetaReady false) — that re-enabled Verify with META_NOT_CONFIGURED.
+      const serverStillLinked = Boolean(
+        incoming?.meta?.liveMetaReady
+        || incoming?.setup?.wabaId
+        || incoming?.setup?.accessToken
+        || (incoming?.whatsappOperations?.accounts || []).some((account) => account?.status === 'connected' && account?.token?.status && account.token.status !== 'unknown' && account.token.status !== 'expired')
+      );
       if (
         preserveConnected
+        && serverStillLinked
         && current?.setup?.status === 'Connected'
         && current?.setup?.wabaId
         && current?.setup?.phoneNumberId
@@ -329,6 +337,8 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
             liveMetaReady: true
           }
         };
+      } else if (!serverStillLinked && incoming?.setup?.status !== 'Connected') {
+        preserveConnectedUntilRef.current = 0;
       }
       return mergeWorkspaceState(current, incoming);
     });
@@ -574,7 +584,28 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
       }
     }));
   };
-  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
+  const clearWhatsAppConnection = () => {
+    preserveConnectedUntilRef.current = 0;
+    setState((current) => mergeWorkspaceState(current, {
+      setup: {
+        ...(current?.setup || {}),
+        status: 'Needs setup',
+        wabaId: '',
+        phoneNumberId: '',
+        whatsappNumber: '',
+        accessToken: '',
+        webhookSubscribed: false,
+        tokenExpiresAt: null
+      },
+      meta: { ...(current?.meta || {}), liveMetaReady: false },
+      whatsappOperations: {
+        ...(current?.whatsappOperations || {}),
+        accounts: [],
+        phoneNumbers: []
+      }
+    }));
+  };
+  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
 
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
@@ -1032,7 +1063,7 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   </div>;
 }
 
-function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, role, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
+function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, role, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
   const signupAttempt = useRef(null);
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
@@ -1160,6 +1191,7 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, ro
     return "WhatsApp Business disconnected";
   };
   const disconnect = async () => {
+    if (typeof clearWhatsAppConnection === 'function') clearWhatsAppConnection();
     try {
       const body = await postJson("/api/meta/connection/disconnect", {});
       await mutate(Promise.resolve(body), disconnectMessageForRemoteCleanup(body?.remoteCleanup));
