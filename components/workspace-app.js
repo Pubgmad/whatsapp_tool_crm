@@ -247,6 +247,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const scopeGate = useRef(null);
   const inboxRevisionRef = useRef(0);
   const bootstrappedPathRef = useRef('');
+  const preserveConnectedUntilRef = useRef(0);
   const pagesRef = useRef(pages);
   pagesRef.current = pages;
   if (!scopeGate.current) scopeGate.current = createRequestGate();
@@ -281,7 +282,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
 
   const loadScope = useCallback(async (location = workspaceLocation(pathname), updatePlatform = true, overrides = {}) => {
     const forceApply = overrides.forceApply === true;
-    const preserveConnected = overrides.preserveConnected === true;
+    const preserveConnected = overrides.preserveConnected === true || Date.now() < preserveConnectedUntilRef.current;
     const request = scopeGate.current.begin();
     const currentPages = pagesRef.current;
     const page = overrides.page || currentPages[location.view] || 1;
@@ -442,8 +443,15 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   };
 
   const mutate = async (promise, message) => {
-    try { await promise; await loadScope(); notify(message); return true; }
-    catch (error) { notify(error.message); return false; }
+    try {
+      await promise;
+      await loadScope(workspaceLocation(pathname), true, { forceApply: true });
+      notify(message);
+      return true;
+    } catch (error) {
+      notify(error.message);
+      return false;
+    }
   };
 
   const changePage = async (key, page) => {
@@ -538,6 +546,8 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const reloadSetup = () => loadScope({ view: 'setup', conversationId: '' }, true, { forceApply: true, preserveConnected: true });
   const applyWhatsAppConnection = (connection) => {
     if (!connection?.wabaId) return;
+    // Keep Connected through the next polls until heal/server status catches up.
+    preserveConnectedUntilRef.current = Date.now() + 120000;
     setState((current) => mergeWorkspaceState(current, {
       setup: {
         ...(current?.setup || {}),
@@ -1268,6 +1278,7 @@ function Contacts({ state, mutate }) {
   const [pagination, setPagination] = useState(state.pagination?.contacts || { page: 1, pages: 1, total: contacts.length });
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [editContact, setEditContact] = useState(null);
+  const [contactsRefreshKey, setContactsRefreshKey] = useState(0);
   const canManage = isWorkspaceManager(state.account.role);
   const modeParam = permissionFilter === "allowed" ? "marketable" : permissionFilter === "blocked" ? "suppressed" : "all";
   useEffect(() => {
@@ -1288,12 +1299,12 @@ function Contacts({ state, mutate }) {
       }
     }, search ? 300 : 0);
     return () => { active = false; clearTimeout(timer); };
-  }, [page, search, modeParam, state.account.business.id]);
-  const refreshContacts = () => setPage((p) => p);
+  }, [page, search, modeParam, state.account.business.id, contactsRefreshKey]);
+  const refreshContacts = () => setContactsRefreshKey((key) => key + 1);
   const add = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); mutate(postJson("/api/contacts", { name: form.get("name"), phone: form.get("phone"), tags: form.get("tags"), optInSource: form.get("optInSource"), consentEvidence: form.get("consentEvidence"), marketingPermission: form.get("marketingPermission") === "on" }).then(() => { refreshContacts(); }), "Contact saved"); event.currentTarget.reset(); };
-  const importRows = (event) => { event.preventDefault(); if (!csvText.trim()) return; mutate(postJson("/api/contacts/import", { csv: csvText }).then((next) => { setCsvText(""); setFileName(""); return next; }), "Contacts imported"); };
+  const importRows = (event) => { event.preventDefault(); if (!csvText.trim()) return; mutate(postJson("/api/contacts/import", { csv: csvText }).then((next) => { setCsvText(""); setFileName(""); refreshContacts(); return next; }), "Contacts imported"); };
   const chooseFile = async (event) => { const file = event.target.files?.[0]; if (!file) return; event.target.value = ""; if (file.size > 2 * 1024 * 1024) { mutate(Promise.reject(new Error("Choose a CSV file no larger than 2 MB."))); return; } setFileName(file.name); setCsvText(await file.text()); };
-  const saveContact = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const allowed = form.get("marketingPermission") === "allowed"; mutate(postJson(`/api/contacts/${editContact.id}`, { name: form.get("name"), phone: form.get("phone"), tags: form.get("tags"), optInSource: form.get("optInSource"), consentEvidence: form.get("consentEvidence"), marketingPermission: allowed, unsubscribed: !allowed, customAttributes: attributesFromText(form.get("customAttributes")) }, "PATCH").then((next) => { setEditContact(null); return next; }), "Contact updated"); };
+  const saveContact = (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const allowed = form.get("marketingPermission") === "allowed"; mutate(postJson(`/api/contacts/${editContact.id}`, { name: form.get("name"), phone: form.get("phone"), tags: form.get("tags"), optInSource: form.get("optInSource"), consentEvidence: form.get("consentEvidence"), marketingPermission: allowed, unsubscribed: !allowed, customAttributes: attributesFromText(form.get("customAttributes")) }, "PATCH").then((next) => { setEditContact(null); refreshContacts(); return next; }), "Contact updated"); };
   return <div className="screenGrid">
     <div className="contentGrid audienceGrid">
       {canManage && <Panel title="Add contact" subtitle="Create a permission-aware WhatsApp contact"><form className="formGrid" onSubmit={add}><Input name="name" label="Name" required /><Input name="phone" label="Phone with country code" required /><Input name="tags" label="Tags" placeholder="lead, customer" /><Input name="optInSource" label="Opt-in source" /><Input name="consentEvidence" label="Consent evidence (when allowed)" placeholder="When and how this contact opted in" /><label className="checkRow"><input name="marketingPermission" type="checkbox" /> Marketing permission recorded</label><button className="primaryAction" type="submit"><Plus size={18} /> Add contact</button></form></Panel>}
@@ -1364,7 +1375,7 @@ function Templates({ state, mutate }) {
   const sync = () => mutate(postJson("/api/templates/sync", { accountId }), "Templates synced");
 return <div className="screenGrid"><section className="actionBand"><div><strong>Meta template library</strong><span>Approval status and components stay synchronized with your WABA.</span></div><button className="secondaryAction" type="button" onClick={sync} disabled={!selectedAccount}><RefreshCcw size={18} /> Sync from Meta</button></section><label>WhatsApp account<select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">Select an account</option>{accounts.map((account) => <option value={account.id} key={account.id}>{account.name ? `${account.name} (${account.wabaId})` : account.wabaId}</option>)}</select></label><Panel title="Create WhatsApp template" subtitle="Marketing, utility, authentication, media headers, and action buttons"><form className="templateComposer fullTemplateComposer" onSubmit={create}><Input name="name" label="Template name" required /><label>Category<select name="category"><option value="MARKETING">Marketing</option><option value="UTILITY">Utility</option><option value="AUTHENTICATION">Authentication / OTP</option></select></label><Input name="language" label="Meta language code" defaultValue="en_US" pattern="[a-z]{2,3}(_[A-Z]{2})?" maxLength="9" required /><label>Header format<select name="headerFormat"><option value="NONE">No header</option><option value="TEXT">Text</option><option value="IMAGE">Image</option><option value="VIDEO">Video</option><option value="DOCUMENT">Document</option></select></label><Input name="headerText" label="Text header" maxLength="60" /><Input name="headerMediaHandle" label="Meta media handle" /><label className="templateBodyField">Body<textarea name="body" placeholder="Use variables like {{name}}" required /></label><Input name="footerText" label="Footer" maxLength="60" /><Input name="buttons" label="Quick replies" placeholder="Pricing, Book demo" /><details className="advancedTemplateFields"><summary>Advanced buttons and OTP settings</summary><label>Buttons<textarea name="advancedButtons" rows="4" placeholder={"QUICK_REPLY|Pricing\nURL|Visit website|https://example.com\nPHONE_NUMBER|Call us|+919000000000"} /></label><div className="formSplit"><label>OTP action<select name="otpType"><option value="COPY_CODE">Copy code</option><option value="ONE_TAP">One-tap autofill</option></select></label><Input name="otpButtonText" label="OTP button text" defaultValue="Copy code" maxLength="25" /><Input name="codeExpirationMinutes" label="Code expiry (minutes)" type="number" min="1" max="90" defaultValue="10" /></div><div className="formSplit"><Input name="otpPackageName" label="Android package name (one-tap)" autoComplete="off" /><Input name="otpSignatureHash" label="Android app signature hash (one-tap)" autoComplete="off" /><Input name="otpAutofillText" label="One-tap button text" maxLength="25" /></div></details><button className="primaryAction" type="submit"><MessageSquareText size={18} /> Submit to Meta</button></form></Panel><AdvancedTemplateComposer accountId={accountId} postJson={postJson} onCreated={()=>mutate(Promise.resolve({ok:true}),"Template submitted")}/><div className="cardGrid">{state.templates.map((template) => <article className="templateCard" key={template.id}><div className="cardHead"><div><h3>{template.name}</h3><small>{template.category} | {template.language} | {accounts.find((account) => account.wabaId === template.wabaId)?.name || template.wabaId || "Unassigned"} | {template.componentSchema?.headerFormat || "TEXT"} | content revision {template.contentRevision ?? 1}</small></div><Badge kind={template.status === "Approved" ? "good" : template.status === "Pending" ? "warn" : "bad"}>{template.status}</Badge></div>{template.headerText && <strong className="templateHeaderText">{template.headerText}</strong>}<p>{template.body}</p>{template.footerText && <small className="templateFooterText">{template.footerText}</small>}<div className="chipRow">{(template.buttons || []).map((button) => <span key={`${button.type || "button"}-${button.text}`}>{button.type && button.type !== "QUICK_REPLY" ? `${button.type}: ` : ""}{button.text}</span>)}{template.variables.map((variable) => <span key={variable}>{`{{${variable}}}`}</span>)}</div><TemplateInsights template={template} />{template.rejectionReason && <small className="errorLine">{template.rejectionReason}</small>}</article>)}</div>{!state.templates.length && <Panel title="No templates"><EmptyState text="Submit or sync a WhatsApp template to begin" /></Panel>}</div>;
 }
-function AutomationFlows({ state, mutate, postJson, approvedTemplates, changePage }) {
+function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
   const flows = state.automationFlows || [];
   const teamMembers = state.teamMembers || [];
   const [editingId, setEditingId] = useState("");

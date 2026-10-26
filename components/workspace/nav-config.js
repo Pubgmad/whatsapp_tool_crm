@@ -22,19 +22,18 @@ export const managerViews = new Set([
 export const featureForView = {
   inbox: 'inbox',
   templates: 'templates',
-  contacts: 'segments',
   automation: 'automation',
   campaigns: 'campaigns',
   commerce: 'commerce',
   conversions: 'conversions',
   calling: 'calling',
   ads: 'ads',
-  flows: 'automation',
+  flows: 'whatsapp_flows',
   media: 'templates',
-  entry_points: 'campaigns',
+  entry_points: 'entry_points',
   integrations: 'automation',
   journeys: 'automation',
-  groups: 'inbox',
+  groups: 'whatsapp_groups',
   ai_agents: 'ai_agent'
 };
 
