@@ -56,10 +56,24 @@ try {
        LIMIT 1`,
       [userId]
     )).rows[0];
-    if (!reviewWorkspace) {
-      throw new Error("REVIEWER_EMAIL already belongs to a non-review account. Use a different dedicated reviewer email.");
+    if (reviewWorkspace) {
+      businessId = reviewWorkspace.id;
+    } else {
+      const named = (await client.query(
+        `SELECT b.id FROM memberships m JOIN businesses b ON b.id = m.business_id
+          WHERE m.user_id = $1 AND m.role = 'Owner' AND b.name = $2 LIMIT 1`,
+        [userId, businessName]
+      )).rows[0];
+      const fallback = (await client.query(
+        `SELECT m.business_id AS id FROM memberships m
+          WHERE m.user_id = $1 AND m.role = 'Owner' ORDER BY m.created_at ASC LIMIT 1`,
+        [userId]
+      )).rows[0];
+      businessId = named?.id || fallback?.id;
+      if (!businessId) {
+        throw new Error("REVIEWER_EMAIL has no Owner workspace. Create one or use a fresh reviewer email.");
+      }
     }
-    businessId = reviewWorkspace.id;
     await client.query("UPDATE users SET name = $1, password_hash = $2, email_verified_at = COALESCE(email_verified_at, NOW()), email_verification_required = TRUE, updated_at = NOW() WHERE id = $3", [reviewerName, hashPassword(password), userId]);
   } else {
     userId = id("u");

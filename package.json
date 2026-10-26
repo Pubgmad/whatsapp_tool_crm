@@ -20,6 +20,7 @@
     "db:init": "node scripts/db-init.mjs",
     "db:seed": "node scripts/db-seed.mjs",
     "reviewer:init": "node scripts/reviewer-init.mjs",
+    "reviewer:heal": "node scripts/reviewer-heal.mjs",
     "super-admin:init": "node scripts/db-init.mjs",
     "security:rotate-secrets": "node scripts/rotate-secrets.mjs",
     "docs:parity": "node scripts/generate-parity-docs.mjs",
