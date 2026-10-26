@@ -16,6 +16,8 @@ export const managerViews = new Set([
   'groups',
   'numbers',
   'profile',
+  'catalog',
+  'meta_analytics',
   'ai_agents'
 ]);
 
@@ -25,6 +27,7 @@ export const featureForView = {
   automation: 'automation',
   campaigns: 'campaigns',
   commerce: 'commerce',
+  catalog: 'commerce',
   conversions: 'conversions',
   calling: 'calling',
   ads: 'ads',
@@ -59,6 +62,8 @@ export const workspaceRoutes = {
   automation: '/app/automations',
   campaigns: '/app/campaigns',
   commerce: '/app/commerce',
+  catalog: '/app/settings/whatsapp/catalog',
+  meta_analytics: '/app/settings/whatsapp/analytics',
   conversions: '/app/conversions',
   calling: '/app/calling',
   ads: '/app/ads',
@@ -79,7 +84,9 @@ export const setupSectionByView = {
   journeys: 'journeys',
   capabilities: 'capabilities',
   groups: 'groups',
-  integrations: 'integrations'
+  integrations: 'integrations',
+  catalog: 'commerce',
+  meta_analytics: 'analytics'
 };
 
 export const pageTitles = {
@@ -103,6 +110,8 @@ export const pageTitles = {
   automation: 'Automation',
   campaigns: 'Broadcasts',
   commerce: 'Commerce',
+  catalog: 'Catalog settings',
+  meta_analytics: 'Meta insights',
   conversions: 'Conversions',
   calling: 'Calling',
   ads: 'CTWA Ads',
@@ -134,6 +143,8 @@ export const pageIntros = {
   automation: 'Trigger-based reply workflows.',
   campaigns: 'Template campaigns and scheduling.',
   commerce: 'Catalogs and commerce settings.',
+  catalog: 'Catalog visibility and product message tools.',
+  meta_analytics: 'Meta Graph messaging and conversation snapshots.',
   conversions: 'Conversion signals from chats.',
   calling: 'WhatsApp calling with chat context.',
   ads: 'Click-to-WhatsApp campaigns, Meta assets, and entry conversation measurement.',
@@ -207,6 +218,7 @@ export const navGroups = [
     label: 'Commerce & integrations',
     items: [
       { id: 'commerce', label: 'Commerce', icon: 'ShoppingBag' },
+      { id: 'catalog', label: 'Catalog', icon: 'ShoppingBag' },
       { id: 'integrations', label: 'Integrations', icon: 'KeyRound' }
     ]
   },
@@ -215,6 +227,7 @@ export const navGroups = [
     label: 'Insights & admin',
     items: [
       { id: 'results', label: 'Analytics', icon: 'BarChart3' },
+      { id: 'meta_analytics', label: 'Meta insights', icon: 'BarChart3' },
       { id: 'conversions', label: 'Conversions', icon: 'Activity' },
       { id: 'journeys', label: 'Journeys', icon: 'Activity' },
       { id: 'capabilities', label: 'Capabilities', icon: 'RadioTower' },
@@ -252,7 +265,9 @@ export function workspaceLocation(pathname) {
       'entry-points': 'entry_points',
       journeys: 'journeys',
       capabilities: 'capabilities',
-      groups: 'groups'
+      groups: 'groups',
+      catalog: 'catalog',
+      analytics: 'meta_analytics'
     };
     return { view: map[rest] || 'setup', conversationId: null };
   }

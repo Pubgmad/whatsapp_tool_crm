@@ -1776,8 +1776,8 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
       {canManage && <WhatsAppReferralReport />}
       {canManage && campaignsEnabled && (
         <section className="actionBand">
-          <div><strong>Campaign queue</strong><span>Process scheduled and retry jobs.</span></div>
-          <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Process due jobs</button>
+          <div><strong>Scheduled sends</strong><span>Run pending and retry deliveries.</span></div>
+          <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Run pending sends</button>
         </section>
       )}
       {state.campaigns.map((campaign) => (
