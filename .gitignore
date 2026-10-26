@@ -29,11 +29,27 @@ tsconfig.tsbuildinfo
 *.key
 credentials.json
 service-account*.json
+auth.json
 tmp/
 temp/
 .cache/
 dist/
 build-artifacts/
+
+# Local CI / Meta App Review dump artifacts (never commit)
+_check*.json
+_extract*/
+_job*/
+_run*/
+_run_logs/
+ci-failed-log.txt
+ci-job-log.zip
+ci-job-log-extracted/
+run-*-logs*.zip
+*-logs.zip
+*-weblogs.zip
+*_jobs.json
+*-log-failed.txt
 
 # Markdown / docs dumps: only root README is published to GitHub
 *.md
