@@ -4,22 +4,26 @@ import {Plus,Trash2,Send} from 'lucide-react';
 import './whatsapp-modules.css';
 const emptyCard=()=>({id:crypto.randomUUID(),format:'IMAGE',mediaHandle:'',body:'',buttons:[{type:'URL',text:'',url:'',example:''}]});
 const slots=text=>[...new Set([...String(text||'').matchAll(/{{\s*(\d+)\s*}}/g)].map(match=>match[1]))].sort((a,b)=>Number(a)-Number(b));
-export default function AdvancedTemplateComposer({postJson,onCreated,api,accountId}){
+export default function AdvancedTemplateComposer({postJson,onCreated,api,accountId,flowsEnabled=false}){
   const [kind,setKind]=useState('CAROUSEL'),[cards,setCards]=useState([]),[body,setBody]=useState(''),[pending,setPending]=useState(false),[error,setError]=useState('');
   const [flows,setFlows]=useState([]),[flowId,setFlowId]=useState(''),[flowScreen,setFlowScreen]=useState(''),[flowAction,setFlowAction]=useState('navigate'),[flowLoading,setFlowLoading]=useState(false),[flowError,setFlowError]=useState('');
   const selectedFlow=flows.find(flow=>flow.id===flowId);
   useEffect(()=>{
-    if(kind!=='FLOW')return;
+    if(kind==='FLOW'&&!flowsEnabled)setKind('CAROUSEL');
+  },[kind,flowsEnabled]);
+  useEffect(()=>{
+    if(kind!=='FLOW'||!flowsEnabled)return;
     let active=true;setFlowLoading(true);setFlowError('');
     const load=api?api('/api/whatsapp/flow-templates'):fetch('/api/whatsapp/flow-templates',{credentials:'same-origin',cache:'no-store'}).then(async response=>{const result=await response.json();if(!response.ok)throw new Error(result.error||'Unable to load Flows.');return result;});
     load.then(result=>{if(active)setFlows(result.flows||[]);}).catch(cause=>{if(active)setFlowError(cause.message);}).finally(()=>{if(active)setFlowLoading(false);});
     return()=>{active=false;};
-  },[kind,api]);
+  },[kind,api,flowsEnabled]);
   const update=(index,key,value)=>setCards(current=>current.map((card,position)=>position===index?{...card,[key]:value}:card));
   async function submit(event){
     event.preventDefault();const form=event.currentTarget,values=new FormData(form);setPending(true);setError('');
     try{
       if(kind==='FLOW'){
+        if(!flowsEnabled)throw new Error('WhatsApp Flows are not included in your current plan. Open Billing to review upgrades.');
         if(!selectedFlow)throw new Error('Select a published Flow.');
         await postJson('/api/whatsapp/flow-templates',{action:'create',name:values.get('name'),language:values.get('language'),category:values.get('flowCategory'),body,flowId,flowAction,flowScreen:flowAction==='navigate'?flowScreen:undefined,flowButtonText:values.get('flowButtonText'),bodyExamples:slots(body).map(slot=>values.get('body_example_'+slot))});
         setBody('');form.reset();await onCreated();return;
@@ -30,7 +34,7 @@ export default function AdvancedTemplateComposer({postJson,onCreated,api,account
   }
   return <section className="advancedTemplateComposer wa-module"><h2>Advanced templates</h2>
     <form className="formGrid" onSubmit={submit}>
-      <label>Format<select value={kind} onChange={event=>setKind(event.target.value)}><option value="CAROUSEL">Media carousel</option><option value="PRODUCT_CAROUSEL">Product-card carousel</option><option value="CATALOG">Catalog</option><option value="COUPON">Coupon code</option><option value="LIMITED_TIME_OFFER">Limited-time offer</option><option value="FLOW">WhatsApp Flow</option></select></label>
+      <label>Format<select value={kind} onChange={event=>setKind(event.target.value)}><option value="CAROUSEL">Media carousel</option><option value="PRODUCT_CAROUSEL">Product-card carousel</option><option value="CATALOG">Catalog</option><option value="COUPON">Coupon code</option><option value="LIMITED_TIME_OFFER">Limited-time offer</option>{flowsEnabled&&<option value="FLOW">WhatsApp Flow</option>}</select></label>
       <label>Name<input name="name" pattern="[a-z0-9_]+" maxLength={512} required/></label>
       <label>Language code<input name="language" pattern="[a-z]{2,3}(_[A-Z]{2})?" required/></label>
       <label>Message body<textarea required maxLength={1024} value={body} onChange={event=>setBody(event.target.value)}/></label>
