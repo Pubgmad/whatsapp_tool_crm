@@ -499,7 +499,28 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const latestCampaign = campaigns[0];
   const platformConfig = { ...platform, ...(state.platform || {}) };
   const reloadSetup = () => loadScope(workspaceLocation(pathname), true, { forceApply: true });
-  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
+  const applyWhatsAppConnection = (connection) => {
+    if (!connection?.wabaId) return;
+    setState((current) => mergeWorkspaceState(current, {
+      setup: {
+        ...(current?.setup || {}),
+        status: 'Connected',
+        wabaId: connection.wabaId,
+        phoneNumberId: connection.phoneNumberId || current?.setup?.phoneNumberId || '',
+        whatsappNumber: connection.whatsappNumber || current?.setup?.whatsappNumber || '',
+        onboardingMethod: connection.onboardingMode === 'coexistence' ? 'coexistence' : 'embedded_signup',
+        webhookSubscribed: connection.webhookSubscribed !== false,
+        tokenExpiresAt: connection.tokenExpiresAt || current?.setup?.tokenExpiresAt || null,
+        connectedAt: current?.setup?.connectedAt || new Date().toISOString(),
+        accessToken: current?.setup?.accessToken || 'saved-token-hidden'
+      },
+      meta: {
+        ...(current?.meta || {}),
+        liveMetaReady: Boolean(connection.wabaId && connection.phoneNumberId)
+      }
+    }));
+  };
+  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
 
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
@@ -954,7 +975,7 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
   </div>;
 }
 
-function Setup({ state, mutate, notify, reloadSetup, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
+function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
   const signupAttempt = useRef(null);
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
@@ -1030,16 +1051,20 @@ function Setup({ state, mutate, notify, reloadSetup, forcedSection = null, hideS
       if (latest.submitted) return;
       latest.submitted = true;
       const completion = await postJson('/api/meta/embedded-signup/complete', payload);
+      // Apply server connection immediately so UI cannot stay Needs setup when Meta complete succeeded.
+      if (typeof applyWhatsAppConnection === 'function') applyWhatsAppConnection(completion?.connection);
       let nextState = typeof reloadSetup === 'function' ? await reloadSetup() : null;
       if (!nextState && typeof reloadSetup === 'function') nextState = await reloadSetup();
-      if (nextState?.setup?.status === 'Connected') {
+      const connected = nextState?.setup?.status === 'Connected'
+        || completion?.connection?.status === 'Connected'
+        || Boolean(completion?.connection?.wabaId);
+      if (connected) {
+        if (nextState?.setup?.status !== 'Connected' && typeof applyWhatsAppConnection === 'function') {
+          applyWhatsAppConnection(completion.connection);
+        }
         notify('WhatsApp Business connected');
       } else {
-        setSignupError(
-          completion?.connection?.wabaId
-            ? 'Meta authorized WhatsApp, but this workspace still shows Needs setup. Refresh the page or run npm run db:init / postgres GRANTs, then retry.'
-            : 'Meta did not finish saving the WhatsApp connection. Start it again.'
-        );
+        setSignupError('Meta did not finish saving the WhatsApp connection. Start it again.');
       }
     } catch (error) {
       setSignupError(error.message || 'Meta signup could not be completed.');
