@@ -20,7 +20,7 @@ export default function MmLiteOptimizerPanel({ api }) {
   return (
     <div className="mmLitePanel">
       <HonestLimitsCallout limitId="mm_lite_optimizer" compact />
-      <h4>Marketing Messages (MM Lite) send path</h4>
+      <h4>Marketing Messages send path</h4>
       <p role="status">
         Status: <strong>{report.marketingMessagesStatus}</strong> · send path: <strong>{report.sendPath}</strong>
       </p>
