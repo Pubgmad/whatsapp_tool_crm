@@ -14,8 +14,9 @@ if (!process.env.DATABASE_URL) {
 }
 
 const { email } = reviewerEnv();
+// Use the same DATABASE_URL as the running CRM so heal updates the DB the app reads.
 const pool = new Pool({
-  connectionString: process.env.DATABASE_MIGRATION_URL || process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
   ssl: databaseSslConfig()
 });
 
