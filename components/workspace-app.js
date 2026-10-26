@@ -308,11 +308,13 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
     if (!forceApply && !scopeGate.current.current(request)) return null;
     setState((current) => {
       let incoming = nextState;
-      // After Meta complete, do not let a stale Needs setup reload wipe Connected.
+      // After Meta complete, keep Connected only when this client still has credential markers.
       if (
         preserveConnected
         && current?.setup?.status === 'Connected'
         && current?.setup?.wabaId
+        && current?.setup?.phoneNumberId
+        && current?.setup?.accessToken
         && incoming?.setup?.status !== 'Connected'
       ) {
         incoming = {
@@ -550,7 +552,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   // Always hit the setup API section so heal + whatsappOperations run after connect.
   const reloadSetup = () => loadScope({ view: 'setup', conversationId: '' }, true, { forceApply: true, preserveConnected: true });
   const applyWhatsAppConnection = (connection) => {
-    if (!connection?.wabaId) return;
+    if (!connection?.wabaId || !connection?.phoneNumberId) return;
     // Keep Connected through the next polls until heal/server status catches up.
     preserveConnectedUntilRef.current = Date.now() + 120000;
     setState((current) => mergeWorkspaceState(current, {
@@ -558,17 +560,17 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
         ...(current?.setup || {}),
         status: 'Connected',
         wabaId: connection.wabaId,
-        phoneNumberId: connection.phoneNumberId || current?.setup?.phoneNumberId || '',
+        phoneNumberId: connection.phoneNumberId,
         whatsappNumber: connection.whatsappNumber || current?.setup?.whatsappNumber || '',
         onboardingMethod: connection.onboardingMode === 'coexistence' ? 'coexistence' : 'embedded_signup',
         webhookSubscribed: connection.webhookSubscribed !== false,
         tokenExpiresAt: connection.tokenExpiresAt || current?.setup?.tokenExpiresAt || null,
         connectedAt: current?.setup?.connectedAt || new Date().toISOString(),
-        accessToken: current?.setup?.accessToken || 'saved-token-hidden'
+        accessToken: 'saved-token-hidden'
       },
       meta: {
         ...(current?.meta || {}),
-        liveMetaReady: Boolean(connection.wabaId && connection.phoneNumberId)
+        liveMetaReady: true
       }
     }));
   };

@@ -254,6 +254,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/external-availability.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/crm-connectors.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/crm-production-gaps.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/whatsapp-credential-reconcile.sql', import.meta.url), 'utf8'));
   // product-completion-wave ALTERs crm_connections — must run after crm-connectors CREATE
   await client.query(await fs.readFile(new URL('../db/product-completion-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/ai-integrations-production.sql', import.meta.url), 'utf8'));
