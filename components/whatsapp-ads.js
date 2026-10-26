@@ -16,25 +16,65 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
   useEffect(()=>{let cancelled=false;api('/api/whatsapp/ads/report?days=30').then(result=>{if(!cancelled)setAdsSummary(result);}).catch(()=>{});loadCredits();return()=>{cancelled=true;};},[api]);
   useEffect(()=>{if(!managerView)return;loadOptimizationHistory();},[api,managerView]);
   const formatCredits=(minor,currency='INR')=>{try{return new Intl.NumberFormat('en-IN',{style:'currency',currency}).format((Number(minor)||0)/100);}catch{return `${currency} ${((Number(minor)||0)/100).toFixed(2)}`;}};
+  const clearAdsOAuthQuery=()=>{
+    if(typeof window==='undefined')return;
+    const url=new URL(window.location.href);
+    if(!url.searchParams.has('adsOAuth')&&!url.searchParams.has('adsOAuthError')&&!url.searchParams.has('oauthBusinessId'))return;
+    url.searchParams.delete('adsOAuth');
+    url.searchParams.delete('adsOAuthError');
+    url.searchParams.delete('oauthBusinessId');
+    window.history.replaceState({},'',url.pathname+url.search+url.hash);
+  };
   useEffect(()=>{
     if(role!=='Owner')return;
     const params=new URLSearchParams(typeof window!=='undefined'?window.location.search:'');
     const oauthError=params.get('adsOAuthError');
     if(oauthError)setError(()=>{try{return decodeURIComponent(oauthError);}catch{return oauthError;}});
     const afterOAuth=params.get('adsOAuth')==='1';
+    const oauthBusinessId=params.get('oauthBusinessId')||'';
     if(data?.connection&&!afterOAuth&&!oauthError)return;
     let cancelled=false;
-    api('/api/whatsapp/ads/oauth/pending').then(result=>{
-      if(cancelled)return;
-      if(result.pending){
-        setOauthPending(result);
-        setOauthPick({adAccountId:result.adAccounts?.[0]?.id||'',pageId:result.pages?.[0]?.id||'',phoneId:''});
-        return;
+    const loadPending=async()=>{
+      if(afterOAuth&&oauthBusinessId){
+        try{
+          await postJson('/api/workspaces',{businessId:oauthBusinessId});
+        }catch(e){
+          if(!cancelled)setError(e.code?`${e.message} (${e.code})`:e.message);
+          clearAdsOAuthQuery();
+          return;
+        }
       }
-      if(afterOAuth)setError('Facebook approved access, but there is nothing left to finish for this workspace. Click Continue with Facebook again in this same browser while signed in as the workspace Owner, then pick ad account, Page, and WhatsApp number.');
-    }).catch(e=>{if(!cancelled)setError(e.code?`${e.message} (${e.code})`:e.message);});
+      try{
+        const result=await api('/api/whatsapp/ads/oauth/pending');
+        if(cancelled)return;
+        if(result.pending){
+          setOauthPending(result);
+          setOauthPick({adAccountId:result.adAccounts?.[0]?.id||'',pageId:result.pages?.[0]?.id||'',phoneId:''});
+          clearAdsOAuthQuery();
+          return;
+        }
+        if(result.alreadyConnected){
+          const fresh=await api('/api/whatsapp/ads?page='+page);
+          if(!cancelled){
+            setData(fresh);
+            setCredentials(current=>({...fresh.connection,...current}));
+          }
+          clearAdsOAuthQuery();
+          return;
+        }
+        if(result.error)setError(result.error);
+        else if(result.reason==='expired')setError('Facebook Login timed out (30 minutes). Click Continue with Facebook again, then finish with ad account, Page, and WhatsApp number.');
+        else if(result.reason==='other_owner')setError(result.error||'Another owner must finish or wait for the in-progress Facebook Login on this workspace.');
+        else if(afterOAuth)setError('Facebook approved access, but this workspace has no pending connection. Confirm the workspace dropdown shows Meta App Review Workspace, then click Continue with Facebook again in this same browser (Owner only).');
+        clearAdsOAuthQuery();
+      }catch(e){
+        if(!cancelled)setError(e.code?`${e.message} (${e.code})`:e.message);
+        clearAdsOAuthQuery();
+      }
+    };
+    loadPending();
     return()=>{cancelled=true;};
-  },[api,role,data?.connection]);
+  },[api,role,data?.connection,postJson,page]);
   const run=async task=>{setBusy(true);setError('');try{await task();await load();}catch(e){setError(e.code?`${e.message} (${e.code})`:e.message);}finally{setBusy(false);}};
   const startFacebookLogin=async()=>{
     setBusy(true);setError('');
