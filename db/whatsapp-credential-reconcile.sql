@@ -1,5 +1,43 @@
 -- Production backfill: keep businesses ↔ whatsapp_accounts credentials aligned.
 -- Safe to re-run. Prefer live account tokens; demote fake Connected rows.
+SELECT set_config('app.system_access','true', true);
+
+-- 0) Create missing account rows from businesses credentials (same tenant only).
+INSERT INTO whatsapp_accounts (
+  id, business_id, waba_id, onboarding_method, access_token_encrypted,
+  token_expires_at, webhook_subscribed, is_default, status, last_synced_at
+)
+SELECT 'waa_' || substr(md5(b.id || ':' || b.waba_id), 1, 16),
+  b.id, b.waba_id, COALESCE(NULLIF(b.onboarding_method,''), 'manual'),
+  b.access_token_encrypted, b.meta_token_expires_at, b.webhook_subscribed,
+  FALSE, 'connected', NOW()
+FROM businesses b
+WHERE b.waba_id <> '' AND b.access_token_encrypted <> ''
+  AND NOT EXISTS (
+    SELECT 1 FROM whatsapp_accounts a
+    WHERE a.business_id = b.id AND a.waba_id = b.waba_id
+  )
+ON CONFLICT (waba_id) DO NOTHING;
+
+INSERT INTO whatsapp_phone_numbers (
+  id, business_id, whatsapp_account_id, phone_number_id, display_phone_number,
+  is_default, registration_state, onboarding_method, last_synced_at
+)
+SELECT 'wap_' || substr(md5(b.id || ':' || b.phone_number_id), 1, 16),
+  b.id, a.id, b.phone_number_id, COALESCE(b.whatsapp_number,''),
+  FALSE, 'unknown', COALESCE(NULLIF(b.onboarding_method,''), 'manual'), NOW()
+FROM businesses b
+JOIN whatsapp_accounts a ON a.business_id = b.id AND a.waba_id = b.waba_id
+WHERE b.phone_number_id <> ''
+  AND NOT EXISTS (
+    SELECT 1 FROM whatsapp_phone_numbers p
+    WHERE p.business_id = b.id AND p.phone_number_id = b.phone_number_id
+  )
+ON CONFLICT (phone_number_id) DO NOTHING;
+
+UPDATE whatsapp_accounts
+SET status = 'disconnected', is_default = FALSE, updated_at = NOW()
+WHERE status = 'connected' AND COALESCE(access_token_encrypted, '') = '';
 
 -- 1) Copy live account token onto businesses when the business row is missing credentials.
 UPDATE businesses b
