@@ -268,6 +268,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const notify = (message) => { if (!message) return; setNotice(message); setTimeout(() => setNotice(""), 2600); };
 
   const loadScope = useCallback(async (location = workspaceLocation(pathname), updatePlatform = true, overrides = {}) => {
+    const forceApply = overrides.forceApply === true;
     const request = scopeGate.current.begin();
     const currentPages = pagesRef.current;
     const page = overrides.page || currentPages[location.view] || 1;
@@ -281,10 +282,11 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
         page, messagePage, notePage, conversationId: location.conversationId || "", inboxFilter, q: inboxQ
       }));
     } catch (error) {
-      if (scopeGate.current.current(request)) throw error;
+      if (forceApply || scopeGate.current.current(request)) throw error;
       return null;
     }
-    if (!scopeGate.current.current(request)) return null;
+    // forceApply keeps post-connect refresh from being discarded by the 15s poll gate.
+    if (!forceApply && !scopeGate.current.current(request)) return null;
     setState((current) => mergeWorkspaceState(current, nextState));
     if (location.view === 'inbox') {
       const appliedFilter = nextState.pagination?.inbox?.appliedFilter;
@@ -1005,7 +1007,6 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
       signupAttempt.current = reduceSignupAttempt(signupAttempt.current, { type: 'code', code });
       if (!code) {
         setSignupError(describeEmbeddedSignupFailure(response, signupAttempt.current.error));
-        setConnecting(false);
         return;
       }
       if (!signupSubmitPayload(signupAttempt.current)) {
@@ -1022,18 +1023,27 @@ function Setup({ state, mutate, notify, forcedSection = null, hideSectionTabs = 
       // Capture payload before marking submitted so the complete request always gets a JSON object.
       const payload = signupSubmitPayload(latest);
       if (latest.cancelled || !payload) {
-        setConnecting(false);
         setSignupError(latest.error || 'Meta did not finish the WhatsApp connection. Start it again.');
         return;
       }
       if (latest.submitted) return;
       latest.submitted = true;
       const completion = await postJson('/api/meta/embedded-signup/complete', payload);
-      await mutate(Promise.resolve(completion), 'WhatsApp Business connected');
-      setConnecting(false);
+      let nextState = await loadScope(workspaceLocation(pathname), true, { forceApply: true });
+      if (!nextState) nextState = await loadScope(workspaceLocation(pathname), true, { forceApply: true });
+      if (nextState?.setup?.status === 'Connected') {
+        notify('WhatsApp Business connected');
+      } else {
+        setSignupError(
+          completion?.connection?.wabaId
+            ? 'Meta authorized WhatsApp, but this workspace still shows Needs setup. Refresh the page or run npm run db:init / postgres GRANTs, then retry.'
+            : 'Meta did not finish saving the WhatsApp connection. Start it again.'
+        );
+      }
     } catch (error) {
-      setConnecting(false);
       setSignupError(error.message || 'Meta signup could not be completed.');
+    } finally {
+      if (signupAttempt.current?.generation === attempt.generation) setConnecting(false);
     }
   };
   const checkConnection = () => mutate(postJson("/api/meta/connection/check", {}), "Connection check complete");
