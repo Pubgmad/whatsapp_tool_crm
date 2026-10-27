@@ -344,7 +344,7 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
   const createLeadForm=()=>run(async()=>{
     if(!data?.connection?.ad_account_id)throw Object.assign(new Error('Finish Facebook connection before creating an Instant Form.'),{code:'ADS_NOT_CONFIGURED'});
     if(!leadsCapability)throw Object.assign(new Error('Reconnect with Include lead-form retrieval enabled before creating Instant Forms.'),{code:'ADS_CAPABILITY_MISSING'});
-    const result=await postJson('/api/whatsapp/ads',{action:'createLeadgenForm',name:'CRM Instant Form'});
+    const result=await postJson('/api/whatsapp/ads',{action:'createLeadgenForm'});
     if(!result?.id)throw Object.assign(new Error(result?.error||'Meta did not return a new Instant Form id.'),{code:result?.code||'ADS_UNCONFIRMED'});
     await loadLeadForms();
     setSyncFormId(result.id);
