@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { adAccountIsActive, phonesMatch, assertPageWhatsAppMatchesCrm } from '../lib/ads-asset-match.js';
+import { adsConnectionWantsLeadgen } from '../lib/whatsapp-ads-report.js';
 
 test('phonesMatch accepts country-code vs local digits', () => {
   assert.equal(phonesMatch('918807111304', '918807111304'), true);
@@ -69,4 +70,16 @@ test('assertPageWhatsAppMatchesCrm rejects mismatch when Graph returns a differe
       }),
     (error) => error.code === 'ADS_ASSET_MISMATCH' && /mismatch/i.test(error.message)
   );
+});
+
+test('adsConnectionWantsLeadgen only when leads were requested or granted', () => {
+  assert.equal(adsConnectionWantsLeadgen({ leadgen_subscribed: false }), false);
+  assert.equal(
+    adsConnectionWantsLeadgen({
+      last_permission_report: { capabilities: { leads: { enabled: true } } }
+    }),
+    true
+  );
+  assert.equal(adsConnectionWantsLeadgen({ token_scopes: ['ads_management', 'leads_retrieval'] }), true);
+  assert.equal(adsConnectionWantsLeadgen({ token_scopes: ['ads_management'] }), false);
 });

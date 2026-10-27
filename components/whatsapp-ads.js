@@ -10,107 +10,200 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
   const [data,setData]=useState(null),[form,setForm]=useState({}),[credentials,setCredentials]=useState({}),[images,setImages]=useState([]),[audiences,setAudiences]=useState([]),[imageCursor,setImageCursor]=useState(null),[audienceCursor,setAudienceCursor]=useState(null),[page,setPage]=useState(1),[error,setError]=useState(''),[busy,setBusy]=useState(false),[details,setDetails]=useState({}),[report,setReport]=useState(null),[range,setRange]=useState({since:'',until:''}),[selected,setSelected]=useState(''),[adsSummary,setAdsSummary]=useState(null),[oauthPending,setOauthPending]=useState(null),[oauthPick,setOauthPick]=useState({adAccountId:'',pageId:'',phoneId:''}),[credits,setCredits]=useState(null),[includeLeads,setIncludeLeads]=useState(false);
   const managerView=role==='Owner'||role==='Manager';
   const formatUserError=error=>{const msg=error?.message||String(error||'');return msg.replace(/\s*\([A-Z0-9_]+\)\s*$/,'').trim()||'Something went wrong.';};
+  const ADS_OAUTH_HANDOFF='mathstrat_ads_oauth_handoff';
   const loadCredits=async()=>{try{setCredits(await api('/api/whatsapp/ads/credits'));}catch{setCredits(null);}};
-  const load=async()=>{const result=await api('/api/whatsapp/ads?page='+page);setData(result);setCredentials(current=>({...result.connection,...current}));await loadCredits();};
-  useEffect(()=>{let cancelled=false;api('/api/whatsapp/ads?page='+page).then(result=>{if(!cancelled){setData(result);setCredentials(current=>({...result.connection,...current}));}}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[api,page]);
+  const load=async()=>{const result=await api('/api/whatsapp/ads?page='+page);setData(result);setCredentials(current=>({...(result.connection||{}),...current}));await loadCredits();};
+  useEffect(()=>{let cancelled=false;api('/api/whatsapp/ads?page='+page).then(result=>{if(!cancelled){setData(result);setCredentials(current=>({...(result.connection||{}),...current}));}}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[api,page]);
   useEffect(()=>{let cancelled=false;api('/api/whatsapp/ads/report?days=30').then(result=>{if(!cancelled)setAdsSummary(result);}).catch(()=>{});loadCredits();return()=>{cancelled=true;};},[api]);
   const formatCredits=(minor,currency='INR')=>{try{return new Intl.NumberFormat('en-IN',{style:'currency',currency}).format((Number(minor)||0)/100);}catch{return `${currency} ${((Number(minor)||0)/100).toFixed(2)}`;}};
+  const readOAuthHandoff=()=>{
+    if(typeof window==='undefined')return null;
+    try{
+      const raw=sessionStorage.getItem(ADS_OAUTH_HANDOFF);
+      if(!raw)return null;
+      const parsed=JSON.parse(raw);
+      if(!parsed?.businessId||(Date.now()-Number(parsed.ts||0))>2*60*60*1000){
+        sessionStorage.removeItem(ADS_OAUTH_HANDOFF);
+        return null;
+      }
+      return parsed;
+    }catch{return null;}
+  };
+  const writeOAuthHandoff=(businessId)=>{
+    if(typeof window==='undefined'||!businessId)return;
+    try{sessionStorage.setItem(ADS_OAUTH_HANDOFF,JSON.stringify({businessId,ts:Date.now()}));}catch{/* ignore */}
+  };
+  const clearOAuthHandoff=()=>{
+    if(typeof window==='undefined')return;
+    try{sessionStorage.removeItem(ADS_OAUTH_HANDOFF);}catch{/* ignore */}
+  };
   const clearAdsOAuthQuery=()=>{
     if(typeof window==='undefined')return;
     const url=new URL(window.location.href);
-    if(!url.searchParams.has('adsOAuth')&&!url.searchParams.has('adsOAuthError')&&!url.searchParams.has('oauthBusinessId'))return;
+    const hadOAuthQuery=url.searchParams.has('adsOAuth')||url.searchParams.has('adsOAuthError')||url.searchParams.has('oauthBusinessId');
+    const hadFacebookHash=url.hash==='#_=_';
+    if(!hadOAuthQuery&&!hadFacebookHash)return;
     url.searchParams.delete('adsOAuth');
     url.searchParams.delete('adsOAuthError');
     url.searchParams.delete('oauthBusinessId');
-    window.history.replaceState({},'',url.pathname+url.search+url.hash);
+    // Facebook appends #_=_ after Login; strip it so remounts do not look like a bare /app/ads.
+    if(hadFacebookHash)url.hash='';
+    window.history.replaceState({},'',url.pathname+(url.search||'')+(url.hash||''));
   };
+  const applyPendingResult=(result,fresh)=>{
+    setOauthPending(result);
+    if(result.assetsError)setError(result.assetsError);
+    const crmPhones=result.phones?.length?result.phones:(fresh?.phones||[]);
+    const adAccounts=result.adAccounts||[];
+    const pages=result.pages||[];
+    setOauthPick({
+      adAccountId:adAccounts.length===1?adAccounts[0].id:(adAccounts[0]?.id||''),
+      pageId:pages.length===1?pages[0].id:(pages[0]?.id||''),
+      phoneId:crmPhones.length===1?crmPhones[0].phone_number_id:(crmPhones[0]?.phone_number_id||'')
+    });
+  };
+  // preferPending: after Facebook return, do not accept alreadyConnected until the last try —
+  // reconnect races where the pending row lags would otherwise skip Finish and clear handoff.
+  const fetchPendingWithRetry=async(attempts=4,{preferPending=false}={})=>{
+    let last=null;
+    for(let i=0;i<attempts;i+=1){
+      last=await api('/api/whatsapp/ads/oauth/pending');
+      if(last?.pending||last?.reason==='wrong_workspace')return last;
+      if(last?.alreadyConnected&&(!preferPending||i===attempts-1))return last;
+      if(i<attempts-1)await new Promise(resolve=>setTimeout(resolve,400*(i+1)));
+    }
+    return last;
+  };
+  // OAuth return must not re-run when ads list data loads — that race cleared oauthPending.
   useEffect(()=>{
     if(role!=='Owner')return;
+    let cancelled=false;
     const params=new URLSearchParams(typeof window!=='undefined'?window.location.search:'');
     const oauthError=params.get('adsOAuthError');
-    if(oauthError)setError(()=>{try{return decodeURIComponent(oauthError);}catch{return oauthError;}});
     const afterOAuth=params.get('adsOAuth')==='1';
-    const oauthBusinessId=params.get('oauthBusinessId')||'';
-    if(data?.connection&&!afterOAuth&&!oauthError)return;
-    let cancelled=false;
+    const urlBusinessId=params.get('oauthBusinessId')||'';
+    const handoff=readOAuthHandoff();
+    const oauthBusinessId=urlBusinessId||handoff?.businessId||'';
+    const shouldFinish=afterOAuth||Boolean(handoff)||Boolean(oauthError);
+    if(oauthError){
+      setError(()=>{try{return decodeURIComponent(oauthError);}catch{return oauthError;}});
+      clearAdsOAuthQuery();
+      clearOAuthHandoff();
+    }
     const loadPending=async()=>{
-      if(afterOAuth&&oauthBusinessId){
-        try{
-          const workspaces=await api('/api/workspaces');
-          if(workspaces.currentBusinessId!==oauthBusinessId){
-            await postJson('/api/workspaces',{businessId:oauthBusinessId});
-          }
-        }catch(e){
-          if(!cancelled)setError(e.code?`${e.message} (${e.code})`:e.message);
-          clearAdsOAuthQuery();
-          return;
-        }
-      }
       try{
-        const result=await api('/api/whatsapp/ads/oauth/pending');
+        if(oauthBusinessId){
+          const workspaces=await api('/api/workspaces');
+          if(!cancelled&&workspaces.currentBusinessId!==oauthBusinessId){
+            await postJson('/api/workspaces',{businessId:oauthBusinessId});
+            writeOAuthHandoff(oauthBusinessId);
+          }
+        }
+        // Retry: callback redirect can beat pending row visibility by a beat.
+        const result=shouldFinish?await fetchPendingWithRetry(4,{preferPending:true}):await api('/api/whatsapp/ads/oauth/pending');
         if(cancelled)return;
         if(result.pending){
-          setOauthPending(result);
-          const fresh=await api('/api/whatsapp/ads?page='+page);
-          if(!cancelled){
+          const fresh=await api('/api/whatsapp/ads?page='+page).catch(()=>null);
+          if(cancelled)return;
+          if(fresh){
             setData(fresh);
-            setCredentials(current=>({...fresh.connection,...current}));
-            const crmPhones=result.phones?.length?result.phones:(fresh.phones||[]);
-            const adAccounts=result.adAccounts||[];
-            const pages=result.pages||[];
-            setOauthPick({
-              adAccountId:adAccounts.length===1?adAccounts[0].id:(adAccounts[0]?.id||''),
-              pageId:pages.length===1?pages[0].id:(pages[0]?.id||''),
-              phoneId:crmPhones.length===1?crmPhones[0].phone_number_id:(crmPhones[0]?.phone_number_id||'')
-            });
+            setCredentials(current=>({...(fresh.connection||{}),...current}));
           }
+          applyPendingResult(result,fresh);
           clearAdsOAuthQuery();
+          // Keep handoff until Finish succeeds so remounts can rehydrate.
           return;
         }
-        setOauthPending(null);
         if(result.alreadyConnected){
-          const fresh=await api('/api/whatsapp/ads?page='+page);
-          if(!cancelled){
-            setData(fresh);
-            setCredentials(current=>({...fresh.connection,...current}));
-          }
+          // OAuth return with an existing connection and no pending = already finished (or reconnect pending never landed).
+          const fresh=await api('/api/whatsapp/ads?page='+page).catch(()=>null);
+          if(cancelled)return;
+          const connection=result.connection||fresh?.connection||null;
+          setData(fresh?.connection?fresh:{...(fresh||{}),connection,operations:fresh?.operations||[],phones:fresh?.phones||[]});
+          setCredentials(current=>({...(connection||{}),...current}));
+          setOauthPending(null);
           clearAdsOAuthQuery();
+          clearOAuthHandoff();
           return;
         }
         if(result.reason==='wrong_workspace'&&result.oauthBusinessId){
-          try{
-            await postJson('/api/workspaces',{businessId:result.oauthBusinessId});
-            const retry=await api('/api/whatsapp/ads/oauth/pending');
-            if(!cancelled&&retry.pending){
-              setOauthPending(retry);
-              clearAdsOAuthQuery();
-              return;
-            }
-          }catch(switchError){
-            if(!cancelled)setError(formatUserError(switchError));
+          writeOAuthHandoff(result.oauthBusinessId);
+          await postJson('/api/workspaces',{businessId:result.oauthBusinessId});
+          const retry=await fetchPendingWithRetry(3,{preferPending:true});
+          if(cancelled)return;
+          if(retry.pending){
+            applyPendingResult(retry,null);
             clearAdsOAuthQuery();
             return;
           }
+          if(retry.alreadyConnected){
+            setData(current=>({...(current||{}),connection:retry.connection||current?.connection||null,operations:current?.operations||[],phones:current?.phones||[]}));
+            setCredentials(current=>({...(retry.connection||{}),...current}));
+            setOauthPending(null);
+            clearAdsOAuthQuery();
+            clearOAuthHandoff();
+            return;
+          }
         }
-        if(result.error)setError(result.error);
-        else if(result.reason==='expired')setError('Facebook Login expired. Use Continue with Facebook again.');
-        else if(afterOAuth)setError('Finish setup with Continue with Facebook on this workspace.');
-        clearAdsOAuthQuery();
+        // Do not wipe an in-progress Finish form unless this pass was an OAuth return.
+        if(shouldFinish){
+          setOauthPending(null);
+          if(result.error)setError(result.error);
+          else if(result.reason==='expired')setError('Facebook Login expired. Use Continue with Facebook again.');
+          else if(afterOAuth||handoff)setError('Facebook authorized, but no Finish session was found for this workspace. Use Continue with Facebook again.');
+          clearAdsOAuthQuery();
+          // Keep handoff briefly only when wrong_workspace may still resolve — otherwise clear.
+          if(result.reason!=='wrong_workspace')clearOAuthHandoff();
+        }
       }catch(e){
-        if(!cancelled)setError(formatUserError(e));
-        clearAdsOAuthQuery();
+        if(!cancelled){
+          setError(formatUserError(e));
+          if(shouldFinish)clearAdsOAuthQuery();
+          // Keep handoff so a refresh can retry pending hydrate.
+        }
       }
     };
     loadPending();
     return()=>{cancelled=true;};
-  },[api,role,data?.connection,postJson,page]);
+    // Intentionally omit data/page — list loads must not cancel OAuth pending hydration.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[api,role,postJson]);
   const run=async task=>{setBusy(true);setError('');try{await task();await load();}catch(e){setError(formatUserError(e));}finally{setBusy(false);}};
+  const finishOAuthConnection=async()=>{
+    setBusy(true);setError('');
+    try{
+      const phoneId=oauthPick.phoneId||credentials.phone_number_id;
+      if(!oauthPick.adAccountId||!oauthPick.pageId||!phoneId){
+        throw Object.assign(new Error('Select ad account, Facebook Page, and WhatsApp number.'),{code:'ADS_PAYLOAD_INVALID'});
+      }
+      const result=await postJson('/api/whatsapp/ads',{action:'completeOAuth',adAccountId:oauthPick.adAccountId,pageId:oauthPick.pageId,phoneId});
+      if(!result?.connection?.ad_account_id){
+        throw Object.assign(new Error(result?.error||'Meta Login finished but the ads connection was not saved. Sync Setup → Numbers, then Continue with Facebook again.'),{code:result?.code||'ADS_CONNECTION_NOT_SAVED'});
+      }
+      // Do not call run()/load() here — a null connection response would wipe Connected back to Continue with Facebook.
+      clearOAuthHandoff();
+      setCredentials(current=>({...result.connection,...current}));
+      setOauthPending(null);
+      const fresh=await api('/api/whatsapp/ads?page='+page).catch(()=>null);
+      setData(fresh?.connection?fresh:{...(fresh||{}),connection:result.connection,operations:fresh?.operations||[],phones:fresh?.phones||[]});
+      const report=await api('/api/whatsapp/ads/report?days=30').catch(()=>null);
+      if(report)setAdsSummary(report);
+      if(result.leadWarning)setError(result.leadWarning);
+    }catch(e){setError(formatUserError(e));}
+    finally{setBusy(false);}
+  };
   const startFacebookLogin=async()=>{
     setBusy(true);setError('');
     try{
       const capabilities=['ctwa','reporting',...(includeLeads?['leads']:[])];
       const result=await api('/api/whatsapp/ads/oauth/start?capabilities='+encodeURIComponent(capabilities.join(',')));
       if(!result.url)throw Object.assign(new Error('Facebook Login URL was not returned by the server.'),{code:'META_OAUTH_URL_MISSING'});
+      let businessId=result.businessId||'';
+      if(!businessId){
+        const workspaces=await api('/api/workspaces').catch(()=>({}));
+        businessId=workspaces.currentBusinessId||'';
+      }
+      writeOAuthHandoff(businessId);
       window.location.assign(result.url);
       return;
     }catch(e){setError(formatUserError(e));}
@@ -144,19 +237,9 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
     <div className="wa-module-table wa-ad-primary-table"><table><thead><tr><th>Campaign</th><th>Objective</th><th>Status</th><th>Stage</th><th>Actions</th></tr></thead><tbody>{data?.operations.map(operation=><tr key={operation.id}><td>{operation.payload.campaign.name}<small>{operation.campaign_id}</small></td><td>{operation.payload.objectiveKind||operation.objective_kind||'MESSAGES'}</td><td>{operation.state}<small>{operation.error_code}</small>{details[operation.id]&&<details className="techDetails"><summary>Live Meta status</summary><pre>{JSON.stringify(details[operation.id],null,2)}</pre></details>}</td><td>{operation.stage}</td><td><div className="wa-module-controls"><button type="button" title="Read live Meta status" aria-label="Read live Meta status" disabled={busy||!operation.campaign_id} onClick={()=>run(async()=>setDetails({...details,[operation.id]:await api('/api/whatsapp/ads?resource=status&operationId='+encodeURIComponent(operation.id))}))}><RefreshCcw size={16}/></button>{operation.state==='partial'&&<button type="button" disabled={busy} onClick={()=>action(operation,'resume')}>Resume rejected stage</button>}{role==='Owner'&&<>{operation.state==='unconfirmed'&&<button type="button" disabled={busy} onClick={()=>action(operation,'recover')}>Reconcile resource</button>}{operation.stage==='complete'&&operation.state!=='archived'&&<><button type="button" title="Activate with spend confirmation" aria-label="Activate with spend confirmation" disabled={busy} onClick={()=>action(operation,'activate')}><Play size={16}/></button><button type="button" title="Pause campaign" aria-label="Pause campaign" disabled={busy} onClick={()=>action(operation,'pause')}><Pause size={16}/></button><button type="button" disabled={busy} onClick={()=>run(async()=>{const live=await api('/api/whatsapp/ads?resource=status&operationId='+encodeURIComponent(operation.id));setBudgetEditing({operation,adset:live.adset});})}>Budget and schedule</button><button type="button" disabled={busy} onClick={()=>action(operation,'rename')}>Rename</button><button type="button" disabled={busy} onClick={()=>setEditing(operation)}>Edit audience</button><button type="button" disabled={busy} onClick={()=>action(operation,'reconcileDelivery')}>Reconcile delivery</button><button type="button" title="Archive campaign" aria-label="Archive campaign" disabled={busy} onClick={()=>action(operation,'archive')}><Archive size={16}/></button></>}</>}</div></td></tr>)}</tbody></table>{data&&!data.operations.length&&<div className="wa-ad-empty"><strong>No campaigns yet</strong></div>}</div><footer className="wa-module-controls"><button type="button" title="Previous campaigns" aria-label="Previous campaigns" disabled={page===1||busy} onClick={()=>setPage(page-1)}><ChevronLeft size={18}/></button><span>Page {page}</span><button type="button" title="Next campaigns" aria-label="Next campaigns" disabled={!data?.hasMore||busy} onClick={()=>setPage(page+1)}><ChevronRight size={18}/></button></footer>
     {role==='Owner'&&<details open={!data?.connection||Boolean(oauthPending)}><summary>Meta advertising connection</summary>
       {data?.connection&&!oauthPending&&<p role="status" className="wa-module-success">Connected to Meta ads (ad account {data.connection.ad_account_id}, Page {data.connection.page_id}). You can create a paused campaign below.</p>}
+      {oauthPending&&<p role="status" className="wa-module-success">Facebook authorized this workspace. Select the ad account, Page, and WhatsApp number below, then click Finish connection.</p>}
       <div className="wa-module-controls"><label className="checkRow"><input type="checkbox" checked={includeLeads} onChange={event=>setIncludeLeads(event.target.checked)}/> Include lead-form retrieval</label><button type="button" disabled={busy||data?.oauthConfigured===false} onClick={startFacebookLogin}>{data?.connection?'Reconnect with Facebook':'Continue with Facebook'}</button>{data?.oauthConfigured===false&&<small>Ads connection is not available yet. Contact your platform admin.</small>}</div>
-      {oauthPending&&<form onSubmit={e=>{e.preventDefault();run(async()=>{
-        const phoneId=oauthPick.phoneId||credentials.phone_number_id;
-        if(!oauthPick.adAccountId||!oauthPick.pageId||!phoneId)throw Object.assign(new Error('Select ad account, Facebook Page, and WhatsApp number.'),{code:'ADS_PAYLOAD_INVALID'});
-        const result=await postJson('/api/whatsapp/ads',{action:'completeOAuth',adAccountId:oauthPick.adAccountId,pageId:oauthPick.pageId,phoneId});
-        if(!result?.connection?.ad_account_id){
-          throw Object.assign(new Error(result?.error||'Meta Login finished but the ads connection was not saved. Sync Setup → Numbers, then Continue with Facebook again.'),{code:result?.code||'ADS_CONNECTION_NOT_SAVED'});
-        }
-        setCredentials(current=>({...result.connection,...current}));
-        setOauthPending(null);
-        const fresh=await api('/api/whatsapp/ads?page='+page);
-        setData(fresh?.connection?fresh:{...fresh,connection:result.connection});
-      });}}>{error&&<p role="alert" className="wa-module-error">{error}</p>}{!oauthCrmPhones.length&&<p className="wa-module-error">No WhatsApp number in this workspace. Connect it under Setup → WhatsApp, then refresh.</p>}<div className="wa-ad-grid"><label>Ad account (Meta)<select required value={oauthPick.adAccountId} onChange={e=>setOauthPick({...oauthPick,adAccountId:e.target.value})}>{oauthAdAccounts.length>1&&<option value="">—</option>}{oauthAdAccounts.map(account=><option key={account.id} value={account.id}>{account.name||account.id} ({account.currency})</option>)}</select></label><label>Facebook Page (Meta)<select required value={oauthPick.pageId} onChange={e=>setOauthPick({...oauthPick,pageId:e.target.value})}>{oauthPages.length>1&&<option value="">—</option>}{oauthPages.map(pageRow=><option key={pageRow.id} value={pageRow.id}>{pageRow.name||pageRow.id}</option>)}</select></label><label>WhatsApp number (CRM)<select required value={oauthPick.phoneId||credentials.phone_number_id||''} onChange={e=>setOauthPick({...oauthPick,phoneId:e.target.value})} disabled={!oauthCrmPhones.length}>{oauthCrmPhones.length>1&&<option value="">—</option>}{oauthCrmPhones.map(phone=><option key={phone.phone_number_id} value={phone.phone_number_id}>{[phone.verified_name,phone.display_phone_number].filter(Boolean).join(' · ')||phone.phone_number_id}</option>)}</select></label></div><div className="wa-module-controls"><button disabled={busy||!oauthCrmPhones.length}>Finish connection</button></div></form>}
+      {oauthPending&&<form onSubmit={e=>{e.preventDefault();finishOAuthConnection();}}>{error&&<p role="alert" className="wa-module-error">{error}</p>}{!oauthCrmPhones.length&&<p className="wa-module-error">No WhatsApp number in this workspace. Open Setup → Numbers, Sync from Meta, then refresh this page.</p>}{!oauthAdAccounts.length&&<p className="wa-module-error">No Meta ad accounts were returned for this Facebook login. Grant ads access, then use Continue with Facebook again.</p>}{!oauthPages.length&&<p className="wa-module-error">No Facebook Pages were returned. Make sure your Facebook user manages the Page used for CTWA ads.</p>}<div className="wa-ad-grid"><label>Ad account (Meta)<select required value={oauthPick.adAccountId} onChange={e=>setOauthPick({...oauthPick,adAccountId:e.target.value})} disabled={!oauthAdAccounts.length}>{oauthAdAccounts.length!==1&&<option value="">—</option>}{oauthAdAccounts.map(account=><option key={account.id} value={account.id}>{account.name||account.id} ({account.currency})</option>)}</select></label><label>Facebook Page (Meta)<select required value={oauthPick.pageId} onChange={e=>setOauthPick({...oauthPick,pageId:e.target.value})} disabled={!oauthPages.length}>{oauthPages.length!==1&&<option value="">—</option>}{oauthPages.map(pageRow=><option key={pageRow.id} value={pageRow.id}>{pageRow.name||pageRow.id}</option>)}</select></label><label>WhatsApp number (CRM)<select required value={oauthPick.phoneId||credentials.phone_number_id||''} onChange={e=>setOauthPick({...oauthPick,phoneId:e.target.value})} disabled={!oauthCrmPhones.length}>{oauthCrmPhones.length!==1&&<option value="">—</option>}{oauthCrmPhones.map(phone=><option key={phone.phone_number_id} value={phone.phone_number_id}>{[phone.verified_name,phone.display_phone_number].filter(Boolean).join(' · ')||phone.phone_number_id}</option>)}</select></label></div><div className="wa-module-controls"><button disabled={busy||!oauthCrmPhones.length||!oauthAdAccounts.length||!oauthPages.length}>Finish connection</button></div></form>}
       <details className="techDetails"><summary>Advanced: manual token</summary><form onSubmit={e=>{e.preventDefault();run(async()=>{await postJson('/api/whatsapp/ads',{action:'configure',adAccountId:credentials.ad_account_id,pageId:credentials.page_id,phoneId:credentials.phone_number_id,accessToken:credentials.accessToken});setCredentials({...credentials,accessToken:''});});}}><div className="wa-ad-grid"><label>Ad account ID<input required value={credentials.ad_account_id||''} onChange={e=>setCredentials({...credentials,ad_account_id:e.target.value})}/></label><label>Facebook Page ID<input required value={credentials.page_id||''} onChange={e=>setCredentials({...credentials,page_id:e.target.value})}/></label><label>WhatsApp number<select required value={credentials.phone_number_id||''} onChange={e=>setCredentials({...credentials,phone_number_id:e.target.value})}>{(data?.phones?.length||0)>1&&<option value="">—</option>}{(data?.phones||[]).map(phone=><option key={phone.phone_number_id} value={phone.phone_number_id}>{[phone.verified_name,phone.display_phone_number].filter(Boolean).join(' · ')||phone.phone_number_id}</option>)}</select></label><label>Meta advertising access token<input type="password" autoComplete="new-password" value={credentials.accessToken||''} onChange={e=>setCredentials({...credentials,accessToken:e.target.value})}/></label></div><div className="wa-module-controls"><button disabled={busy}>Save verified connection</button>{data?.connection&&<>
         <button type="button" disabled={busy} onClick={()=>run(async()=>postJson('/api/whatsapp/ads',{action:'checkPermissions'}))}>Recheck permissions</button>
         <button type="button" disabled={busy} onClick={()=>run(async()=>postJson('/api/whatsapp/ads',{action:'subscribeLeadgen'}))}>Subscribe Page leadgen</button>
