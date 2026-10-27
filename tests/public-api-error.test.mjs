@@ -38,14 +38,16 @@ test('real Postgres privilege text stays masked', async () => {
 
 test('Meta Graph permission-denied text is not treated as Postgres RLS', async () => {
   const graph = await bodyOf(
-    new AppError('(#200) permission denied for this action', 400, 'META_REQUEST_FAILED')
+    new AppError('(#200) permission denied for this action', 400, 'META_REQUEST_FAILED', { metaCode: 200 })
   );
-  assert.match(graph.error, /Meta could not complete/i);
+  assert.match(graph.error, /\(#200\)/);
+  assert.match(graph.error, /permission denied for this action/i);
   assert.equal(graph.code, 'META_REQUEST_FAILED');
 
   const rejected = await bodyOf(
-    new AppError('permission denied for advertising object', 400, 'ADS_REJECTED')
+    new AppError('(#100) Invalid parameter', 400, 'ADS_REJECTED', { metaCode: 100, fbtraceId: 'trace_abc' })
   );
-  assert.match(rejected.error, /Meta could not complete/i);
+  assert.match(rejected.error, /\(#100\)/);
+  assert.match(rejected.error, /Invalid parameter/i);
   assert.equal(rejected.code, 'ADS_REJECTED');
 });

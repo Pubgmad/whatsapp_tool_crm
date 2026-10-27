@@ -9,7 +9,12 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
   const [videos,setVideos]=useState([]),[videoCursor,setVideoCursor]=useState(null),[editing,setEditing]=useState(null);
   const [data,setData]=useState(null),[form,setForm]=useState({}),[credentials,setCredentials]=useState({}),[images,setImages]=useState([]),[audiences,setAudiences]=useState([]),[imageCursor,setImageCursor]=useState(null),[audienceCursor,setAudienceCursor]=useState(null),[page,setPage]=useState(1),[error,setError]=useState(''),[busy,setBusy]=useState(false),[details,setDetails]=useState({}),[report,setReport]=useState(null),[range,setRange]=useState({since:'',until:''}),[selected,setSelected]=useState(''),[adsSummary,setAdsSummary]=useState(null),[oauthPending,setOauthPending]=useState(null),[oauthPick,setOauthPick]=useState({adAccountId:'',pageId:'',phoneId:''}),[credits,setCredits]=useState(null),[includeLeads,setIncludeLeads]=useState(false),[syncFormId,setSyncFormId]=useState(''),[leadSyncNote,setLeadSyncNote]=useState('');
   const managerView=role==='Owner'||role==='Manager';
-  const formatUserError=error=>{const msg=error?.message||String(error||'');return msg.replace(/\s*\([A-Z0-9_]+\)\s*$/,'').trim()||'Something went wrong.';};
+  const formatUserError=error=>{
+    const msg=(error?.message||String(error||'')).trim()||'Something went wrong.';
+    const code=error?.code;
+    if(code&&!msg.includes(`(${code})`))return `${msg} (${code})`;
+    return msg;
+  };
   const connectionHasLeadsCapability=connection=>{
     if(!connection)return false;
     if(connection.last_permission_report?.capabilities?.leads?.enabled)return true;

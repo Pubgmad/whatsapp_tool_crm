@@ -77,7 +77,8 @@ test('creative replacements keep only the verified WhatsApp destination and sele
  const body={mediaType:'image',text:'Book a call',headline:'Talk with us',imageHash:'a'.repeat(32),name:'New creative'};
  const result=editedWhatsAppCreative(body,{page_id:'123'},'15551234567');
  assert.equal(result.object_story_spec.page_id,'123');
- assert.equal(result.object_story_spec.link_data.call_to_action.value.whatsapp_number,'15551234567');
+ assert.equal(result.object_story_spec.link_data.link,'https://api.whatsapp.com/send');
+ assert.deepEqual(result.object_story_spec.link_data.call_to_action.value,{app_destination:'WHATSAPP'});
  assert.equal(result.object_story_spec.link_data.image_hash,'a'.repeat(32));
  assert.throws(()=>editedWhatsAppCreative({...body,imageHash:'https://evil.test'}, {page_id:'123'},'15551234567'),{code:'ADS_PAYLOAD_INVALID'});
  assert.equal(editedWhatsAppCreative({...body,mediaType:'video',videoId:'321'},{page_id:'123'},'15551234567').object_story_spec.video_data.video_id,'321');

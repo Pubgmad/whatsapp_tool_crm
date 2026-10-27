@@ -23,7 +23,14 @@ test('ad creation remains paused and bound to WhatsApp assets and owner currency
   const input={name:'Owner supplied name',headline:'Owner supplied headline',text:'Owner supplied text',dailyBudget:'500.25',countries:['IN'],ageMin:18,ageMax:65,imageHash:'a'.repeat(32),customAudiences:['123']};
   const result=whatsappAdPayload(input,{currency:'INR',page_id:'777'},'919999999999');
   assert.equal(result.campaign.status,'PAUSED');assert.equal(result.ad.status,'PAUSED');assert.equal(result.adset.destination_type,'WHATSAPP');assert.equal(result.adset.daily_budget,50025);
-  assert.equal(result.creative.object_story_spec.link_data.call_to_action.value.whatsapp_number,'919999999999');
+  assert.equal(result.creative.object_story_spec.link_data.link,'https://api.whatsapp.com/send');
+  assert.deepEqual(result.creative.object_story_spec.link_data.call_to_action.value,{app_destination:'WHATSAPP'});
+  assert.equal(result.adset.promoted_object.whatsapp_phone_number,'919999999999');
+  const lead=whatsappAdPayload({...input,objectiveKind:'LEAD_GENERATION',leadGenFormId:'555666777'},{currency:'INR',page_id:'777'},'919999999999');
+  assert.equal(lead.adset.destination_type,'ON_AD');
+  assert.equal(lead.creative.object_story_spec.link_data.link,'https://fb.me/');
+  assert.equal(lead.creative.object_story_spec.link_data.call_to_action.type,'SIGN_UP');
+  assert.equal(lead.creative.object_story_spec.link_data.call_to_action.value.lead_gen_form_id,'555666777');
   assert.throws(()=>whatsappAdPayload({...input,ageMin:15},{currency:'INR',page_id:'777'},'919999999999'));
   assert.throws(()=>whatsappAdPayload({...input,dailyBudget:'-5'},{currency:'INR',page_id:'777'},'919999999999'));
 });
