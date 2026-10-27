@@ -150,6 +150,7 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
           setOauthPending(null);
           if(result.error)setError(result.error);
           else if(result.reason==='expired')setError('Facebook Login expired. Use Continue with Facebook again.');
+          else if(result.reason==='session_mismatch')setError('Your CRM login changed during Facebook Login. Sign in again, then use Continue with Facebook.');
           else if(afterOAuth||handoff)setError('Facebook authorized, but no Finish session was found for this workspace. Use Continue with Facebook again.');
           clearAdsOAuthQuery();
           // Keep handoff briefly only when wrong_workspace may still resolve — otherwise clear.
