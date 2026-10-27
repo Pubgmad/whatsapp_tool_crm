@@ -339,7 +339,16 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
     else if(!rows.some(row=>row.id===syncFormId))setSyncFormId('');
     setLeadSyncNote(rows.length
       ?`${rows.length} lead form(s) loaded from Page ${pageId}.`
-      :`No Instant Forms on connected Page ${pageId||'(unknown)'}. Create one in Meta Ads Manager / Lead Center on this exact Page, then Load again. Forms on a different Page will not appear.`);
+      :`No Instant Forms on connected Page ${pageId||'(unknown)'}. Use Create Instant Form here (or Meta Lead Center on this exact Page), then Load again.`);
+  });
+  const createLeadForm=()=>run(async()=>{
+    if(!data?.connection?.ad_account_id)throw Object.assign(new Error('Finish Facebook connection before creating an Instant Form.'),{code:'ADS_NOT_CONFIGURED'});
+    if(!leadsCapability)throw Object.assign(new Error('Reconnect with Include lead-form retrieval enabled before creating Instant Forms.'),{code:'ADS_CAPABILITY_MISSING'});
+    const result=await postJson('/api/whatsapp/ads',{action:'createLeadgenForm',name:'CRM Instant Form'});
+    if(!result?.id)throw Object.assign(new Error(result?.error||'Meta did not return a new Instant Form id.'),{code:result?.code||'ADS_UNCONFIRMED'});
+    await loadLeadForms();
+    setSyncFormId(result.id);
+    setLeadSyncNote(`Created Instant Form ${result.id} on Page ${result.pageId||data.connection.page_id}. Subscribe leadgen, then Sync after test submissions.`);
   });
   const syncLeadFormsIntoCrm=()=>run(async()=>{
     if(!data?.connection?.ad_account_id)throw Object.assign(new Error('Finish Facebook connection with a live ads token before syncing leads.'),{code:'ADS_NOT_CONFIGURED'});
@@ -380,6 +389,7 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
       {leadsCapability&&!leadgenSubscribed&&<p className="wa-module-error">Subscribe Page leadgen so new Instant Form submissions are delivered to this CRM.</p>}
       <div className="wa-ad-grid"><label>Lead form<select value={syncFormId} onChange={event=>setSyncFormId(event.target.value)} disabled={!leadsCapability||!leadForms.length}><option value="">{leadForms.length?'Select lead form':'Load lead forms first'}</option>{leadForms.map(formRow=><option key={formRow.id} value={formRow.id}>{formRow.name||formRow.id}{formRow.status?` (${formRow.status})`:''}</option>)}</select></label></div>
       <div className="wa-module-controls">
+        <button type="button" disabled={busy||!leadsCapability} onClick={createLeadForm}>Create Instant Form</button>
         <button type="button" disabled={busy||!leadsCapability} onClick={loadLeadForms}>Load lead forms</button>
         <button type="button" disabled={busy||!leadsCapability||!syncFormId} onClick={syncLeadFormsIntoCrm}>Sync leads into CRM</button>
       </div>
