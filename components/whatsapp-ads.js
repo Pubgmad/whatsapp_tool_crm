@@ -251,16 +251,32 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
       }
       clearOAuthHandoff();
       setOauthPending(null);
-      // Only trust a server reload that still sees a live token — never keep optimistic Connected without it.
-      const fresh=await api('/api/whatsapp/ads?page='+page);
-      if(!fresh?.connection?.ad_account_id){
+      // Prefer a fresh GET; if RLS lag still hides the row, trust POST-verified connection once.
+      let fresh=await api('/api/whatsapp/ads?page='+page);
+      if(!fresh?.connection?.ad_account_id&&result.connection?.ad_account_id){
+        await new Promise(r=>setTimeout(r,400));
+        fresh=await api('/api/whatsapp/ads?page='+page).catch(()=>fresh);
+      }
+      if(fresh?.connection?.ad_account_id){
+        mergeCredentialsFromConnection(fresh.connection);
+        setData(fresh);
+        applyConnectionLeadState(fresh.connection);
+      }else if(result.connection?.ad_account_id){
+        mergeCredentialsFromConnection(result.connection);
+        setData({
+          ...(fresh||{}),
+          connection:result.connection,
+          phones:fresh?.phones||[],
+          operations:fresh?.operations||[],
+          needsReconnect:false,
+          reconnectReason:''
+        });
+        applyConnectionLeadState(result.connection);
+      }else{
         setData(fresh?{...fresh,connection:null}:{connection:null,operations:[],phones:[],needsReconnect:true});
         mergeCredentialsFromConnection(null);
         throw Object.assign(new Error('Facebook Login saved, but this workspace still has no usable ads token. Stay on the same workspace and use Continue with Facebook again.'),{code:'ADS_CONNECTION_NOT_SAVED'});
       }
-      mergeCredentialsFromConnection(fresh.connection);
-      setData(fresh);
-      applyConnectionLeadState(fresh.connection);
       const report=await api('/api/whatsapp/ads/report?days=30').catch(()=>null);
       if(report)setAdsSummary(report);
       if(result.leadWarning)setError(result.leadWarning);

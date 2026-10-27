@@ -1,6 +1,6 @@
 import { withWorkspaceFeature } from '@/lib/feature-controls.js';
 import { requireSession } from '@/lib/auth.js';
-import { errorJson, json } from '@/lib/db.js';
+import { enterTenantContext, errorJson, json } from '@/lib/db.js';
 import { whatsappAdsPerformanceSummary, whatsappAdsReadiness } from '@/lib/whatsapp-ads-report.js';
 import { requireWorkspaceManager } from '@/lib/workspace-permissions.js';
 
@@ -11,6 +11,7 @@ async function adsReportGet(request) {
   try {
     const session = await requireSession(request);
     requireWorkspaceManager(session);
+    enterTenantContext(session.businessId);
     const params = new URL(request.url).searchParams;
     const days = Number(params.get('days') || 30);
     const [readiness, performance] = await Promise.all([
