@@ -33,6 +33,7 @@
 .wa-module button:disabled{opacity:.5;cursor:not-allowed}
 .wa-module button:focus-visible,.wa-module input:focus-visible,.wa-module select:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .wa-module-error{color:var(--danger);background:var(--danger-soft);padding:12px;overflow-wrap:anywhere}
+.wa-module-success{color:var(--success, #0b6b3a);background:var(--success-soft, #e8f6ee);padding:12px;overflow-wrap:anywhere;margin:0 0 12px}
 .wa-module-table{max-width:100%;overflow-x:auto}
 .wa-module table{width:100%;border-collapse:collapse;text-align:left}
 .wa-module th,.wa-module td{padding:12px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-soft)}

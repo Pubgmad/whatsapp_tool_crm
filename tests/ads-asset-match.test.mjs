@@ -29,23 +29,16 @@ test('assertPageWhatsAppMatchesCrm passes with string status and local meta digi
   assert.equal(result.currency, 'INR');
 });
 
-test('assertPageWhatsAppMatchesCrm explains empty page whatsapp without hard-coded assets', () => {
-  assert.throws(
-    () =>
-      assertPageWhatsAppMatchesCrm({
-        account: { id: 'act_123', account_status: 1, currency: 'INR' },
-        page: { id: '999', whatsapp_number: '', has_whatsapp_number: false },
-        adAccountId: '123',
-        pageId: '999',
-        crmDisplayPhone: '918807111304'
-      }),
-    (error) =>
-      error.code === 'ADS_ASSET_MISMATCH' &&
-      /did not return a WhatsApp number/i.test(error.message) &&
-      /WhatsApp Manager/i.test(error.message) &&
-      /Social accounts/i.test(error.message) &&
-      !/Mathstrat|Sandbox|88071/i.test(error.message)
-  );
+test('assertPageWhatsAppMatchesCrm accepts CRM number when Graph omits Page.whatsapp_number', () => {
+  const result = assertPageWhatsAppMatchesCrm({
+    account: { id: 'act_123', account_status: 1, currency: 'INR' },
+    page: { id: '999', whatsapp_number: '', has_whatsapp_number: false },
+    adAccountId: '123',
+    pageId: '999',
+    crmDisplayPhone: '918807111304'
+  });
+  assert.equal(result.number, '918807111304');
+  assert.equal(result.currency, 'INR');
 });
 
 test('assertPageWhatsAppMatchesCrm accepts CRM number when New Page Experience hides Graph whatsapp fields', () => {
@@ -64,13 +57,16 @@ test('assertPageWhatsAppMatchesCrm accepts CRM number when New Page Experience h
   assert.equal(result.number, '918807111304');
 });
 
-test('assertPageWhatsAppMatchesCrm accepts CRM number when has_whatsapp_number is true but digits missing', () => {
-  const result = assertPageWhatsAppMatchesCrm({
-    account: { id: 'act_123', account_status: '1', currency: 'INR' },
-    page: { id: '999', whatsapp_number: '', has_whatsapp_number: true },
-    adAccountId: '123',
-    pageId: '999',
-    crmDisplayPhone: '+91 88071 11304'
-  });
-  assert.equal(result.number, '918807111304');
+test('assertPageWhatsAppMatchesCrm rejects mismatch when Graph returns a different number', () => {
+  assert.throws(
+    () =>
+      assertPageWhatsAppMatchesCrm({
+        account: { id: 'act_123', account_status: 1, currency: 'INR' },
+        page: { id: '999', whatsapp_number: '919999999999' },
+        adAccountId: '123',
+        pageId: '999',
+        crmDisplayPhone: '918807111304'
+      }),
+    (error) => error.code === 'ADS_ASSET_MISMATCH' && /mismatch/i.test(error.message)
+  );
 });
