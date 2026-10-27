@@ -262,11 +262,14 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
     if(!leadsCapability)throw Object.assign(new Error('Reconnect with Facebook with Include lead-form retrieval enabled before syncing leads.'),{code:'ADS_CAPABILITY_MISSING'});
     if(!syncFormId)throw Object.assign(new Error('Load lead forms and select a form to sync into CRM.'),{code:'ADS_PAYLOAD_INVALID'});
     const result=await api('/api/whatsapp/ads?resource=leadgen_leads&formId='+encodeURIComponent(syncFormId)+'&ingest=1');
-    const count=Array.isArray(result.imported)?result.imported.length:(result.data||[]).length;
-    setLeadSyncNote(`Synced ${count} lead(s) into Audience/Contacts for the selected form.`);
+    const count=Array.isArray(result.imported)?result.imported.length:0;
+    const failed=Array.isArray(result.failed)?result.failed.length:0;
+    const extras=[failed?`${failed} failed`:null,result.truncated?'more leads remain on Meta (re-run sync later)':null].filter(Boolean);
+    setLeadSyncNote(`Synced ${count} lead(s) into Audience/Contacts${extras.length?` (${extras.join('; ')})`:''}.`);
   });
   const subscribeLeadgen=()=>run(async()=>{
     await postJson('/api/whatsapp/ads',{action:'subscribeLeadgen'});
+    await load();
     setLeadSyncNote('Page leadgen webhooks subscribed for this workspace.');
   });
   return <section className="wa-module wa-ad-dashboard wa-ads-workspace" aria-label="Click-to-WhatsApp Ads" data-ads-workspace><header className="wa-module-heading saasPageHead saasPageHeadToolbar"><span className="wa-module-toolbarLabel">Campaign controls</span><button type="button" title="Refresh campaigns" aria-label="Refresh campaigns" disabled={busy} onClick={()=>run(load)}><RefreshCcw size={18}/></button></header>{error&&<p role="alert" className="wa-module-error">{error}</p>}
