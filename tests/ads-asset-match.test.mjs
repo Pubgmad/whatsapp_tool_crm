@@ -34,7 +34,7 @@ test('assertPageWhatsAppMatchesCrm explains empty page whatsapp without hard-cod
     () =>
       assertPageWhatsAppMatchesCrm({
         account: { id: 'act_123', account_status: 1, currency: 'INR' },
-        page: { id: '999', whatsapp_number: '' },
+        page: { id: '999', whatsapp_number: '', has_whatsapp_number: false },
         adAccountId: '123',
         pageId: '999',
         crmDisplayPhone: '918807111304'
@@ -42,6 +42,35 @@ test('assertPageWhatsAppMatchesCrm explains empty page whatsapp without hard-cod
     (error) =>
       error.code === 'ADS_ASSET_MISMATCH' &&
       /did not return a WhatsApp number/i.test(error.message) &&
+      /WhatsApp Manager/i.test(error.message) &&
+      /Social accounts/i.test(error.message) &&
       !/Mathstrat|Sandbox|88071/i.test(error.message)
   );
+});
+
+test('assertPageWhatsAppMatchesCrm accepts CRM number when New Page Experience hides Graph whatsapp fields', () => {
+  const result = assertPageWhatsAppMatchesCrm({
+    account: { id: 'act_123', account_status: 1, currency: 'INR' },
+    page: {
+      id: '999',
+      whatsapp_number: '',
+      has_whatsapp_number: false,
+      has_transitioned_to_new_page_experience: true
+    },
+    adAccountId: '123',
+    pageId: '999',
+    crmDisplayPhone: '918807111304'
+  });
+  assert.equal(result.number, '918807111304');
+});
+
+test('assertPageWhatsAppMatchesCrm accepts CRM number when has_whatsapp_number is true but digits missing', () => {
+  const result = assertPageWhatsAppMatchesCrm({
+    account: { id: 'act_123', account_status: '1', currency: 'INR' },
+    page: { id: '999', whatsapp_number: '', has_whatsapp_number: true },
+    adAccountId: '123',
+    pageId: '999',
+    crmDisplayPhone: '+91 88071 11304'
+  });
+  assert.equal(result.number, '918807111304');
 });
