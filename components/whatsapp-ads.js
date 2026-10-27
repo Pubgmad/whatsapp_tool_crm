@@ -194,15 +194,16 @@ export default function WhatsAppAds({api,postJson,uploadForm,role}){
       if(!result?.connection?.ad_account_id){
         throw Object.assign(new Error(result?.error||'Meta Login finished but the ads connection was not saved. Sync Setup → Numbers, then Continue with Facebook again.'),{code:result?.code||'ADS_CONNECTION_NOT_SAVED'});
       }
-      // Do not call run()/load() here — a null connection response would wipe Connected back to Continue with Facebook.
       clearOAuthHandoff();
-      setCredentials(current=>({...result.connection,...current}));
       setOauthPending(null);
-      applyConnectionLeadState(result.connection);
-      const fresh=await api('/api/whatsapp/ads?page='+page).catch(()=>null);
-      const nextConnection=fresh?.connection||result.connection;
-      setData(fresh?.connection?fresh:{...(fresh||{}),connection:result.connection,operations:fresh?.operations||[],phones:fresh?.phones||[]});
-      applyConnectionLeadState(nextConnection);
+      // Only trust a server reload that still sees a live token — never keep optimistic Connected without it.
+      const fresh=await api('/api/whatsapp/ads?page='+page);
+      if(!fresh?.connection?.ad_account_id){
+        throw Object.assign(new Error('Facebook Login saved, but this workspace still has no usable ads token. Stay on the same workspace and use Continue with Facebook again.'),{code:'ADS_CONNECTION_NOT_SAVED'});
+      }
+      setCredentials(current=>({...fresh.connection,...current}));
+      setData(fresh);
+      applyConnectionLeadState(fresh.connection);
       const report=await api('/api/whatsapp/ads/report?days=30').catch(()=>null);
       if(report)setAdsSummary(report);
       if(result.leadWarning)setError(result.leadWarning);
