@@ -621,7 +621,21 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
           </label>
         ) : null}
         <div className="productTopActions">
-          <span className={`statusPill ${(state.setup?.status || 'Needs setup') === 'Connected' && Boolean(state.meta?.liveMetaReady) ? 'good' : 'warn'}`}>{(state.setup?.status || 'Needs setup') === 'Connected' && Boolean(state.meta?.liveMetaReady) ? 'Connected' : 'Needs setup'}</span>
+          <span className={`statusPill ${(() => {
+            const setupConnected = (state.setup?.status || 'Needs setup') === 'Connected' && Boolean(state.meta?.liveMetaReady);
+            const accounts = state?.whatsappOperations?.accounts || [];
+            const liveToken = accounts.some((account) => String(account?.status || '').toLowerCase() === 'connected' && account?.token?.status && account.token.status !== 'unknown' && account.token.status !== 'expired');
+            if (setupConnected && (liveToken || !accounts.length)) return 'good';
+            if (setupConnected && accounts.length && !liveToken) return 'warn';
+            return 'warn';
+          })()}`}>{(() => {
+            const setupConnected = (state.setup?.status || 'Needs setup') === 'Connected' && Boolean(state.meta?.liveMetaReady);
+            const accounts = state?.whatsappOperations?.accounts || [];
+            const liveToken = accounts.some((account) => String(account?.status || '').toLowerCase() === 'connected' && account?.token?.status && account.token.status !== 'unknown' && account.token.status !== 'expired');
+            if (setupConnected && (liveToken || !accounts.length)) return 'Connected';
+            if (setupConnected && accounts.length && !liveToken) return 'Action required';
+            return 'Needs setup';
+          })()}</span>
           <button className="iconButton" type="button" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button>
           <details className="productProfileMenu">
             <summary aria-label="Account menu">{account.user.email?.split('@')[0] || 'Profile'}</summary>
@@ -1033,9 +1047,11 @@ function Overview({ state, approvedTemplates, marketableContacts, latestCampaign
 
 function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, role, forcedSection = null, hideSectionTabs = false, onNavigateSection = null }) {
   const signupAttempt = useRef(null);
+  const profileSyncKey = useRef('');
   const [connecting, setConnecting] = useState(false);
   const [signupError, setSignupError] = useState("");
   const [section, setSection] = useState(forcedSection || "connection");
+  const [selectedPhoneId, setSelectedPhoneId] = useState('');
   useEffect(() => {
     if (forcedSection) setSection(forcedSection);
   }, [forcedSection]);
@@ -1061,6 +1077,16 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
       || operations.phoneNumbers.find((item) => item.accountId === activeAccount.id)
       || null)
     : null;
+  const selectedPhone = operations.phoneNumbers.find((phone) => phone.id === selectedPhoneId)
+    || activePhone
+    || operations.phoneNumbers[0]
+    || null;
+  useEffect(() => {
+    if (!operations.phoneNumbers.length) { setSelectedPhoneId(''); return; }
+    if (!operations.phoneNumbers.some((phone) => phone.id === selectedPhoneId)) {
+      setSelectedPhoneId(activePhone?.id || operations.phoneNumbers[0].id);
+    }
+  }, [operations.phoneNumbers, activePhone?.id, selectedPhoneId]);
   const metaLinked = (state.setup?.status || "Needs setup") === "Connected"
     && Boolean(state.meta?.liveMetaReady)
     && accountHasLiveToken(activeAccount);
@@ -1188,20 +1214,80 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
   const showInnerTabs = false;
   // Same gate as Connection badge / Verify — never paint "connected" from setup.status alone.
   const connected = metaLinked;
+  const setupMarkedConnected = (setup.status || 'Needs setup') === 'Connected' && Boolean(state.meta?.liveMetaReady);
+  const reconnectRequired = setupMarkedConnected && !accountHasLiveToken(activeAccount);
   // Analytics / journeys / capabilities are feature pages — keep the connect hero on Connection/Numbers/Profile only.
   const showConnectHero = ['connection', 'numbers', 'profile'].includes(section);
+  const coexistenceAvailable = Boolean(meta.coexistenceAvailable ?? meta.embeddedSignupAvailable);
+  const webhookEventsLabel = (() => {
+    if (activeAccount?.health?.lastMessageWebhookAt) return { kind: 'good', text: 'Receiving' };
+    if (activeAccount?.webhookSubscribed || setup.webhookSubscribed) return { kind: 'warn', text: 'Subscribed' };
+    return { kind: 'warn', text: 'Not verified' };
+  })();
+  const messagingReadyLabel = (() => {
+    if (!connected) return { kind: 'warn', text: 'Not ready' };
+    if (String(activePhone?.registrationState || '').toLowerCase() === 'registered' || activePhone?.status === 'CONNECTED') return { kind: 'good', text: 'Ready' };
+    if (activePhone) return { kind: 'warn', text: 'Check number' };
+    return { kind: 'warn', text: 'No number' };
+  })();
+  useEffect(() => {
+    if (section !== 'profile' || !selectedPhone?.id || !accountHasLiveToken(activeAccount)) return undefined;
+    const profile = selectedPhone.profile || {};
+    const empty = !profile.about && !profile.description && !profile.email && !profile.address && !profile.profile_picture_url;
+    const key = `${selectedPhone.id}:${empty ? 'empty' : 'filled'}`;
+    if (!empty || profileSyncKey.current === key) return undefined;
+    profileSyncKey.current = key;
+    runOperation({ action: 'sync_profile', phoneId: selectedPhone.id }, 'Business profile synchronized').catch(() => {
+      profileSyncKey.current = '';
+    });
+    return undefined;
+  }, [section, selectedPhone?.id, activeAccount?.id]);
   return <div className="screenGrid metaSetupScreen">
-    {showConnectHero ? <section className="metaConnectHero" aria-labelledby="meta-connect-heading">
+    {showConnectHero && !connected && !reconnectRequired ? <section className="metaConnectHero" aria-labelledby="meta-connect-heading">
       <div>
         <p className="kicker">Meta</p>
-        <h2 id="meta-connect-heading">{connected ? (setup.businessName || 'WhatsApp connected') : 'Connect your WhatsApp Business account'}</h2>
-        <span>{connected
-          ? 'Your WhatsApp Business account is linked. Use Numbers and Profile to manage assets, or reconnect if Meta access changes.'
-          : 'Securely connect your WhatsApp Business account through Meta to start using messaging tools in this workspace.'}</span>
+        <h2 id="meta-connect-heading">Connect your WhatsApp Business account</h2>
+        <span>Securely connect your WhatsApp Business account through Meta to start using messaging tools in this workspace.</span>
       </div>
       <div className="metaConnectActions">
         <button className="primaryAction metaConnectButton" type="button" onClick={() => connectMeta('standard')} disabled={connecting || !meta.embeddedSignupAvailable}><Link2 size={18} /> Connect with Meta</button>
-        <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !meta.embeddedSignupAvailable} title="For eligible WhatsApp Business App numbers"><Smartphone size={18} /> Existing Business App number</button>
+        <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !coexistenceAvailable} title="For eligible WhatsApp Business App numbers that keep the Business App while linking Cloud API"><Smartphone size={18} /> Existing Business App number</button>
+      </div>
+      {!coexistenceAvailable && meta.embeddedSignupAvailable ? <p className="formHint" role="status">Business App coexistence is not configured for this platform yet. Use Connect with Meta for Cloud API numbers.</p> : null}
+    </section> : null}
+    {showConnectHero && reconnectRequired ? <section className="metaConnectHero metaConnectHeroWarn" aria-labelledby="meta-connect-heading">
+      <div>
+        <p className="kicker">Action required</p>
+        <h2 id="meta-connect-heading">Reconnect Meta access</h2>
+        <span>This workspace still has WhatsApp assets on file, but the live authorization token is missing or expired. Reconnect to restore messaging without replacing your numbers.</span>
+      </div>
+      <div className="metaConnectActions">
+        <button className="primaryAction metaConnectButton" type="button" onClick={() => connectMeta(setup.onboardingMethod === 'coexistence' ? 'coexistence' : 'standard')} disabled={connecting || !(setup.onboardingMethod === 'coexistence' ? coexistenceAvailable : meta.embeddedSignupAvailable)}><Link2 size={18} /> Reconnect Meta</button>
+        <button className="secondaryAction" type="button" onClick={checkConnection} disabled={connecting}>Verify current status</button>
+      </div>
+    </section> : null}
+    {section === 'connection' && connected ? <section className="metaConnectedBanner" aria-labelledby="meta-connected-heading">
+      <div>
+        <p className="kicker">Connected</p>
+        <h2 id="meta-connected-heading">{setup.businessName || activePhone?.verifiedName || 'WhatsApp Business account'}</h2>
+        <span>
+          {activePhone?.displayPhoneNumber || setup.whatsappNumber || 'Number pending sync'}
+          {' · '}
+          {setup.onboardingMethod === 'coexistence' ? 'Business App coexistence' : setup.onboardingMethod === 'embedded_signup' ? 'Cloud API' : 'Manual setup'}
+          {activeAccount?.health?.lastMessageWebhookAt ? ' · Events receiving' : activeAccount?.webhookSubscribed ? ' · Events subscribed' : ' · Confirm webhook subscription'}
+          {' · Messaging '}{messagingReadyLabel.text.toLowerCase()}
+        </span>
+      </div>
+      <div className="metaConnectActions metaConnectedActions">
+        <button className="primaryAction" type="button" onClick={() => { setSection('numbers'); if (onNavigateSection) onNavigateSection('numbers'); }}><Smartphone size={18} /> Manage numbers</button>
+        <button className="secondaryAction" type="button" onClick={() => { setSection('profile'); if (onNavigateSection) onNavigateSection('profile'); }}><Building2 size={18} /> Business profile</button>
+        <details className="metaAdvancedConnect">
+          <summary>More connection options</summary>
+          <div className="metaConnectActions">
+            <button className="secondaryAction" type="button" onClick={() => connectMeta('standard')} disabled={connecting || !meta.embeddedSignupAvailable} title="Reauthorize Cloud API access for this workspace"><Link2 size={16} /> Reauthorize Cloud API</button>
+            <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !coexistenceAvailable} title="Only for eligible WhatsApp Business App numbers"><Smartphone size={16} /> Link Business App number</button>
+          </div>
+        </details>
       </div>
     </section> : null}
     {!meta.embeddedSignupAvailable && <div className="formError">WhatsApp connection isn&apos;t available yet. Contact support.</div>}
@@ -1232,35 +1318,78 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
       {accountRole === 'Owner' && <details className="techDetails saasAdvancedBlock"><summary>Developer API · keys and signed webhooks</summary><WorkspaceIntegrations api={api} postJson={postJson}/></details>}
     </>}
     {section === "connection" && <>
-      <div className="contentGrid twoColumns">
-        <Panel title="Connection health" subtitle="Status for this workspace">
-          <div className="connectionSummary">
-            <div><span>Connection</span><Badge kind={metaLinked ? "good" : "warn"}>{metaLinked ? "Connected" : "Needs setup"}</Badge></div>
-            <div><span>Onboarding</span><strong>{setup.onboardingMethod === 'coexistence' ? 'Existing Business App number' : setup.onboardingMethod === 'embedded_signup' ? 'Meta Cloud API signup' : 'Manual'}</strong></div>
-            <div><span>Events</span><Badge kind={setup.webhookSubscribed ? "good" : "warn"}>{setup.webhookSubscribed ? "Receiving" : "Not verified"}</Badge></div>
-            <div><span>Business number</span><strong>{setup.whatsappNumber || "Not connected"}</strong></div>
-            <div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div>
-            <div><span>Quality rating</span><strong>{metadata.qualityRating || activePhone?.qualityRating || "Unavailable"}</strong></div>
-            <div><span>Token health</span><Badge kind={activeAccount?.token?.status === "healthy" ? "good" : "warn"}>{activeAccount?.token?.status || "Unknown"}</Badge></div>
-            <div><span>Meta health</span><Badge kind={activeAccount?.health?.status === "healthy" ? "good" : "warn"}>{activeAccount?.health?.status === "healthy" ? "Healthy" : activeAccount?.health?.status === "reconnect_required" ? "Reconnect needed" : activeAccount?.health?.status === "degraded" ? "Needs attention" : "Awaiting check"}</Badge></div>
-          </div>
-          <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={!metaLinked}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "WhatsApp assets synchronized")} disabled={!accountHasLiveToken(activeAccount)}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={disconnect} disabled={!metaLinked}><Unplug size={17} /> Disconnect</button></div>
-        </Panel>
-        <Panel title="Advanced" subtitle="Optional diagnostics for support">
-          <details className="techDetails"><summary>Connection IDs</summary><div className="connectionSummary"><div><span>Meta App ID</span><strong>{meta.appId || "Not configured"}</strong></div><div><span>Embedded Signup config ID</span><strong>{meta.embeddedSignupConfigId || "Not configured"}</strong></div><div><span>WABA ID</span><strong>{setup.wabaId || "Needs setup"}</strong></div><div><span>Phone Number ID</span><strong>{setup.phoneNumberId || "Needs setup"}</strong></div><div><span>Token expiry</span><strong>{activeAccount?.token?.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div><div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div></div></details>
-          <details className="techDetails saasAdvancedBlock"><summary>Webhook status</summary><div className="webhookCard"><code>{setup.webhookUrl || meta.webhookUrl || "Webhook URL not configured"}</code><div><span>Signature verification</span><Badge kind="good">Enabled</Badge></div><div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div><div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div><div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div><div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div></div></details>
-        </Panel>
-      </div>
+      <Panel title="Connection status" subtitle="Verified readiness for this workspace">
+        <div className="connectionSummary connectionSummaryEssential">
+          <div><span>Account</span><Badge kind={metaLinked ? "good" : reconnectRequired ? "warn" : "warn"}>{metaLinked ? "Connected" : reconnectRequired ? "Reconnect needed" : "Needs setup"}</Badge></div>
+          <div><span>Messaging</span><Badge kind={messagingReadyLabel.kind}>{messagingReadyLabel.text}</Badge></div>
+          <div><span>Events</span><Badge kind={webhookEventsLabel.kind}>{webhookEventsLabel.text}</Badge></div>
+          <div><span>Business number</span><strong>{setup.whatsappNumber || activePhone?.displayPhoneNumber || "Not connected"}</strong></div>
+        </div>
+        <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={!setupMarkedConnected && !metaLinked}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "WhatsApp assets synchronized")} disabled={!accountHasLiveToken(activeAccount)}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={() => { if (window.confirm('Disconnect WhatsApp for this workspace? Numbers and messages stay in Meta; this removes local credentials.')) disconnect(); }} disabled={!metaLinked && !setupMarkedConnected}><Unplug size={17} /> Disconnect</button></div>
+      </Panel>
+      <details className="techDetails saasAdvancedBlock metaDiagnostics">
+        <summary>Advanced diagnostics</summary>
+        <div className="connectionSummary">
+          <div><span>Onboarding</span><strong>{setup.onboardingMethod === 'coexistence' ? 'Existing Business App number' : setup.onboardingMethod === 'embedded_signup' ? 'Meta Cloud API signup' : 'Manual'}</strong></div>
+          <div><span>Verified name</span><strong>{metadata.verifiedName || activePhone?.verifiedName || "Unavailable"}</strong></div>
+          <div><span>Quality rating</span><strong>{metadata.qualityRating || activePhone?.qualityRating || "Unavailable"}</strong></div>
+          <div><span>Token</span><Badge kind={activeAccount?.token?.status === "healthy" ? "good" : "warn"}>{activeAccount?.token?.status || "Unknown"}</Badge></div>
+          <div><span>Meta health</span><Badge kind={activeAccount?.health?.status === "healthy" ? "good" : "warn"}>{activeAccount?.health?.status === "healthy" ? "Healthy" : activeAccount?.health?.status === "reconnect_required" ? "Reconnect needed" : activeAccount?.health?.status === "degraded" ? "Needs attention" : "Awaiting check"}</Badge></div>
+          <div><span>Token expiry</span><strong>{activeAccount?.token?.expiresAt ? formatTime(activeAccount.token.expiresAt) : "Reconnect when Meta requests"}</strong></div>
+          <div><span>Last checked</span><strong>{formatTime(activeAccount?.health?.checkedAt)}</strong></div>
+          <div><span>Meta App ID</span><strong>{meta.appId || "Not configured"}</strong></div>
+          <div><span>Embedded Signup config</span><strong>{meta.embeddedSignupConfigId || "Not configured"}</strong></div>
+          <div><span>Coexistence config</span><strong>{meta.coexistenceConfigId || "Not configured"}</strong></div>
+          <div><span>WABA ID</span><strong>{setup.wabaId || "Needs setup"}</strong></div>
+          <div><span>Phone Number ID</span><strong>{setup.phoneNumberId || "Needs setup"}</strong></div>
+        </div>
+        <div className="webhookCard">
+          <code>{setup.webhookUrl || meta.webhookUrl || "Webhook URL not configured"}</code>
+          <div><span>Signature verification</span><Badge kind={meta.webhookSignatureConfigured ? "good" : "warn"}>{meta.webhookSignatureConfigured ? "Configured" : "Not configured"}</Badge></div>
+          <div><span>WABA subscription</span><Badge kind={activeAccount?.webhookSubscribed ? "good" : "warn"}>{activeAccount?.webhookSubscribed ? "Subscribed" : "Not subscribed"}</Badge></div>
+          <div><span>Last message/status event</span><strong>{formatTime(activeAccount?.health?.lastMessageWebhookAt)}</strong></div>
+          <div><span>Last callback</span><strong>{formatTime(activeAccount?.health?.lastWebhookAt)}</strong></div>
+          <div><span>Last event field</span><strong>{activeAccount?.health?.lastWebhookField || "None received"}</strong></div>
+        </div>
+      </details>
       <details className="manualSetup"><summary>Manual credentials fallback</summary><Panel title="Manual Meta credentials" subtitle="Use only if Embedded Signup is unavailable"><form className="formGrid" onSubmit={submitManual}><Input name="businessName" label="Business name" defaultValue={setup.businessName} /><Input name="whatsappNumber" label="WhatsApp number" defaultValue={setup.whatsappNumber} /><Input name="wabaId" label="WABA ID" defaultValue={setup.wabaId} /><Input name="phoneNumberId" label="Phone Number ID" defaultValue={setup.phoneNumberId} /><Input name="webhookUrl" label="Webhook URL" defaultValue={setup.webhookUrl} /><Input name="accessToken" label="Access token" defaultValue={setup.accessToken} placeholder="Paste token" /><button className="primaryAction" type="submit"><BadgeCheck size={18} /> Save manual setup</button></form></Panel></details>
     </>}
-    {section === "numbers" && <Panel title="WhatsApp phone numbers" subtitle="Every number remains isolated to this company; the default number is used by campaigns and inbox replies">
+    {section === "numbers" && <Panel title="WhatsApp phone numbers" subtitle="Authorized numbers for this workspace. The default number is used for inbox and campaigns.">
       <div className="assetToolbar"><span>{operations.phoneNumbers.length} connected number{operations.phoneNumbers.length === 1 ? "" : "s"}</span><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "Phone numbers synchronized")} disabled={!accountHasLiveToken(activeAccount)}><RefreshCcw size={17} /> Sync from Meta</button></div>
-      <div className="phoneAssetGrid">{operations.phoneNumbers.map((phone) => <article className={`phoneAsset ${phone.isDefault ? "selected" : ""}`} key={phone.id}><header><div className="assetIcon"><Smartphone size={20} /></div><div><strong>{phone.verifiedName || phone.displayPhoneNumber}</strong><span>{phone.displayPhoneNumber || phone.phoneNumberId}</span></div><Badge kind={phone.qualityRating === "GREEN" ? "good" : phone.qualityRating === "RED" ? "bad" : "warn"}>{phone.qualityRating}</Badge></header><dl><div><dt>Status</dt><dd>{phone.status}</dd></div><div><dt>Messaging tier</dt><dd>{phone.messagingLimitTier}</dd></div><div><dt>Platform</dt><dd>{phone.platformType}</dd></div><div><dt>Registration</dt><dd>{phone.registrationState}</dd></div></dl><div className="assetActions"><button className="secondaryAction" type="button" disabled={phone.isDefault} onClick={() => runOperation({ action: "select_phone", phoneId: phone.id }, "Default WhatsApp number changed")}>{phone.isDefault ? <BadgeCheck size={16} /> : <CheckCheck size={16} />}{phone.isDefault ? "Default number" : "Use this number"}</button>{!phone.coexistence && <form onSubmit={(event) => { event.preventDefault(); const pin = new FormData(event.currentTarget).get("pin"); runOperation({ action: "register_phone", phoneId: phone.id, pin }, "Phone number registered"); event.currentTarget.reset(); }}><input name="pin" inputMode="numeric" pattern="[0-9]{6}" maxLength="6" placeholder="6-digit PIN" aria-label="Two-step verification PIN" required /><button className="secondaryAction" title="Register number"><KeyRound size={16} /> Register</button></form>}</div></article>)}</div>
-      {activePhone && !activePhone.coexistence && <details className="numberVerification"><summary>Verify or migrate the selected number</summary><div><form onSubmit={(event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); runOperation({ action: "request_code", phoneId: activePhone.id, ...values }, "Verification code requested"); }}><label>Delivery method<select name="method"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select></label><Input name="language" label="Language" defaultValue="en_US" /><button className="secondaryAction"><PhoneCall size={16} /> Request code</button></form><form onSubmit={(event) => { event.preventDefault(); const code = new FormData(event.currentTarget).get("code"); runOperation({ action: "verify_code", phoneId: activePhone.id, code }, "Phone number verified"); event.currentTarget.reset(); }}><Input name="code" label="Verification code" inputMode="numeric" required /><button className="secondaryAction"><BadgeCheck size={16} /> Verify code</button></form></div></details>}
-      {!operations.phoneNumbers.length && <EmptyState text="Connect Meta, then sync phone numbers" />}
+      <div className="phoneAssetGrid">{operations.phoneNumbers.map((phone) => {
+        const selected = selectedPhone?.id === phone.id;
+        return <article className={`phoneAsset ${phone.isDefault ? "defaultPhone" : ""} ${selected ? "selected" : ""}`} key={phone.id} onClick={() => setSelectedPhoneId(phone.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedPhoneId(phone.id); } }} role="button" tabIndex={0}>
+          <header><div className="assetIcon"><Smartphone size={20} /></div><div><strong>{phone.verifiedName || phone.displayPhoneNumber}</strong><span>{phone.displayPhoneNumber || phone.phoneNumberId}</span></div><Badge kind={phone.qualityRating === "GREEN" ? "good" : phone.qualityRating === "RED" ? "bad" : "warn"}>{phone.qualityRating || "UNKNOWN"}</Badge></header>
+          <dl>
+            <div><dt>Status</dt><dd>{phone.status || "UNKNOWN"}</dd></div>
+            <div><dt>Messaging tier</dt><dd>{phone.messagingLimitTier || "Unavailable"}</dd></div>
+            <div><dt>Platform</dt><dd>{phone.coexistence ? "Business App + Cloud API" : (phone.platformType || "CLOUD_API")}</dd></div>
+            <div><dt>Registration</dt><dd>{phone.registrationState || "unknown"}</dd></div>
+            <div><dt>Name status</dt><dd>{phone.nameStatus || "UNKNOWN"}</dd></div>
+            <div><dt>Code verification</dt><dd>{phone.codeVerificationStatus || "UNKNOWN"}</dd></div>
+          </dl>
+          <div className="assetActions" onClick={(event) => event.stopPropagation()}>
+            <button className="secondaryAction" type="button" disabled={phone.isDefault} onClick={() => runOperation({ action: "select_phone", phoneId: phone.id }, "Default WhatsApp number changed")}>{phone.isDefault ? <BadgeCheck size={16} /> : <CheckCheck size={16} />}{phone.isDefault ? "Default number" : "Use this number"}</button>
+            {!phone.coexistence && <form onSubmit={(event) => { event.preventDefault(); if (!window.confirm('Register this number with Meta using the PIN? Only continue if Meta requires registration for this number.')) return; const pin = new FormData(event.currentTarget).get("pin"); runOperation({ action: "register_phone", phoneId: phone.id, pin }, "Phone number registered"); event.currentTarget.reset(); }}><input name="pin" inputMode="numeric" pattern="[0-9]{6}" maxLength="6" placeholder="6-digit PIN" aria-label="Two-step verification PIN" required /><button className="secondaryAction" title="Register number"><KeyRound size={16} /> Register</button></form>}
+          </div>
+          <details className="phoneIdDetails" onClick={(event) => event.stopPropagation()}><summary>Phone Number ID</summary><code>{phone.phoneNumberId}</code></details>
+        </article>;
+      })}</div>
+      {selectedPhone && !selectedPhone.coexistence && <details className="numberVerification"><summary>Verify selected number · {selectedPhone.displayPhoneNumber || selectedPhone.phoneNumberId}</summary><div><form onSubmit={(event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); runOperation({ action: "request_code", phoneId: selectedPhone.id, ...values }, "Verification code requested"); }}><label>Delivery method<select name="method"><option value="SMS">SMS</option><option value="VOICE">Voice call</option></select></label><Input name="language" label="Language" defaultValue="en_US" /><button className="secondaryAction"><PhoneCall size={16} /> Request code</button></form><form onSubmit={(event) => { event.preventDefault(); const code = new FormData(event.currentTarget).get("code"); runOperation({ action: "verify_code", phoneId: selectedPhone.id, code }, "Phone number verified"); event.currentTarget.reset(); }}><Input name="code" label="Verification code" inputMode="numeric" required /><button className="secondaryAction"><BadgeCheck size={16} /> Verify code</button></form></div></details>}
+      {!operations.phoneNumbers.length && <EmptyState text={connected ? "No phone numbers synced yet. Tap Sync from Meta." : "Connect Meta, then sync phone numbers"} />}
     </Panel>}
-    {section === "profile" && <Panel title="WhatsApp business profile" subtitle={activePhone ? `Profile for ${activePhone.displayPhoneNumber}` : "Connect a phone number first"}>
-      {activePhone ? <form className="formGrid profileForm" key={activePhone.id} onSubmit={(event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); runOperation({ action: "update_profile", phoneId: activePhone.id, profile: values }, "Business profile updated"); }}><Input name="about" label="About" defaultValue={activePhone.profile.about || ""} maxLength="139" /><Input name="email" label="Public email" type="email" defaultValue={activePhone.profile.email || ""} /><Input name="address" label="Address" defaultValue={activePhone.profile.address || ""} /><label>Business category<select name="vertical" defaultValue={activePhone.profile.vertical || "OTHER"}><option value="OTHER">Other</option><option value="RETAIL">Retail</option><option value="PROF_SERVICES">Professional services</option><option value="EDU">Education</option><option value="HEALTH">Health</option><option value="TRAVEL">Travel</option><option value="RESTAURANT">Restaurant</option></select></label><label className="wideField">Description<textarea name="description" rows="4" maxLength="512" defaultValue={activePhone.profile.description || ""} /></label><label className="wideField">Websites<textarea name="websites" rows="2" defaultValue={(activePhone.profile.websites || []).join("\n")} placeholder="One URL per line" /></label><div className="formActions wideField"><button className="primaryAction" type="submit"><Save size={17} /> Save profile</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync_profile", phoneId: activePhone.id }, "Business profile synchronized")}><RefreshCcw size={17} /> Reload from Meta</button></div></form> : <EmptyState text="No active WhatsApp number" />}
+    {section === "profile" && <Panel title="WhatsApp business profile" subtitle={selectedPhone ? `Public profile for ${selectedPhone.displayPhoneNumber || selectedPhone.verifiedName}` : "Connect a phone number first"}>
+      {operations.phoneNumbers.length > 1 ? <label className="profilePhoneSelect">Number<select value={selectedPhone?.id || ''} onChange={(event) => setSelectedPhoneId(event.target.value)} aria-label="Profile phone number">{operations.phoneNumbers.map((phone) => <option key={phone.id} value={phone.id}>{phone.displayPhoneNumber || phone.verifiedName || phone.phoneNumberId}</option>)}</select></label> : null}
+      {selectedPhone ? <form className="formGrid profileForm" key={selectedPhone.id} onSubmit={(event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); runOperation({ action: "update_profile", phoneId: selectedPhone.id, profile: values }, "Business profile updated"); }}>
+        {selectedPhone.profile?.profile_picture_url ? <div className="profilePicturePreview wideField"><img src={selectedPhone.profile.profile_picture_url} alt="" width={72} height={72} /><span>Profile picture is managed in Meta Business Suite. Reload from Meta after changes.</span></div> : null}
+        <Input name="about" label="About" defaultValue={selectedPhone.profile?.about || ""} maxLength="139" />
+        <Input name="email" label="Public email" type="email" defaultValue={selectedPhone.profile?.email || ""} />
+        <Input name="address" label="Address" defaultValue={selectedPhone.profile?.address || ""} />
+        <label>Business category<select name="vertical" defaultValue={selectedPhone.profile?.vertical || "OTHER"}><option value="OTHER">Other</option><option value="RETAIL">Retail</option><option value="PROF_SERVICES">Professional services</option><option value="EDU">Education</option><option value="HEALTH">Health</option><option value="TRAVEL">Travel</option><option value="RESTAURANT">Restaurant</option></select></label>
+        <label className="wideField">Description<textarea name="description" rows="4" maxLength="512" defaultValue={selectedPhone.profile?.description || ""} /></label>
+        <label className="wideField">Websites<textarea name="websites" rows="2" defaultValue={(selectedPhone.profile?.websites || []).join("\n")} placeholder="One URL per line (max 2)" /></label>
+        <div className="formActions wideField"><button className="primaryAction" type="submit" disabled={!accountHasLiveToken(activeAccount)}><Save size={17} /> Save profile</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync_profile", phoneId: selectedPhone.id }, "Business profile synchronized")} disabled={!accountHasLiveToken(activeAccount)}><RefreshCcw size={17} /> Reload from Meta</button></div>
+      </form> : <EmptyState text={connected ? "No WhatsApp number available for profile editing" : "Connect WhatsApp before editing the business profile"} />}
     </Panel>}
 {section === "flows" && <div className="contentGrid twoColumns whatsappFlowsScreen"><Panel title="Create WhatsApp Flow" subtitle="Meta in-chat forms — separate from Automation reply workflows"><form className="formGrid" onSubmit={(event) => { event.preventDefault(); runOperation({ action: "create_flow", ...Object.fromEntries(new FormData(event.currentTarget)), accountId: activeAccount?.id, phoneId: activePhone?.id }, "WhatsApp Flow created"); event.currentTarget.reset(); }}><Input name="name" label="Flow name" required /><label>Category<select name="category"><option value="LEAD_GENERATION">Lead generation</option><option value="APPOINTMENT_BOOKING">Appointment booking</option><option value="SIGN_UP">Sign up</option><option value="CONTACT_US">Contact us</option><option value="OTHER">Other</option></select></label><label className="checkRow"><input name="managedEndpoint" type="checkbox" disabled={!activePhone?.flowEncryption?.configured || activePhone?.flowEncryption?.signatureStatus !== "VALID"} /> Use CRM data endpoint</label><label>CRM endpoint mode<select name="managedEndpointMode"><option value="preset">Saved responses</option><option value="transactional">Live booking or order runtime</option></select></label><Input name="endpointUri" label="External data endpoint (optional)" type="url" /><button className="primaryAction" disabled={!accountHasLiveToken(activeAccount)}><Plus size={17} /> Create in Meta</button></form></Panel><Panel title="Meta Flow library" subtitle="Published Flows are immutable; clone in Meta before changing a published Flow"><div className="flowAssetList">{operations.nativeFlows.map((flow) => <article key={flow.id}><header><div><strong>{flow.name}</strong><span>{flow.category} | {flow.metaFlowId || "Local"}</span></div><Badge kind={flow.status === "published" ? "good" : flow.validationErrors.length ? "bad" : "warn"}>{flow.status}</Badge></header>{flow.managedEndpoint && !flow.transactionalEndpoint && <details><summary>Data responses</summary><form onSubmit={(event) => { event.preventDefault(); try { runOperation({ action: "set_flow_responses", flowId: flow.id, responses: JSON.parse(new FormData(event.currentTarget).get("responses")) }, "Flow responses saved"); } catch { mutate(Promise.reject(new Error("Enter valid response JSON."))); } }}><textarea name="responses" rows="8" defaultValue={JSON.stringify(flow.endpointResponses || {}, null, 2)} required /><button className="secondaryAction"><Save size={16} /> Save responses</button></form><small>{flow.endpointUri}</small></details>}<details><summary>Flow JSON</summary><form onSubmit={(event) => { event.preventDefault(); runOperation({ action: "upload_flow", flowId: flow.id, flowJson: new FormData(event.currentTarget).get("flowJson") }, "Flow definition uploaded"); }}><textarea name="flowJson" rows="8" defaultValue={JSON.stringify(flow.flowJson || {}, null, 2)} required /><button className="secondaryAction"><Upload size={16} /> Validate and upload</button></form></details><div className="assetActions"><button className="secondaryAction" type="button" disabled={flow.status === "published"} onClick={() => runOperation({ action: "publish_flow", flowId: flow.id }, "WhatsApp Flow published")}><Play size={16} /> Publish</button></div>{flow.validationErrors.map((error, index) => <small className="errorLine" key={index}>{error.error_user_msg || error.error || error.message || 'Fix the Flow JSON and upload again.'}</small>)}</article>)}</div><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync_flows", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "WhatsApp Flows synchronized")} disabled={!accountHasLiveToken(activeAccount)}><RefreshCcw size={17} /> Sync from Meta</button>{!operations.nativeFlows.length && <EmptyState text="No native WhatsApp Flows yet" />}</Panel></div>}
     {section === "flows" && activePhone && <Panel title="Flow encryption" subtitle={activePhone.displayPhoneNumber}><div className="connectionActions"><Badge kind={activePhone.flowEncryption?.signatureStatus === "VALID" ? "good" : "warn"}>{activePhone.flowEncryption?.signatureStatus || "Not configured"}</Badge><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "configure_flow_encryption", phoneId: activePhone.id }, "Flow encryption configured")}><KeyRound size={17} /> Configure in Meta</button></div></Panel>}

@@ -82,14 +82,15 @@ test('a verified owner signs in and reaches the platform root',async({page,conte
       const response=await route.fetch();
       const state=await response.json();
       state.meta.embeddedSignupAvailable=true;
+      state.meta.coexistenceAvailable=false;
       await route.fulfill({response,json:state});
     });
     await page.route('**/api/meta/embedded-signup/config*',route=>route.fulfill({
       status:200,contentType:'application/json',body:JSON.stringify({appId:'123',configId:'456',graphVersion:'v26.0'})
     }));
     await page.goto('/app/settings/whatsapp');
-    await expect(page.getByRole('button',{name:'Cloud API number'})).toBeVisible();
-    await page.getByRole('button',{name:'Cloud API number'}).click();
+    await expect(page.getByRole('button',{name:'Connect with Meta'})).toBeVisible();
+    await page.getByRole('button',{name:'Connect with Meta'}).click();
     await expect(page.getByRole('alert').filter({hasText:'Meta did not authorize this app.'})).toBeVisible();
   }finally{
     await client.query('DELETE FROM businesses WHERE id=$1',[businessId]);

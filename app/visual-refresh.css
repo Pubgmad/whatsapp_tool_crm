@@ -19,11 +19,17 @@
 .readinessList>div.ready{background:var(--brand-soft);border-color:var(--line-strong)}
 .authShell::before,.superAuthShell::before{background:linear-gradient(90deg,transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px),linear-gradient(transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px);background-size:32px 32px}
 .authPanel,.superAuthPanel{box-shadow:var(--shadow-md)}
-.metaSetupScreen .metaConnectHero{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink)}
-.metaSetupScreen .metaConnectHero h2{color:var(--ink)}
-.metaSetupScreen .metaConnectHero span{color:var(--muted)}
-.metaSetupScreen .metaConnectHero .kicker{color:var(--brand)}
-.metaSetupScreen .metaConnectHero .metaConnectActions{display:grid;flex:0 0 250px;width:250px;gap:10px}
+.metaSetupScreen .metaConnectHero,
+.metaSetupScreen .metaConnectedBanner{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow-sm);color:var(--ink)}
+.metaSetupScreen .metaConnectHeroWarn{border-color:color-mix(in srgb,var(--amber) 45%,var(--line))}
+.metaSetupScreen .metaConnectHero h2,
+.metaSetupScreen .metaConnectedBanner h2{color:var(--ink)}
+.metaSetupScreen .metaConnectHero span,
+.metaSetupScreen .metaConnectedBanner span{color:var(--muted)}
+.metaSetupScreen .metaConnectHero .kicker,
+.metaSetupScreen .metaConnectedBanner .kicker{color:var(--brand)}
+.metaSetupScreen .metaConnectHero .metaConnectActions,
+.metaSetupScreen .metaConnectedActions{display:grid;flex:0 0 250px;width:250px;gap:10px}
 .metaSetupScreen .metaConnectActions button{min-height:46px;white-space:normal;overflow-wrap:normal}
 .metaSetupScreen .metaConnectButton{background:var(--cta);border-color:var(--cta);color:#fff}
 .metaSetupScreen .metaConnectButton:hover{background:var(--cta-hover);border-color:var(--cta-hover)}
@@ -41,6 +47,6 @@
 .metaWebhookEvent small{color:var(--muted);line-height:1.5}
 .metaWebhookEvent button{flex:none}
 input:not([type=checkbox]):not([type=file]):focus,textarea:focus,select:focus{box-shadow:0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent)}
-@media(max-width:760px){.metaSetupScreen .metaConnectHero{gap:18px}.metaSetupScreen .metaConnectHero .metaConnectActions{flex:none;width:100%}}
+@media(max-width:760px){.metaSetupScreen .metaConnectHero,.metaSetupScreen .metaConnectedBanner{gap:18px}.metaSetupScreen .metaConnectHero .metaConnectActions,.metaSetupScreen .metaConnectedActions{flex:none;width:100%}}
 @media(max-width:520px){.metaWebhookEvent{align-items:stretch;flex-direction:column}.metaWebhookEvent button{align-self:flex-start}}
 .platformLogo{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
