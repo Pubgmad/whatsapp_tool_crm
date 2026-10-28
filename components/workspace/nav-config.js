@@ -130,14 +130,14 @@ export const pageIntros = {
   flows: 'Meta WhatsApp Flows — interactive in-chat forms (separate from Automation workflows).',
   media: 'Upload and manage Meta media assets for messaging.',
   entry_points: 'Links and QR codes into WhatsApp.',
-  journeys: 'Customer journey analytics.',
-  capabilities: 'Enabled WhatsApp capabilities.',
+  journeys: 'Recorded customer journey metrics for this workspace.',
+  capabilities: 'Meta permission, asset, and feature readiness for this workspace.',
   groups: 'Group messaging when eligible.',
   integrations: 'API keys and partner connectors.',
   contacts: 'Audiences, consent, and segments.',
-  team: 'Invite and manage workspace roles.',
-  billing: 'Plan, invoices, and entitlements.',
-  security: 'Password and account security.',
+  team: 'Invite agents and manage workspace roles.',
+  billing: 'Current plan, usage limits, and subscription billing.',
+  security: 'Account multi-factor authentication and recovery codes.',
   templates: 'Meta-approved message templates.',
   automation: 'Create, test, and activate reply workflows for this workspace.',
   campaigns: 'Template campaigns and scheduling.',
@@ -223,29 +223,56 @@ export const navGroups = [
   },
   {
     id: 'insights',
-    label: 'Analytics',
+    label: 'Analytics & Insights',
     items: [
       { id: 'results', label: 'Analytics', icon: 'BarChart3' },
-      { id: 'meta_analytics', label: 'Meta insights', icon: 'BarChart3' },
+      { id: 'meta_analytics', label: 'Meta insights', icon: 'LineChart' },
       { id: 'conversions', label: 'Conversions', icon: 'Activity' },
-      { id: 'journeys', label: 'Journeys', icon: 'Activity' }
+      { id: 'journeys', label: 'Journeys', icon: 'Route' }
     ]
   },
   {
-    id: 'account',
-    label: 'Account',
+    id: 'readiness',
+    label: 'Meta readiness',
     items: [
       { id: 'capabilities', label: 'Capabilities', icon: 'RadioTower' },
-      { id: 'groups', label: 'Groups', icon: 'MessageSquare' },
+      { id: 'groups', label: 'Groups', icon: 'MessageSquare' }
+    ]
+  },
+  {
+    id: 'workspace_admin',
+    label: 'Workspace',
+    items: [
       { id: 'team', label: 'Team', icon: 'UserPlus' },
-      { id: 'billing', label: 'Billing', icon: 'WalletCards' },
-      { id: 'security', label: 'Security', icon: 'ShieldCheck' },
+      { id: 'security', label: 'Security', icon: 'ShieldCheck' }
+    ]
+  },
+  {
+    id: 'subscriptions',
+    label: 'Subscriptions',
+    items: [
+      { id: 'billing', label: 'Billing', icon: 'WalletCards' }
+    ]
+  },
+  {
+    id: 'compliance',
+    label: 'Contact compliance',
+    items: [
       { id: 'unsubscribes', label: 'Suppression', icon: 'Ban' }
     ]
   }
 ];
 
 export const flatNavItems = navGroups.flatMap((group) => group.items);
+
+/** Primary product-switcher entry for a view (keeps dropdown aligned with secondary tabs). */
+export function productSwitcherIdForView(view, productIds = []) {
+  if (productIds.includes(view)) return view;
+  const group = navGroups.find((entry) => entry.items.some((item) => item.id === view));
+  if (!group) return productIds[0] || 'setup';
+  const hit = productIds.find((id) => group.items.some((item) => item.id === id));
+  return hit || productIds[0] || 'setup';
+}
 
 export function canOpenWorkspaceView(role, view) {
   if (view === 'billing') return role === 'Owner';

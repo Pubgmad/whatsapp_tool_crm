@@ -55,6 +55,7 @@ import {
   navGroups,
   pageIntro as workspacePageIntro,
   pageTitle as workspacePageTitle,
+  productSwitcherIdForView,
   setupSectionByView,
   workspaceLocation,
   workspaceRoutes
@@ -64,13 +65,13 @@ import { Children, cloneElement, isValidElement, Suspense, useCallback, useEffec
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BadgeCheck, Ban, BarChart3, Bot, ChevronRight, CircleAlert, Download, FileText, Image, Inbox, LayoutDashboard,
-  Eye, EyeOff, Loader2, LogOut, MessageSquare, MessageSquareText, PhoneCall, Plus, RefreshCcw, Send, Settings2,
+  Eye, EyeOff, LineChart, Loader2, LogOut, MessageSquare, MessageSquareText, PhoneCall, Plus, RefreshCcw, Route, Send, Settings2,
   ShieldCheck, Sparkles, Trash2, Upload, UsersRound, X, Search, Clock3, Activity, CheckCheck, Copy, Link2, Pause, Play, Pencil, Save, StickyNote, Unplug, UserPlus, WalletCards,
   Smartphone, Workflow, RadioTower, Building2, KeyRound, ShoppingBag, Paperclip
 } from "lucide-react";
 const NAV_ICONS = {
   LayoutDashboard, Settings2, UsersRound, UserPlus, WalletCards, ShieldCheck, MessageSquareText, Bot, Send,
-  ShoppingBag, Activity, PhoneCall, RadioTower, BarChart3, Inbox, Ban, Workflow, Paperclip, Link2, Smartphone,
+  ShoppingBag, Activity, PhoneCall, RadioTower, BarChart3, LineChart, Route, Inbox, Ban, Workflow, Paperclip, Link2, Smartphone,
   Building2, KeyRound, MessageSquare, Sparkles
 };
 
@@ -79,7 +80,8 @@ const navItems = flatNavItems.map((item) => ({ ...item, icon: NAV_ICONS[item.ico
 /** Primary products shown in the compact switcher (not a full CRM dashboard nav). */
 const PRODUCT_SWITCHER_IDS = [
   'setup', 'inbox', 'campaigns', 'ads', 'automation', 'calling', 'ai_agents',
-  'templates', 'contacts', 'results', 'commerce', 'integrations', 'team', 'billing', 'security'
+  'templates', 'contacts', 'results', 'commerce', 'integrations',
+  'capabilities', 'team', 'billing', 'security', 'unsubscribes'
 ];
 
 
@@ -601,7 +603,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
         <label className="productSwitcher">
           <span className="srOnly">Product</span>
           <select
-            value={productOptions.some((item) => item.id === activeView) ? activeView : (productOptions[0]?.id || 'setup')}
+            value={productSwitcherIdForView(activeView, productOptions.map((item) => item.id))}
             onChange={(event) => navigate(event.target.value)}
             aria-label="Switch product"
           >
@@ -882,7 +884,18 @@ function SecuritySettings() {
       setMessage(body.action === 'begin' ? 'Add this key to your authenticator app, then confirm a code.' : body.action === 'enable' ? 'Multi-factor authentication is enabled.' : 'Multi-factor authentication is disabled.');
     } catch (reason) { setError(reason.message); }
   };
-  return <div className='screenGrid'><section className='actionBand'><div><strong>Multi-factor authentication</strong><span>Protect this account with a time-based authenticator and single-use recovery codes.</span></div><Badge kind={status.enabled ? 'good' : 'warn'}>{status.enabled ? 'Enabled' : 'Not enabled'}</Badge></section>{!status.enabled && !setup && <Panel title='Authenticator setup' subtitle='Use Google Authenticator, Microsoft Authenticator, 1Password, or another TOTP app'><button className='primaryAction' type='button' onClick={() => run({ action: 'begin' })}><ShieldCheck size={18} /> Start setup</button></Panel>}{setup && <Panel title='Confirm authenticator' subtitle='The secret is shown once during setup'><div className='envBox'><code>{setup.secret}</code><code>{setup.otpauthUrl}</code></div><form className='formGrid' onSubmit={(event) => { event.preventDefault(); run({ action: 'enable', code: new FormData(event.currentTarget).get('code') }); }}><Input name='code' label='Six-digit code' inputMode='numeric' pattern='[0-9]{6}' required /><button className='primaryAction'><BadgeCheck size={18} /> Enable MFA</button></form></Panel>}{status.enabled && <Panel title='Disable MFA' subtitle='Password and an authenticator or recovery code are required'><form className='formGrid' onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); run({ action: 'disable', password: form.get('password'), code: form.get('code') }); }}><Input name='password' label='Current password' type='password' required /><Input name='code' label='Authenticator or recovery code' required /><button className='secondaryAction dangerSoft'>Disable MFA</button></form></Panel>}{codes.length > 0 && <Panel title='Recovery codes' subtitle='Store these securely. Each code can only be used once'><div className='recoveryCodes'>{codes.map((code) => <code key={code}>{code}</code>)}</div></Panel>}{error && <div className='formError'>{error}</div>}{message && <div className='formSuccess'>{message}</div>}</div>;
+  return <div className='screenGrid securityScreen'>
+    <section className='actionBand'>
+      <div><strong>Account security</strong><span>Multi-factor authentication for this signed-in user. Workspace Meta tokens and billing credentials are not shown here.</span></div>
+      <Badge kind={status.enabled ? 'good' : 'warn'}>{status.enabled ? 'MFA enabled' : 'MFA not enabled'}</Badge>
+    </section>
+    {error && <div className='formError' role='alert'>{error}</div>}
+    {message && <div className='formSuccess' role='status'>{message}</div>}
+    {!status.enabled && !setup && <Panel title='Authenticator setup' subtitle='Use Google Authenticator, Microsoft Authenticator, 1Password, or another TOTP app'><button className='primaryAction' type='button' onClick={() => run({ action: 'begin' })}><ShieldCheck size={18} /> Start MFA setup</button></Panel>}
+    {setup && <Panel title='Confirm authenticator' subtitle='The secret is shown once during setup'><div className='envBox'><code>{setup.secret}</code><code>{setup.otpauthUrl}</code></div><form className='formGrid' onSubmit={(event) => { event.preventDefault(); run({ action: 'enable', code: new FormData(event.currentTarget).get('code') }); }}><Input name='code' label='Six-digit code' inputMode='numeric' pattern='[0-9]{6}' required /><button className='primaryAction'><BadgeCheck size={18} /> Enable MFA</button></form></Panel>}
+    {status.enabled && <Panel title='Disable MFA' subtitle='Password and an authenticator or recovery code are required'><form className='formGrid' onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); run({ action: 'disable', password: form.get('password'), code: form.get('code') }); }}><Input name='password' label='Current password' type='password' required /><Input name='code' label='Authenticator or recovery code' required /><button className='secondaryAction dangerSoft'>Disable MFA</button></form></Panel>}
+    {codes.length > 0 && <Panel title='Recovery codes' subtitle='Store these securely. Each code can only be used once'><div className='recoveryCodes'>{codes.map((code) => <code key={code}>{code}</code>)}</div></Panel>}
+  </div>;
 }
 
 function Screens({ activeView, setupSection = null, ...props }) {
@@ -2404,21 +2417,52 @@ function TeamMembers({ state, mutate }) {
   const updateMember = (member, role) => mutate(postJson(`/api/team/members/${member.id}`, { role }, "PATCH"), "Team role updated");
   const updateAvailability = (availability) => mutate(postJson(`/api/team/members/${state.account.user.id}`, { availability }, "PATCH"), "Availability updated");
   const removeMember = (member) => mutate(api(`/api/team/members/${member.id}`, { method: "DELETE" }), "Team member removed");
-  return <div className="screenGrid"><section className="teamStatus"><div><p className="kicker">Agent availability</p><h2>{state.account.user.name}</h2><span>Set your current inbox availability.</span></div><select value={members.find((member) => member.id === state.account.user.id)?.availability || "offline"} onChange={(event) => updateAvailability(event.target.value)}><option value="available">Available</option><option value="away">Away</option><option value="offline">Offline</option></select></section>{canManage && <Panel title="Invite team member" subtitle="Invite links expire automatically and can be revoked"><form className="teamInviteForm" onSubmit={invite}><Input name="email" label="Work email" type="email" required /><label>Company role<select name="role"><option value="Agent">Agent</option><option value="Manager">Manager</option></select></label><button className="primaryAction" type="submit"><UserPlus size={18} /> Create invite</button></form>{inviteUrl && <div className="inviteResult"><div><strong>Invitation link created</strong><span>{inviteUrl}</span><small>{inviteEmailSent ? "Invite email sent." : "Email delivery not configured — share this link manually."}</small></div><button className="secondaryAction" type="button" onClick={copyInvite}><Copy size={17} /> Copy</button></div>}<div className="pendingInvites">{invitations.map((item) => <article key={item.id}><div><strong>{item.email}</strong><span>{item.role} | expires {formatTime(item.expiresAt)}</span></div><button className="iconButton dangerSoft" title="Revoke invite" onClick={async () => { const result = await api(`/api/team/invitations/${item.id}`, { method: "DELETE" }); setInvitations(result.invitations || []); }}><Trash2 size={16} /></button></article>)}</div></Panel>}<Panel title="Company team" subtitle={`${members.length} workspace member${members.length === 1 ? "" : "s"}`}><DataTable headers={["Member", "Role", "Availability", "Actions"]}>{members.map((member) => <tr key={member.id}><td><strong>{member.name}</strong><small>{member.email}</small></td><td>{canManage && member.role !== "Owner" ? <select value={member.role} onChange={(event) => updateMember(member, event.target.value)}><option value="Agent">Agent</option><option value="Manager">Manager</option></select> : <Badge kind={member.role === "Owner" ? "good" : "neutral"}>{member.role}</Badge>}</td><td><Badge kind={member.availability === "available" ? "good" : member.availability === "away" ? "warn" : "neutral"}>{member.availability}</Badge></td><td className="rowActions">{canManage && member.role !== "Owner" && member.id !== state.account.user.id && <button className="dangerText" onClick={() => removeMember(member)}><Trash2 size={15} /> Remove</button>}</td></tr>)}</DataTable></Panel></div>;
+  return <div className="screenGrid teamScreen">
+    <section className="teamStatus">
+      <div><p className="kicker">Your availability</p><h2>{state.account.user.name}</h2><span>Controls inbox assignment eligibility for you.</span></div>
+      <select value={members.find((member) => member.id === state.account.user.id)?.availability || "offline"} onChange={(event) => updateAvailability(event.target.value)} aria-label="Your availability">
+        <option value="available">Available</option>
+        <option value="away">Away</option>
+        <option value="offline">Offline</option>
+      </select>
+    </section>
+    {canManage && <Panel title="Invite agent" subtitle="Invitations expire automatically and can be revoked before acceptance">
+      <form className="teamInviteForm" onSubmit={invite}>
+        <Input name="email" label="Work email" type="email" required />
+        <label>Role<select name="role"><option value="Agent">Agent</option><option value="Manager">Manager</option></select></label>
+        <button className="primaryAction" type="submit"><UserPlus size={18} /> Invite agent</button>
+      </form>
+      {inviteUrl && <div className="inviteResult"><div><strong>Invitation link created</strong><span>{inviteUrl}</span><small>{inviteEmailSent ? "Invite email sent." : "Email delivery not configured — share this link manually."}</small></div><button className="secondaryAction" type="button" onClick={copyInvite}><Copy size={17} /> Copy</button></div>}
+      <div className="pendingInvites">{invitations.map((item) => <article key={item.id}><div><strong>{item.email}</strong><span>{item.role} · expires {formatTime(item.expiresAt)}</span></div><button className="iconButton dangerSoft" title="Revoke invite" aria-label={`Revoke invite for ${item.email}`} onClick={async () => { const result = await api(`/api/team/invitations/${item.id}`, { method: "DELETE" }); setInvitations(result.invitations || []); }}><Trash2 size={16} /></button></article>)}</div>
+    </Panel>}
+    <Panel title="Team members" subtitle={`${members.length} member${members.length === 1 ? "" : "s"} in this workspace`}>
+      <DataTable headers={["Member", "Role", "Availability", "Actions"]}>{members.map((member) => <tr key={member.id}><td><strong>{member.name}</strong><small>{member.email}</small></td><td>{canManage && member.role !== "Owner" ? <select value={member.role} onChange={(event) => updateMember(member, event.target.value)} aria-label={`Role for ${member.name}`}><option value="Agent">Agent</option><option value="Manager">Manager</option></select> : <Badge kind={member.role === "Owner" ? "good" : "neutral"}>{member.role}</Badge>}</td><td><Badge kind={member.availability === "available" ? "good" : member.availability === "away" ? "warn" : "neutral"}>{member.availability}</Badge></td><td className="rowActions">{canManage && member.role !== "Owner" && member.id !== state.account.user.id && <button className="dangerText" type="button" onClick={() => { if (window.confirm(`Remove ${member.name || member.email} from this workspace?`)) removeMember(member); }}><Trash2 size={15} /> Remove</button>}</td></tr>)}</DataTable>
+    </Panel>
+  </div>;
 }
 
 function Unsubscribes({ state, suppressedContacts, mutate }) {
   const [restoreContact, setRestoreContact] = useState(null);
   const [consentSettings, setConsentSettings] = useState(null);
-  const [customFields, setCustomFields] = useState([]);
+  const [consentError, setConsentError] = useState('');
+  const [search, setSearch] = useState('');
+  const [reasonFilter, setReasonFilter] = useState('all');
   const canManage = isWorkspaceManager(state?.account?.role);
   const isOwner = state?.account?.role === "Owner";
   useEffect(() => {
     let active = true;
-    api("/api/workspace/consent").then((result) => { if (active) setConsentSettings(result.settings || null); }).catch(() => {});
-    api("/api/workspace/custom-fields").then((result) => { if (active) setCustomFields(result.fields || []); }).catch(() => {});
+    api("/api/workspace/consent")
+      .then((result) => { if (active) { setConsentSettings(result.settings || null); setConsentError(''); } })
+      .catch((reason) => { if (active) setConsentError(reason.message || 'Consent settings unavailable'); });
     return () => { active = false; };
   }, []);
+  const filtered = (suppressedContacts || []).filter((contact) => {
+    const q = search.trim().toLowerCase();
+    if (q && !`${contact.name || ''} ${contact.phone || ''}`.toLowerCase().includes(q)) return false;
+    if (reasonFilter === 'unsubscribed' && !contact.unsubscribed) return false;
+    if (reasonFilter === 'no_permission' && contact.unsubscribed) return false;
+    return true;
+  });
   const restore = (event) => {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -2447,26 +2491,48 @@ function Unsubscribes({ state, suppressedContacts, mutate }) {
       return result;
     }), "Consent settings saved");
   };
-  const addField = (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    mutate(postJson("/api/workspace/custom-fields", {
-      action: "create",
-      label: form.get("label"),
-      key: form.get("key"),
-      type: form.get("type") || "text"
-    }).then((result) => {
-      setCustomFields(result.fields || []);
-      event.currentTarget.reset();
-      return result;
-    }), "Custom field created");
-  };
-  return <>
-    {canManage && consentSettings && <Panel title="WhatsApp consent settings" subtitle="Keyword opt-in/out, marketing master switch, and suppression controls"><form className="formGrid" onSubmit={saveConsent}>{isOwner && <label className="checkRow"><input name="marketingMessagingEnabled" type="checkbox" defaultChecked={consentSettings.marketingMessagingEnabled !== false} /> Marketing messaging enabled</label>}<Input name="optOutKeywords" label="Opt-out keywords (max 5, comma separated)" defaultValue={(consentSettings.optOutKeywords || []).join(", ")} /><Input name="optInKeywords" label="Opt-in keywords (max 5, comma separated)" defaultValue={(consentSettings.optInKeywords || []).join(", ")} /><Input name="optOutAutoReply" label="Opt-out confirmation message" defaultValue={consentSettings.optOutAutoReply || ""} /><Input name="optInAutoReply" label="Opt-in confirmation message" defaultValue={consentSettings.optInAutoReply || ""} /><button className="primaryAction" type="submit"><Save size={18} /> Save consent settings</button></form></Panel>}
-    {canManage && <Panel title="Contact custom fields" subtitle="Reusable attribute keys for segmentation and personalization"><form className="formGrid" onSubmit={addField}><Input name="label" label="Field label" required /><Input name="key" label="Field key" placeholder="loyalty_tier" /><label>Type<select name="type"><option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="date">Date</option></select></label><button className="primaryAction" type="submit"><Plus size={18} /> Add field</button></form><DataTable headers={["Label", "Key", "Type", "Action"]}>{customFields.map((field) => <tr key={field.id}><td><strong>{field.label}</strong></td><td>{field.key}</td><td>{field.type}</td><td><button type="button" className="dangerText" onClick={() => mutate(postJson("/api/workspace/custom-fields", { action: "delete", id: field.id }).then((result) => { setCustomFields(result.fields || []); return result; }), "Custom field removed")}>Remove</button></td></tr>)}</DataTable>{!customFields.length && <EmptyState text="No custom fields defined" />}</Panel>}
-    <Panel title="Suppression"><DataTable headers={["Name", "Phone", "Reason", "Action"]}>{suppressedContacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{contact.phone}</td><td>{contact.unsubscribed ? "Unsubscribed" : "No permission"}</td><td>{canManage && <button type="button" onClick={() => setRestoreContact(contact)}>Record new consent</button>}</td></tr>)}</DataTable>{!suppressedContacts.length && <EmptyState text="No suppressed contacts" />}</Panel>
+  return <div className="screenGrid suppressionScreen">
+    <Panel title="Suppressed contacts" subtitle="Marketing opt-outs and contacts without marketing permission. Delivery failures do not appear here.">
+      <div className="dataToolbar contactToolbar">
+        <label className="searchBox"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" aria-label="Search suppressed contacts" /></label>
+        <select value={reasonFilter} aria-label="Filter by suppression reason" onChange={(event) => setReasonFilter(event.target.value)}>
+          <option value="all">All reasons</option>
+          <option value="unsubscribed">Unsubscribed</option>
+          <option value="no_permission">No marketing permission</option>
+        </select>
+      </div>
+      <DataTable headers={["Name", "Phone", "Reason", "Source", "Updated", "Action"]}>
+        {filtered.map((contact) => (
+          <tr key={contact.id}>
+            <td><strong>{contact.name || '—'}</strong></td>
+            <td>{contact.phone}</td>
+            <td><Badge kind={contact.unsubscribed ? 'warn' : 'neutral'}>{contact.unsubscribed ? 'Unsubscribed' : 'No permission'}</Badge></td>
+            <td>{contact.optInSource || contact.source || '—'}</td>
+            <td>{formatTime(contact.lastMessageAt || contact.createdAt)}</td>
+            <td>{canManage && <button type="button" className="secondaryAction compactAction" onClick={() => setRestoreContact(contact)}>Record new consent</button>}</td>
+          </tr>
+        ))}
+      </DataTable>
+      {!filtered.length && <EmptyState text={suppressedContacts?.length ? 'No contacts match this filter' : 'No suppressed contacts'} />}
+    </Panel>
+    {canManage && (
+      <details className="techDetails saasAdvancedBlock">
+        <summary>Consent keywords and marketing switch</summary>
+        {consentError && <div className="formError" role="alert">{consentError}</div>}
+        {consentSettings ? (
+          <form className="formGrid" onSubmit={saveConsent}>
+            {isOwner && <label className="checkRow"><input name="marketingMessagingEnabled" type="checkbox" defaultChecked={consentSettings.marketingMessagingEnabled !== false} /> Marketing messaging enabled for this workspace</label>}
+            <Input name="optOutKeywords" label="Opt-out keywords (max 5, comma separated)" defaultValue={(consentSettings.optOutKeywords || []).join(", ")} />
+            <Input name="optInKeywords" label="Opt-in keywords (max 5, comma separated)" defaultValue={(consentSettings.optInKeywords || []).join(", ")} />
+            <Input name="optOutAutoReply" label="Opt-out confirmation message" defaultValue={consentSettings.optOutAutoReply || ""} />
+            <Input name="optInAutoReply" label="Opt-in confirmation message" defaultValue={consentSettings.optInAutoReply || ""} />
+            <button className="primaryAction" type="submit"><Save size={18} /> Save consent settings</button>
+          </form>
+        ) : !consentError ? <p className="pageIntro">Loading consent settings…</p> : null}
+      </details>
+    )}
     {restoreContact && <div className="modalBackdrop" role="presentation" onMouseDown={() => setRestoreContact(null)}><section className="editModal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="kicker">Marketing permission</p><h2>Record new consent</h2></div><button className="iconButton" type="button" onClick={() => setRestoreContact(null)} aria-label="Close"><X size={18} /></button></header><form className="formGrid" onSubmit={restore}><p>{restoreContact.name} | {restoreContact.phone}</p><Input name="optInSource" label="Consent source" required /><Input name="consentEvidence" label="Evidence of new consent" required minLength="10" /><button className="primaryAction" type="submit"><Save size={18} /> Restore permission</button></form></section></div>}
-  </>;
+  </div>;
 }
 
 function Panel({ title, subtitle, children, className = "" }) { return <section className={["panel", className].filter(Boolean).join(" ")}><div className="panelHead"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>{children}</section>; }
