@@ -51,13 +51,7 @@ run-*-logs*.zip
 *_jobs.json
 *-log-failed.txt
 
-# Markdown / docs dumps: only root README is published to GitHub
+# Markdown: only root README.md and CONTEXT.md are published to GitHub
 *.md
 !/README.md
 !/CONTEXT.md
-!/dev-tickets/
-!/dev-tickets/**/*.md
-!/docs/PRODUCTION_RUNBOOK.md
-!/docs/META_APP_REVIEW.md
-!/docs/META_RECORDING_PLAYBOOK.md
-!/docs/DOMAIN_MIGRATION.md
