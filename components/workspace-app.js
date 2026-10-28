@@ -1311,6 +1311,7 @@ function Contacts({ state, mutate }) {
   const [contacts, setContacts] = useState(state.contacts || []);
   const [pagination, setPagination] = useState(state.pagination?.contacts || { page: 1, pages: 1, total: contacts.length });
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [contactsError, setContactsError] = useState('');
   const [editContact, setEditContact] = useState(null);
   const [contactsRefreshKey, setContactsRefreshKey] = useState(0);
   const canManage = isWorkspaceManager(state?.account?.role);
@@ -1328,8 +1329,12 @@ function Contacts({ state, mutate }) {
         if (!active) return;
         setContacts(result.contacts || []);
         setPagination(result.pagination?.contacts || { page, pages: 1, total: 0 });
-      } catch {
-        if (active) setContacts([]);
+        setContactsError('');
+      } catch (cause) {
+        if (active) {
+          setContactsError(cause?.message || 'Unable to load contacts.');
+          setContacts([]);
+        }
       } finally {
         if (active) setLoadingContacts(false);
       }
@@ -1347,7 +1352,7 @@ function Contacts({ state, mutate }) {
       {canManage && <Panel title="Import contacts" subtitle="CSV: name, phone, permission, tags, opt_in_source, consent_evidence"><form className="formGrid importForm" onSubmit={importRows}><label className="fileDrop"><input type="file" accept=".csv,text/csv" onChange={chooseFile} /><Upload size={22} /><strong>{fileName || "Choose CSV file"}</strong><span>{fileName ? "Ready to import" : "or paste CSV rows below"}</span></label><label>CSV rows<textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder="name,phone,permission,tags,opt_in_source,consent_evidence" /></label><div className="importMeta"><span>{csvText.trim() ? `${csvText.trim().split(/\r?\n/).length} rows ready` : "No rows loaded"}</span><button className="secondaryAction" type="submit" disabled={!csvText.trim()}><Upload size={18} /> Import</button></div></form></Panel>}
     </div>
     {state.featureFlags?.segments && <SavedSegments initialSegments={state.audienceSegments || []} canManage={canManage} mutate={mutate} />}
-    <Panel title="Contacts" subtitle={loadingContacts ? 'Loading…' : `${contacts.length} on page · ${pagination.total ?? 0} total`}><div className="dataToolbar contactToolbar"><label className="searchBox"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search contacts" /></label><select value={permissionFilter} onChange={(event) => { setPermissionFilter(event.target.value); setPage(1); }}><option value="all">All contacts</option><option value="allowed">Marketable</option><option value="blocked">Suppressed</option></select>{canManage && <a className="secondaryAction exportAction" href="/api/contacts/export"><Download size={18} /> Export CSV</a>}</div><DataTable headers={["Name", "Phone", "Permission", "Last activity", "Actions"]}>{contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong><div className="chipRow compact">{(contact.tags || []).map((tag) => <span key={tag}>{tag}</span>)}</div></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions">{canManage && <><button onClick={() => setEditContact(contact)}><Pencil size={15} /> Edit</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE").then(() => refreshContacts()), "Removed")}><Trash2 size={15} /> Remove</button></>}</td></tr>)}</DataTable>{!contacts.length && !loadingContacts && <EmptyState text="No contacts match this view" />}{(pagination.pages > 1 || page > 1) && <nav className="pagination" aria-label="Contacts pagination"><span>Page {pagination.page} of {pagination.pages}</span><div><button className="secondaryAction" type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button><button className="secondaryAction" type="button" disabled={page >= pagination.pages} onClick={() => setPage((p) => p + 1)}>Next</button></div></nav>}</Panel>
+    <Panel title="Contacts" subtitle={loadingContacts ? 'Loading…' : `${contacts.length} on page · ${pagination.total ?? 0} total`}><div className="dataToolbar contactToolbar"><label className="searchBox"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search contacts" aria-label="Search contacts" /></label><select value={permissionFilter} aria-label="Filter contacts by consent" onChange={(event) => { setPermissionFilter(event.target.value); setPage(1); }}><option value="all">All contacts</option><option value="allowed">Marketable</option><option value="blocked">Suppressed</option></select>{canManage && <a className="secondaryAction exportAction" href="/api/contacts/export"><Download size={18} /> Export CSV</a>}</div>{contactsError && <div className="analyticsSectionError" role="alert"><strong>Could not load contacts</strong><p>{contactsError}</p><button className="secondaryAction" type="button" onClick={refreshContacts}>Retry</button></div>}<DataTable headers={["Name", "Phone", "Permission", "Last activity", "Actions"]}>{contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong><div className="chipRow compact">{(contact.tags || []).map((tag) => <span key={tag}>{tag}</span>)}</div></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions">{canManage && <><button onClick={() => setEditContact(contact)}><Pencil size={15} /> Edit</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE").then(() => refreshContacts()), "Removed")}><Trash2 size={15} /> Remove</button></>}</td></tr>)}</DataTable>{!contacts.length && !loadingContacts && !contactsError && <EmptyState text={search.trim() ? 'No contacts match this search' : permissionFilter !== 'all' ? 'No contacts match this filter' : 'No contacts yet'} />}{(pagination.pages > 1 || page > 1) && <nav className="pagination" aria-label="Contacts pagination"><span>Page {pagination.page} of {pagination.pages}</span><div><button className="secondaryAction" type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button><button className="secondaryAction" type="button" disabled={page >= pagination.pages} onClick={() => setPage((p) => p + 1)}>Next</button></div></nav>}</Panel>
     {editContact && <div className="modalBackdrop" role="presentation" onMouseDown={() => setEditContact(null)}><section className="editModal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="kicker">Contact profile</p><h2>Edit contact</h2></div><button className="iconButton" type="button" onClick={() => setEditContact(null)} aria-label="Close"><X size={18} /></button></header><form className="formGrid" onSubmit={saveContact}><Input name="name" label="Name" defaultValue={editContact.name} required /><Input name="phone" label="Phone" defaultValue={editContact.phone} required /><Input name="tags" label="Tags" defaultValue={(editContact.tags || []).join(", ")} /><Input name="optInSource" label="Opt-in source" defaultValue={editContact.optInSource || ""} /><Input name="consentEvidence" label="New consent evidence (if restoring permission)" /><label>Marketing permission<select name="marketingPermission" defaultValue={editContact.marketingPermission && !editContact.unsubscribed ? "allowed" : "blocked"}><option value="allowed">Allowed</option><option value="blocked">Suppressed</option></select></label><label>Custom fields<textarea name="customAttributes" defaultValue={attributesToText(editContact.customAttributes)} placeholder={"company=Example\ninterest=Pricing"} /></label><button className="primaryAction" type="submit"><Save size={18} /> Save changes</button></form></section></div>}
   </div>;
 }
@@ -1995,6 +2000,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const [suggestionContext, setSuggestionContext] = useState(null);
   const [sendingConversationId, setSendingConversationId] = useState(null);
   const [pendingMedia, setPendingMedia] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(true);
   const mediaInputRef = useRef(null);
   const [aiAvailable, setAiAvailable] = useState(false);
   const suggestionRevision = useRef(0);
@@ -2038,8 +2044,22 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const filteredConversations = Array.isArray(state?.conversations) ? state.conversations : [];
   const contacts = Array.isArray(state?.contacts) ? state.contacts : [];
   const assignedUser = teamMembers.find((member) => member.id === activeConversation?.assignedUserId);
-  const workflowAction = (action, extra = {}) => { if (!activeConversation) return; mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, { action, ...extra }, "PATCH"), action === "note" ? "Note added" : "Conversation updated"); };
-  const selectConversation = (conversation) => { suggestionRevision.current += 1; openConversation(conversation.id); if (conversation.unreadCount > 0) mutate(postJson(`/api/conversations/${conversation.id}/workflow`, { action: "mark_read" }, "PATCH")); };
+  const workflowAction = (action, extra = {}) => {
+    if (!activeConversation) return;
+    const payload = { action, ...extra };
+    if (activeConversation.version != null) payload.expectedVersion = activeConversation.version;
+    mutate(postJson(`/api/conversations/${activeConversation.id}/workflow`, payload, "PATCH"), action === "note" ? "Note added" : "Conversation updated");
+  };
+  const selectConversation = (conversation) => {
+    suggestionRevision.current += 1;
+    setProfileOpen(true);
+    openConversation(conversation.id);
+    if (conversation.unreadCount > 0) {
+      const payload = { action: "mark_read" };
+      if (conversation.version != null) payload.expectedVersion = conversation.version;
+      mutate(postJson(`/api/conversations/${conversation.id}/workflow`, payload, "PATCH"));
+    }
+  };
   const editReplyDraft = (value) => {
     if (!conversationId) return;
     suggestionRevision.current += 1;
@@ -2069,9 +2089,12 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
         form.set('contactId', contactId);
         form.set('file', mediaFile);
         if (body) form.set('caption', body);
+        if (activeConversation?.version != null) form.set('expectedVersion', String(activeConversation.version));
         await mutate(uploadForm('/api/messages/reply-media', form).then(afterSend), 'Media sent');
       } else {
-        await mutate(postJson('/api/messages/reply', { contactId, body }).then(afterSend), 'Message sent');
+        const replyPayload = { contactId, body };
+        if (activeConversation?.version != null) replyPayload.expectedVersion = activeConversation.version;
+        await mutate(postJson('/api/messages/reply', replyPayload).then(afterSend), 'Message sent');
       }
     } finally {
       sendingReply.current = false;
@@ -2099,6 +2122,25 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
   const groupsEnabled = Boolean(state.featureFlags?.whatsapp_groups);
   const whatsappConnected = (state?.setup?.status || 'Needs setup') === 'Connected' && Boolean(state?.meta?.liveMetaReady);
+  const webhookSubscribed = state?.setup?.webhookSubscribed === true
+    || state?.whatsappAccounts?.some?.((account) => account.webhookSubscribed === true);
+  const hasSearch = Boolean(search.trim());
+  const hasActiveFilter = inboxFilter && inboxFilter !== 'all';
+  const listIsEmpty = !filteredConversations.length;
+  let emptyTitle = 'No conversations yet';
+  let emptyBody = whatsappConnected
+    ? 'Incoming WhatsApp messages to your connected number will appear here.'
+    : 'Connect WhatsApp to receive conversations in this inbox.';
+  if (listIsEmpty && hasSearch) {
+    emptyTitle = 'No search results';
+    emptyBody = 'Try a different name or phone number.';
+  } else if (listIsEmpty && inboxFilter === 'mine') {
+    emptyTitle = 'Nothing assigned to you';
+    emptyBody = 'Switch to Unassigned or All conversations to pick up open chats.';
+  } else if (listIsEmpty && hasActiveFilter) {
+    emptyTitle = 'No matches for this filter';
+    emptyBody = 'Try All conversations or clear the current filter.';
+  }
   return <>
     {!whatsappConnected && (
       <div className="saasBanner" role="status">
@@ -2106,17 +2148,26 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
           <strong>Connect WhatsApp to use the Inbox</strong>
           <p style={{ margin: '4px 0 0' }}>Your Shared Inbox is ready. Connect a WhatsApp Business number through Meta to receive and send conversations.</p>
         </div>
-        <button className="primaryAction" type="button" onClick={() => (setActiveView ? setActiveView('setup') : window.location.assign('/app/settings/whatsapp'))}>Open Workspace</button>
+        <button className="primaryAction" type="button" onClick={() => (setActiveView ? setActiveView('setup') : window.location.assign('/app/settings/whatsapp'))}>Open Connection</button>
+      </div>
+    )}
+    {whatsappConnected && !webhookSubscribed && (
+      <div className="saasBanner" role="status">
+        <div>
+          <strong>Webhook subscription not verified</strong>
+          <p style={{ margin: '4px 0 0' }}>The workspace is Connected, but inbound WhatsApp events may not arrive until the Meta webhook subscription is confirmed.</p>
+        </div>
+        <button className="secondaryAction" type="button" onClick={() => (setActiveView ? setActiveView('setup') : window.location.assign('/app/settings/whatsapp'))}>Check connection</button>
       </div>
     )}
     {groupsEnabled && <div className="wa-inbox-modes" role="tablist" aria-label="Inbox surface">
       <button type="button" role="tab" aria-selected={inboxSurface === "direct"} className={inboxSurface === "direct" ? "active" : ""} onClick={() => setInboxSurface("direct")}>1:1 conversations</button>
       <button type="button" role="tab" aria-selected={inboxSurface === "groups"} className={inboxSurface === "groups" ? "active" : ""} onClick={() => setInboxSurface("groups")}>Groups</button>
     </div>}
-    {inboxSurface === "groups" ? <WhatsAppGroups api={api} postJson={postJson} enabled={groupsEnabled} embedded /> : <><section className="inboxShell">
-    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" /></label><select value={inboxFilter} onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages?.at?.(-1); return <button key={conversation.id} className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!filteredConversations.length && <EmptyState text="No conversations match this view" />}</aside>
+    {inboxSurface === "groups" ? <WhatsAppGroups api={api} postJson={postJson} enabled={groupsEnabled} embedded /> : <><section className={`inboxShell${activeConversation && activeContact && !profileOpen ? ' inboxShellProfileCollapsed' : ''}`}>
+    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" aria-label="Search conversations" /></label><select value={inboxFilter} aria-label="Filter conversations" onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages?.at?.(-1); return <button key={conversation.id} type="button" className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone || 'Unknown contact'}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages yet"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{listIsEmpty && <div className="inboxEmptyHero" role="status"><strong>{emptyTitle}</strong><p>{emptyBody}</p></div>}</aside>
     <div className="threadPane">{activeConversation && activeContact ? <>
-      <header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></header>
+      <header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><div className="threadPaneHeaderActions"><button className="secondaryAction compactAction" type="button" onClick={() => setProfileOpen((open) => !open)}>{profileOpen ? 'Hide profile' : 'Show profile'}</button><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></div></header>
       <div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div>
       <div className="messages">{(activeConversation.messages || []).map((message) => <div key={message.id} className={`bubble ${message.direction}`}><MessageContent message={message} /><small>{formatTime(message.at)} | {message.status}</small></div>)}</div>
       {activeConversation.status !== "closed" && activeConversation.canReply && <div className="aiReplyComposer">
@@ -2134,8 +2185,8 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
       </div>}
       {activeConversation.status !== "closed" && !activeConversation.canReply && <TemplateReplyForm approvedTemplates={approvedTemplates} activeContact={activeContact} mutate={mutate} flowsEnabled={Boolean(state.featureFlags?.whatsapp_flows)} />}
       <aside className="conversationNotes"><header><div><StickyNote size={17} /><strong>Internal notes</strong></div><span>{activeConversation.notes?.length || 0}</span></header><div className="noteList">{(activeConversation.notes || []).map((item) => <article key={item.id}><p>{item.body}</p><small>{item.author} | {formatTime(item.createdAt)}</small></article>)}{!activeConversation.notes?.length && <span>No internal notes yet</span>}</div><form onSubmit={note}><input name="note" placeholder="Add a note for your team" required /><button className="iconButton" title="Add note"><Plus size={17} /></button></form></aside>
-    </> : <EmptyState text="No conversations" />}</div>
-    <InboxContact360 contactId={activeContact?.id || null} api={api} />
+    </> : <div className="threadPaneEmpty" role="status">{listIsEmpty ? 'Select a conversation when messages arrive.' : 'Select a conversation to start messaging.'}</div>}</div>
+    {profileOpen ? <InboxContact360 contactId={activeContact?.id || null} api={api} /> : null}
   </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>}</>;
 }
 function AiAgentsWorkspace({ state, role: roleProp }) {

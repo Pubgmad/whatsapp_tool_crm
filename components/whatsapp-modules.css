@@ -4,6 +4,14 @@
 .wa-module-heading.saasPageHead{margin-bottom:18px}
 .saasPageHeadToolbar{margin-bottom:12px;padding:0;min-height:0}
 .wa-module-toolbarLabel{color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.wa-module-heading>div{display:grid;gap:2px}
+.wa-module-subhead{color:var(--muted);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none}
+.wa-module-setup{display:grid;gap:6px;max-width:44rem;margin:0 0 14px;padding:14px 16px;background:var(--amber-soft);border:1px solid var(--line-strong);border-radius:8px}
+.wa-module-setup strong{font-size:14px;color:var(--ink)}
+.wa-module-setup p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.45}
+.wa-module-empty{display:grid;gap:6px;place-items:start;margin:12px 0;padding:24px 18px;background:var(--soft);border:1px dashed var(--line-strong);border-radius:8px}
+.wa-module-empty strong{font-size:14px;color:var(--ink)}
+.wa-module-empty p{margin:0;max-width:36rem;color:var(--muted);font-size:13px;line-height:1.45}
 .wa-module-note{margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.45;max-width:52rem}
 .wa-module-controls{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:16px 0}
 

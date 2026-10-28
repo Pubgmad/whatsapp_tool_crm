@@ -12,7 +12,7 @@ test('inbox API route bootstraps full loadState rather than slim conversations p
 
 test('workspace shell guards missing setup and maps setup subviews to setup API', () => {
   const source = fs.readFileSync(path.join(process.cwd(), 'components/workspace-app.js'), 'utf8');
-  assert.match(source, /setup:\s*\{\s*status:\s*'Not connected'/);
+  assert.match(source, /setup:\s*\{\s*status:\s*'Needs setup'/);
   assert.match(source, /setupSectionByView\[view\]\s*\?\s*'setup'/);
   assert.match(source, /state\.setup\?\.status/);
 });

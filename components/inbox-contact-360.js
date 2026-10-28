@@ -78,7 +78,8 @@ export default function InboxContact360({ contactId, api, pageSize = 30 }) {
     }
   }
 
-  if (!contactId) return <aside className="contact360"><p>Select a conversation to view the contact profile.</p></aside>;
+  // Keep the messaging column wide until a conversation is selected.
+  if (!contactId) return null;
   if (loading && !profile) return <aside className="contact360" aria-busy="true"><p>Loading contact profile…</p></aside>;
   if (!profile) return <aside className="contact360"><p role="alert">{error || 'Contact profile is unavailable.'}</p></aside>;
 

@@ -10,8 +10,63 @@
   overflow-y: auto;
 }
 
+.inboxShell {
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+}
 .inboxShell:has(> .contact360) {
-  grid-template-columns: minmax(240px, 300px) minmax(420px, 1fr) minmax(280px, 340px);
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) minmax(280px, 340px);
+}
+.inboxShell.inboxShellProfileCollapsed:has(> .contact360),
+.inboxShell.inboxShellProfileCollapsed {
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+}
+.inboxShell.inboxShellProfileCollapsed > .contact360 {
+  display: none;
+}
+.inboxEmptyHero {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 220px;
+  margin: 16px;
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--ink-soft);
+  background: var(--soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+}
+.inboxEmptyHero strong {
+  font-size: 15px;
+  color: var(--ink);
+}
+.inboxEmptyHero p {
+  margin: 0;
+  max-width: 28rem;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.threadPaneEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 24px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+.threadPaneHeaderActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.threadPane > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .contact360Header {
