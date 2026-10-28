@@ -18,16 +18,18 @@ export function CampaignPolicy({role,businessId,api,postJson}) {
     catch(failure){if(mounted.current)setError(failure.message);}
     finally{if(mounted.current)setBusy(false);}
   };
-  return <section className='campaignPolicy'>
-    <h3>Campaign policy</h3>
+  return <details className='campaignPolicy'>
+    <summary>Campaign settings &amp; policy</summary>
+    <p className='campaignPolicyHint'>Workspace Owner controls. Owner review blocks send until approved. Minimum interval (0 = off) spaces Marketing template sends per recipient and is enforced server-side.</p>
     {!policy&&!error&&<p>Loading policy...</p>}
     {policy&&<form className='campaignControlForm' onSubmit={save}>
-      <label className='checkboxLabel'><input type='checkbox' checked={policy.approvalRequired} disabled={busy||role!=='Owner'} onChange={event=>setPolicy({...policy,approvalRequired:event.target.checked})}/>Owner review for new campaigns</label>
+      <label className='checkboxLabel'><input type='checkbox' checked={policy.approvalRequired} disabled={busy||role!=='Owner'} onChange={event=>setPolicy({...policy,approvalRequired:event.target.checked})}/>Require Owner review for new campaigns</label>
       <label>Minimum marketing interval (hours)<input type='number' min='0' max='8760' step='1' required value={policy.minMarketingIntervalHours} disabled={busy||role!=='Owner'} onChange={event=>setPolicy({...policy,minMarketingIntervalHours:event.target.value})}/></label>
       {role==='Owner'&&<button type='submit' className='secondaryAction' disabled={busy}><Save size={16}/>Save policy</button>}
+      {role==='Manager'&&<small className='muted'>Managers can view policy. Only Owners can change it.</small>}
     </form>}
     {error&&<p role='alert' className='errorLine'>{error}</p>}
-  </section>;
+  </details>;
 }
 
 export default function CampaignControls({campaign,role,submit}) {

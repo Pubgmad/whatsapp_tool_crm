@@ -6,7 +6,11 @@
 .campaignControlForm input,.campaignControlForm textarea{width:100%;min-width:0}
 .campaignControlForm textarea{min-height:42px;resize:vertical}
 .campaignControlForm button{flex:0 0 auto;min-height:40px}
-.campaignPolicy{min-width:0;padding:12px 0}
+.campaignPolicy{min-width:0;margin:0 0 16px;padding:12px 14px;background:var(--soft);border:1px solid var(--line);border-radius:8px}
+.campaignPolicy>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-soft);list-style:none}
+.campaignPolicy>summary::-webkit-details-marker{display:none}
+.campaignPolicy[open]>summary{margin-bottom:8px}
+.campaignPolicyHint{margin:0 0 10px;max-width:44rem;color:var(--muted);font-size:12px;line-height:1.45}
 .campaignPolicy h3{margin:0 0 10px;font-size:16px}
 .campaignControlForm .checkboxLabel{display:flex;align-items:center;gap:8px;min-height:40px}
 .campaignControlForm input[type=checkbox]{width:18px;height:18px;flex:0 0 18px}
