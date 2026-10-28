@@ -56,6 +56,17 @@
   font-size: 13px;
   text-align: center;
 }
+.inboxSyncStatus {
+  margin: 0;
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.inboxEmptyHero .secondaryAction {
+  margin-top: 4px;
+  justify-self: center;
+}
 .threadPaneHeaderActions {
   display: inline-flex;
   align-items: center;

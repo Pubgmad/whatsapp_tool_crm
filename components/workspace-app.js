@@ -248,6 +248,8 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const [platform, setPlatform] = useState({ ...fallbackPlatform, ...(initialPlatform || {}) });
   const [campaignRetarget, setCampaignRetarget] = useState(null);
   const [pages, setPages] = useState({});
+  const [inboxSyncError, setInboxSyncError] = useState('');
+  const [inboxSyncing, setInboxSyncing] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
   const scopeGate = useRef(null);
   const inboxRevisionRef = useRef(0);
@@ -324,8 +326,16 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
     const nextFilter = inboxFilter ?? pagesRef.current.inboxFilter ?? "";
     const nextQ = inboxQ ?? pagesRef.current.inboxQ ?? "";
     setPages((current) => ({ ...current, inbox: page, inboxFilter: nextFilter, inboxQ: nextQ }));
-    try { await loadScope(location, false, { page, inboxFilter: nextFilter, inboxQ: nextQ }); }
-    catch (error) { notify(error.message); }
+    setInboxSyncing(true);
+    try {
+      await loadScope(location, false, { page, inboxFilter: nextFilter, inboxQ: nextQ });
+      setInboxSyncError('');
+    } catch (error) {
+      setInboxSyncError(error.message || 'Inbox could not be refreshed.');
+      notify(error.message);
+    } finally {
+      setInboxSyncing(false);
+    }
   }, [pathname, loadScope]);
 
   useEffect(() => {
@@ -559,7 +569,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
       }
     }));
   };
-  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "" };
+  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "", inboxSyncError, inboxSyncing };
 
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
@@ -1988,7 +1998,7 @@ function InteractiveReplyForm({ activeContact, mutate }) {
   return <details className="interactiveComposer"><summary><MessageSquareText size={16} /> Interactive message</summary><form onSubmit={submit}><label>Message<textarea name="body" rows="3" required /></label><div className="formSplit"><label>Format<select name="mode"><option value="buttons">Reply buttons (up to 3)</option><option value="list">List (up to 10)</option></select></label><Input name="buttonText" label="List button text" placeholder="Choose" maxLength="20" /></div><Input name="sectionTitle" label="List section title" placeholder="Options" maxLength="24" /><label>Options<textarea name="options" rows="4" placeholder={"pricing|Pricing|View pricing\ndemo|Book a demo|Choose a time"} required /></label><small>Use one option per line: identifier | title | description</small><button className="secondaryAction"><Send size={17} /> Send interactive message</button></form></details>;
 }
 
-function InboxView({ state, activeConversation, activeContact, approvedTemplates, openConversation, mutate, reloadInbox, setActiveView, inboxFilter: serverFilter = "", inboxQ: serverQ = "" }) {
+function InboxView({ state, activeConversation, activeContact, approvedTemplates, openConversation, mutate, reloadInbox, setActiveView, inboxFilter: serverFilter = "", inboxQ: serverQ = "", inboxSyncError = "", inboxSyncing = false }) {
   const teamMembers = state.teamMembers || [];
   const currentUserId = state.account?.user?.id || "";
   const [search, setSearch] = useState(serverQ);
@@ -2131,7 +2141,10 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   let emptyBody = whatsappConnected
     ? 'Incoming WhatsApp messages to your connected number will appear here.'
     : 'Connect WhatsApp to receive conversations in this inbox.';
-  if (listIsEmpty && hasSearch) {
+  if (inboxSyncError) {
+    emptyTitle = 'Inbox could not load';
+    emptyBody = inboxSyncError;
+  } else if (listIsEmpty && hasSearch) {
     emptyTitle = 'No search results';
     emptyBody = 'Try a different name or phone number.';
   } else if (listIsEmpty && inboxFilter === 'mine') {
@@ -2165,7 +2178,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
       <button type="button" role="tab" aria-selected={inboxSurface === "groups"} className={inboxSurface === "groups" ? "active" : ""} onClick={() => setInboxSurface("groups")}>Groups</button>
     </div>}
     {inboxSurface === "groups" ? <WhatsAppGroups api={api} postJson={postJson} enabled={groupsEnabled} embedded /> : <><section className={`inboxShell${activeConversation && activeContact && !profileOpen ? ' inboxShellProfileCollapsed' : ''}`}>
-    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" aria-label="Search conversations" /></label><select value={inboxFilter} aria-label="Filter conversations" onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{filteredConversations.map((conversation) => { const contact = contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages?.at?.(-1); return <button key={conversation.id} type="button" className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone || 'Unknown contact'}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages yet"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{listIsEmpty && <div className="inboxEmptyHero" role="status"><strong>{emptyTitle}</strong><p>{emptyBody}</p></div>}</aside>
+    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" aria-label="Search conversations" /></label><select value={inboxFilter} aria-label="Filter conversations" onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{inboxSyncing && <p className="inboxSyncStatus" role="status">Refreshing conversations…</p>}{inboxSyncError && <div className="inboxEmptyHero" role="alert"><strong>Inbox could not load</strong><p>{inboxSyncError}</p><button className="secondaryAction compactAction" type="button" onClick={() => reloadInbox?.({ inboxFilter, inboxQ: search.trim(), page: 1 })}>Retry</button></div>}{!inboxSyncError && filteredConversations.map((conversation) => { const contact = contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages?.at?.(-1); return <button key={conversation.id} type="button" className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone || 'Unknown contact'}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages yet"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!inboxSyncError && listIsEmpty && <div className="inboxEmptyHero" role="status"><strong>{emptyTitle}</strong><p>{emptyBody}</p></div>}</aside>
     <div className="threadPane">{activeConversation && activeContact ? <>
       <header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><div className="threadPaneHeaderActions"><button className="secondaryAction compactAction" type="button" onClick={() => setProfileOpen((open) => !open)}>{profileOpen ? 'Hide profile' : 'Show profile'}</button><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></div></header>
       <div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div>
