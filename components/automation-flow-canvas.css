@@ -1,15 +1,15 @@
-.automationCanvasShell{display:grid;grid-template-columns:220px minmax(0,1fr);gap:14px;min-height:620px;min-width:0}
-.automationPalette{display:grid;align-content:start;gap:12px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow-sm)}
+.automationCanvasShell{display:grid;grid-template-columns:minmax(200px,240px) minmax(0,1fr);gap:12px;min-height:min(72vh,780px);min-width:0}
+.automationPalette{display:grid;align-content:start;gap:10px;padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow-sm);max-height:min(72vh,780px);overflow:auto}
 .automationPalette>header{display:grid;gap:2px}
 .automationPalette>header strong{font-size:13px}
 .automationPalette>header span,.automationPaletteGroup>small{color:var(--muted);font-size:11px}
-.automationPaletteGroups{display:grid;gap:12px;max-height:420px;overflow:auto}
+.automationPaletteGroups{display:grid;gap:10px;max-height:none;overflow:visible}
 .automationPaletteGroup{display:grid;gap:6px}
 .automationPaletteItem{display:flex;align-items:center;gap:8px;min-height:34px;padding:7px 10px;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:6px;font-size:12px;font-weight:650;cursor:grab;text-align:left}
 .automationPaletteItem:hover{background:var(--brand-soft);border-color:#b5dac9}
 .automationCanvasTools{display:grid;gap:8px}
 .automationConnectHint{margin:0;padding:8px 10px;color:#7b4d0b;background:var(--amber-soft);border-radius:6px;font-size:12px}
-.automationCanvasSurface{position:relative;min-height:620px;overflow:hidden;background:
+.automationCanvasSurface{position:relative;min-height:min(72vh,780px);overflow:hidden;background:
   linear-gradient(180deg,rgba(255,255,255,.72),rgba(244,248,246,.9)),
   radial-gradient(circle at 1px 1px,rgba(24,70,52,.12) 1px, transparent 0);
 background-size:auto,18px 18px;border:1px solid var(--line);border-radius:10px;cursor:grab;touch-action:none}
@@ -41,9 +41,24 @@ background-size:auto,18px 18px;border:1px solid var(--line);border-radius:10px;c
 .automationLiveOpsList>li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 12px;background:var(--soft);border:1px solid var(--line);border-radius:7px}
 .automationLiveOpsList strong{font-size:13px}
 .automationLiveOpsList small{grid-column:1/-1;color:var(--muted);font-size:11px;line-height:1.45}
-.visualFlowShell.visualFlowShellCanvas{grid-template-columns:minmax(300px,360px) minmax(0,1fr)}
-.automationInspector{display:grid;gap:14px}
+.visualFlowShell.visualFlowShellCanvas,.automationEditorShell{grid-template-columns:minmax(0,1fr) minmax(280px,340px);align-items:start;gap:14px}
+.automationInspector{display:grid;gap:12px;max-height:min(72vh,780px);overflow:auto;padding-right:2px}
+.automationInspector .panel{padding:14px}
+.automationInspector .panelHead{margin-bottom:10px}
+.automationInspector .panelHead h2{font-size:15px}
+.automationInspector .panelHead p{font-size:12px}
+.compactAutomationTopbar{padding:10px 14px;min-height:0;gap:10px}
+.compactAutomationTopbar .secondaryAction,.compactAutomationTopbar .primaryAction{min-height:36px;padding:7px 12px;gap:6px}
+.automationFlowSearch{max-width:420px;margin:0 0 4px}
+.automationListView{gap:14px}
+.automationListView .flowCardGrid{margin-top:0}
+.automationOpsMenu{margin:0}
+.automationOpsMenu>summary{cursor:pointer;min-height:36px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);color:var(--ink-soft);font-size:12px;font-weight:700;list-style:none}
+.automationOpsMenu>summary::-webkit-details-marker{display:none}
+.automationOpsMenu[open]{display:grid;gap:10px;padding:10px;background:var(--soft);border:1px solid var(--line);border-radius:8px;min-width:min(360px,80vw)}
+.automationOpsMenu .automationLiveOps,.automationOpsMenu .saasBanner{margin:0}
 @media(max-width:1100px){
-  .automationCanvasShell,.visualFlowShell.visualFlowShellCanvas{grid-template-columns:1fr}
+  .automationCanvasShell,.visualFlowShell.visualFlowShellCanvas,.automationEditorShell{grid-template-columns:1fr}
   .automationCanvasSurface{min-height:480px}
+  .automationInspector{max-height:none}
 }

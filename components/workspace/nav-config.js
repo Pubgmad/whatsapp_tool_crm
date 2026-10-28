@@ -128,8 +128,8 @@ export const pageIntros = {
 
   numbers: 'Phone numbers linked to this workspace.',
   profile: 'Public WhatsApp business profile.',
-  flows: 'Meta-hosted forms and intake flows.',
-  media: 'Media assets for templates and messages.',
+  flows: 'Meta WhatsApp Flows — interactive in-chat forms (separate from Automation workflows).',
+  media: 'Upload and manage Meta media assets for messaging.',
   entry_points: 'Links and QR codes into WhatsApp.',
   journeys: 'Customer journey analytics.',
   capabilities: 'Enabled WhatsApp capabilities.',
@@ -140,7 +140,7 @@ export const pageIntros = {
   billing: 'Plan, invoices, and entitlements.',
   security: 'Password and account security.',
   templates: 'Meta-approved message templates.',
-  automation: 'Trigger-based reply workflows.',
+  automation: 'Create, test, and activate reply workflows for this workspace.',
   campaigns: 'Template campaigns and scheduling.',
   commerce: 'Catalogs and commerce settings.',
   catalog: 'Catalog visibility and product message tools.',
@@ -151,7 +151,7 @@ export const pageIntros = {
   results: 'Campaign delivery, entry sources, and retargeting for this workspace.',
   inbox: 'Shared conversations and agent replies.',
   unsubscribes: 'Opt-outs and suppressed contacts.',
-  ai_agents: 'Knowledge-aware assistants, testing, and escalation rules.'
+  ai_agents: 'Configure assistants, knowledge, testing, and human handoff.'
 };
 
 /** Cross-feature journey strips removed — they recreated dashboard-style chrome. */

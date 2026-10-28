@@ -40,8 +40,11 @@ export default function AutomationLiveOpsPanel({ api }) {
 
   if (data?.summary === 'ready' && !error) {
     return (
-      <section className="saasBanner" role="status" aria-label="Connection readiness">
-        <div><strong>Connection ready</strong><span> WhatsApp and messaging checks passed.</span></div>
+      <section className="saasBanner automationReadyBanner" role="status" aria-label="Automation messaging readiness">
+        <div>
+          <strong>Messaging ready</strong>
+          <span> Live automation checks passed. Header Connected means Meta login; this confirms messaging readiness.</span>
+        </div>
         <button type="button" className="secondaryAction compactAction" disabled={busy} onClick={load}>
           <RefreshCcw size={16} /> Refresh
         </button>
