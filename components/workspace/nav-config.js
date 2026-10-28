@@ -85,7 +85,6 @@ export const setupSectionByView = {
   capabilities: 'capabilities',
   groups: 'groups',
   integrations: 'integrations',
-  catalog: 'commerce',
   meta_analytics: 'analytics'
 };
 
@@ -110,7 +109,7 @@ export const pageTitles = {
   automation: 'Automation',
   campaigns: 'Broadcasts',
   commerce: 'Commerce',
-  catalog: 'Catalog settings',
+  catalog: 'Catalog',
   meta_analytics: 'Meta insights',
   conversions: 'Conversions',
   calling: 'Calling',
@@ -143,7 +142,7 @@ export const pageIntros = {
   automation: 'Create, test, and activate reply workflows for this workspace.',
   campaigns: 'Template campaigns and scheduling.',
   commerce: 'Catalogs and commerce settings.',
-  catalog: 'Catalog visibility and product message tools.',
+  catalog: 'Meta product catalogs, products, and catalog messaging settings.',
   meta_analytics: 'Meta Graph messaging and conversation snapshots.',
   conversions: 'Conversion signals from chats.',
   calling: 'WhatsApp calling with chat context.',

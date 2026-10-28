@@ -7,10 +7,10 @@ import MerchantPayments from './merchant-payments';
 import NativePayments from './whatsapp-native-payments';
 import CommerceAutomation from './commerce-automation';
 
-export default function WhatsAppCommerce({ api, postJson, role, automationEnabled = false }) {
+export default function WhatsAppCommerce({ api, postJson, role, automationEnabled = false, initialView = 'orders' }) {
   const [data, setData] = useState({ orders: [], accounts: [], page: 1, hasMore: false });
   const [page, setPage] = useState(1);
-  const [view, setView] = useState('orders');
+  const [view, setView] = useState(initialView === 'catalogs' ? 'catalogs' : initialView);
   const [accountId, setAccountId] = useState('');
   const [catalogs, setCatalogs] = useState([]);
   const [catalogId, setCatalogId] = useState('');
@@ -88,12 +88,14 @@ export default function WhatsAppCommerce({ api, postJson, role, automationEnable
     {view === 'orders' && <>
       <div className='commerceTable'><table><thead><tr><th>Customer / order</th><th>Items</th><th>Total</th><th>Payment</th><th>Fulfillment</th></tr></thead><tbody>
         {data.orders.map((order) => <tr key={order.id}><td><strong>{order.customer_phone}</strong><small>{order.reference_id || order.id}</small><small>{new Date(order.created_at).toLocaleString()}</small></td><td>{order.items.map((item, index) => <small key={`${item.retailerId}-${index}`}>{item.retailerId} x {item.quantity}</small>)}</td><td>{order.currency} {order.total_amount}</td><td>{order.payment_status}</td><td><select aria-label={`Fulfillment for ${order.id}`} value={order.fulfillment_status} disabled={Boolean(busyOrder)} onChange={(event) => update(order, event.target.value)}>{['pending', 'processing', 'shipped', 'completed', 'cancelled'].map((status) => <option key={status} value={status}>{status}</option>)}</select></td></tr>)}
-        {!pending && !data.orders.length && <tr><td colSpan={5}>No WhatsApp orders</td></tr>}
+        {!pending && !data.orders.length && <tr><td colSpan={5}><div className='commerceEmpty'><strong>No WhatsApp orders yet</strong><p>Orders appear here when customers submit a cart through your linked Meta catalog, or when payment/checkout webhooks reconcile successfully.</p></div></td></tr>}
       </tbody></table></div><footer className='commercePagination'><button className='iconButton' type='button' aria-label='Previous orders' title='Previous orders' disabled={page === 1 || pending} onClick={() => setPage((value) => value - 1)}><ChevronLeft size={18} /></button><span>Page {data.page}</span><button className='iconButton' type='button' aria-label='Next orders' title='Next orders' disabled={!data.hasMore || pending} onClick={() => setPage((value) => value + 1)}><ChevronRight size={18} /></button></footer>
     </>}
     {view === 'catalogs' && <>
       <div className='commerceFilters'><label>WhatsApp account<select value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value=''>Select account</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name || account.waba_id}</option>)}</select></label><label>Linked catalog<select value={catalogId} onChange={(event) => setCatalogId(event.target.value)}><option value=''>Select catalog</option>{catalogs.map((catalog) => <option key={catalog.id} value={catalog.id}>{catalog.name || catalog.id}</option>)}</select></label></div>
-      <div className='commerceTable'><table><thead><tr><th>Product</th><th>Retailer ID</th><th>Price</th><th>Availability</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><div className='commerceProduct'>{product.image_url && <img src={product.image_url} alt={product.name || ''} width={48} height={48} loading='lazy' referrerPolicy='no-referrer' />}<strong>{product.name}</strong></div></td><td>{product.retailer_id}</td><td>{product.price} {product.currency}</td><td>{product.availability}</td></tr>)}{!pending && !products.length && <tr><td colSpan={4}>No products available</td></tr>}</tbody></table></div>
+      {!accountId && !pending && <div className='commerceEmpty' role='status'><strong>Select a WhatsApp account</strong><p>Linked Meta product catalogs for that WABA will load here.</p></div>}
+      {accountId && !catalogs.length && !pending && !error && <div className='commerceEmpty' role='status'><strong>No catalogs linked</strong><p>Associate a product catalog with this WABA in Meta Commerce Manager, then refresh. Catalog visibility can also be enabled under Catalog settings.</p></div>}
+      <div className='commerceTable'><table><thead><tr><th>Product</th><th>Retailer ID</th><th>Price</th><th>Availability</th></tr></thead><tbody>{products.map((product) => <tr key={product.id}><td><div className='commerceProduct'>{product.image_url && <img src={product.image_url} alt={product.name || ''} width={48} height={48} loading='lazy' referrerPolicy='no-referrer' />}<strong>{product.name}</strong></div></td><td>{product.retailer_id}</td><td>{product.price} {product.currency}</td><td>{product.availability}</td></tr>)}{!pending && catalogId && !products.length && <tr><td colSpan={4}><div className='commerceEmpty'><strong>No products in this catalog</strong><p>Products must exist in Meta before they appear here. Sync from Commerce Manager or your store connector.</p></div></td></tr>}</tbody></table></div>
       <footer className='commercePagination'><button type='button' className='secondaryAction' disabled={!cursor || pending} onClick={nextProducts}>Next products <ChevronRight size={18} /></button></footer>
     </>}
   </section>;

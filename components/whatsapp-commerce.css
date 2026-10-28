@@ -21,4 +21,8 @@
 .commerceProduct { display: flex; align-items: center; gap: 12px; }
 .commerceProduct img { flex-shrink: 0; object-fit: contain; background: #f4f7f6; }
 .commerceLoading { display: flex; gap: 8px; align-items: center; }
+.commerceEmpty { display: grid; gap: 6px; padding: 18px 8px; max-width: 36rem; }
+.commerceEmpty strong { font-size: 14px; color: var(--ink, #10231c); }
+.commerceEmpty p { margin: 0; color: var(--muted, #52665e); font-size: 13px; line-height: 1.45; }
+.commerceOpsPanel .wa-ad-kpis { margin-bottom: 12px; }
 @media (max-width: 640px) { .commerceFilters { grid-template-columns: minmax(0,1fr); } .commerceToolbar h2 { flex-basis: 100%; font-size: 18px; } }
