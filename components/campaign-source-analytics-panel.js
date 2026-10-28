@@ -1,13 +1,19 @@
 'use client';
 
 import { campaignSourceLabel } from '../lib/campaign-source-labels.js';
+import './whatsapp-modules.css';
 
 export default function CampaignSourceAnalyticsPanel({ rows = [] }) {
   if (!rows.length) {
     return (
       <section className="wa-module" aria-labelledby="campaign-source-title">
-        <h3 id="campaign-source-title">Campaign origins</h3>
-        <p>No campaign send history yet. Origins distinguish workspace broadcasts, public API sends, drip sequences, recurring children, and retargets.</p>
+        <header className="wa-module-heading">
+          <h3 id="campaign-source-title">Campaign origins</h3>
+        </header>
+        <div className="campaignOriginsEmpty">
+          <strong>No campaign send history yet</strong>
+          <p>Origins appear after broadcasts, public API sends, drip sequences, recurring children, or retarget campaigns run in this workspace.</p>
+        </div>
       </section>
     );
   }
@@ -16,17 +22,17 @@ export default function CampaignSourceAnalyticsPanel({ rows = [] }) {
       <header className="wa-module-heading">
         <h3 id="campaign-source-title">Campaign origins</h3>
       </header>
-      <div className="wa-module-table">
+      <div className="wa-module-table campaignOriginsTable">
         <table>
           <thead>
             <tr>
-              <th>Origin</th>
-              <th>Reference</th>
-              <th>Campaigns</th>
-              <th>Recipients</th>
-              <th>Delivered</th>
-              <th>Read</th>
-              <th>Failed</th>
+              <th scope="col">Origin</th>
+              <th scope="col">Reference</th>
+              <th scope="col">Campaigns</th>
+              <th scope="col">Recipients</th>
+              <th scope="col">Delivered</th>
+              <th scope="col">Read</th>
+              <th scope="col">Failed</th>
             </tr>
           </thead>
           <tbody>

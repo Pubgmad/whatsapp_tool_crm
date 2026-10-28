@@ -1174,8 +1174,10 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
   const showInnerTabs = false;
   // Same gate as Connection badge / Verify — never paint "connected" from setup.status alone.
   const connected = metaLinked;
+  // Analytics / journeys / capabilities are feature pages — keep the connect hero on Connection/Numbers/Profile only.
+  const showConnectHero = ['connection', 'numbers', 'profile'].includes(section);
   return <div className="screenGrid metaSetupScreen">
-    <section className="metaConnectHero" aria-labelledby="meta-connect-heading">
+    {showConnectHero ? <section className="metaConnectHero" aria-labelledby="meta-connect-heading">
       <div>
         <p className="kicker">Meta</p>
         <h2 id="meta-connect-heading">{connected ? (setup.businessName || 'WhatsApp connected') : 'Connect your WhatsApp Business account'}</h2>
@@ -1187,7 +1189,7 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
         <button className="primaryAction metaConnectButton" type="button" onClick={() => connectMeta('standard')} disabled={connecting || !meta.embeddedSignupAvailable}><Link2 size={18} /> Connect with Meta</button>
         <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !meta.embeddedSignupAvailable} title="For eligible WhatsApp Business App numbers"><Smartphone size={18} /> Existing Business App number</button>
       </div>
-    </section>
+    </section> : null}
     {!meta.embeddedSignupAvailable && <div className="formError">WhatsApp connection isn&apos;t available yet. Contact support.</div>}
     {signupError && <div className="formError" role="alert">{signupError}</div>}
     <CoexistenceProgress phones={operations.phoneNumbers.filter(phone=>phone.coexistence)} api={api} postJson={postJson}/>
@@ -1249,7 +1251,23 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
     {section === "flows" && activePhone && <Panel title="Flow encryption" subtitle={activePhone.displayPhoneNumber}><div className="connectionActions"><Badge kind={activePhone.flowEncryption?.signatureStatus === "VALID" ? "good" : "warn"}>{activePhone.flowEncryption?.signatureStatus || "Not configured"}</Badge><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "configure_flow_encryption", phoneId: activePhone.id }, "Flow encryption configured")}><KeyRound size={17} /> Configure in Meta</button></div></Panel>}
     {section === "media" && <div className="contentGrid twoColumns"><Panel title="Upload WhatsApp media" subtitle="Files are uploaded directly to Meta; only their IDs and metadata are retained"><form className="formGrid" onSubmit={uploadMedia}><label className="fileDrop"><input name="file" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,audio/*,application/pdf,text/plain" required /><Upload size={22} /><strong>Choose media</strong></label><button className="primaryAction" disabled={!activePhone}><Upload size={17} /> Upload to Meta</button></form></Panel><Panel title="Media library" subtitle="Tenant-owned Meta media handles for messages and templates"><div className="mediaAssetList">{operations.mediaAssets.map((asset) => <article key={asset.id}><div><Image size={18} /><span><strong>{asset.filename || asset.metaMediaId}</strong><small>{asset.mimeType} | {Math.ceil(asset.byteSize / 1024)} KB</small></span></div><button className="iconButton dangerSoft" type="button" title="Delete media" onClick={() => mutate(api(`/api/whatsapp/media?id=${encodeURIComponent(asset.id)}`, { method: "DELETE" }), "Media deleted")}><Trash2 size={16} /></button></article>)}</div>{!operations.mediaAssets.length && <EmptyState text="No uploaded WhatsApp media" />}</Panel></div>}
     {section === "commerce" && <div className="contentGrid twoColumns"><Panel title="Commerce settings" subtitle={activePhone ? `Catalog visibility for ${activePhone.displayPhoneNumber}` : "Connect a phone number first"}>{activePhone ? <form className="formGrid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); runOperation({ action: "update_commerce", phoneId: activePhone.id, isCartEnabled: form.get("isCartEnabled") === "on", isCatalogVisible: form.get("isCatalogVisible") === "on" }, "Commerce settings updated"); }}><label className="checkRow"><input name="isCatalogVisible" type="checkbox" defaultChecked={Boolean(activePhone.commerceSettings.is_catalog_visible)} /> Catalog visible in WhatsApp</label><label className="checkRow"><input name="isCartEnabled" type="checkbox" defaultChecked={Boolean(activePhone.commerceSettings.is_cart_enabled)} /> Shopping cart enabled</label><div className="formActions"><button className="primaryAction"><Save size={17} /> Save settings</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync_commerce", phoneId: activePhone.id }, "Commerce settings synchronized")}><RefreshCcw size={17} /> Sync from Meta</button></div></form> : <EmptyState text="No active WhatsApp number" />}</Panel><Panel title="Send product message" subtitle="Available only to an existing contact inside the customer service window"><form className="formGrid" onSubmit={(event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); runOperation({ action: "send_commerce_message", phoneId: activePhone?.id, ...values }, "Product message sent"); event.currentTarget.reset(); }}><Input name="recipient" label="Contact phone" required /><Input name="catalogId" label="Meta catalog ID" required /><label>Message type<select name="mode"><option value="product">Single product</option><option value="product_list">Product list</option></select></label><Input name="header" label="Header" /><label className="wideField">Message<textarea name="body" rows="3" required /></label><Input name="sectionTitle" label="Section title" /><label className="wideField">Product retailer IDs<textarea name="products" rows="4" required /></label><button className="primaryAction" disabled={!activePhone}><ShoppingBag size={17} /> Send product message</button></form></Panel></div>}
-    {section === "analytics" && <Panel title="Meta WhatsApp analytics" subtitle="Account-level messaging and conversation analytics are stored as dated snapshots from Meta Graph"><div className="assetToolbar"><span>{operations.analytics.length} recent snapshot{operations.analytics.length === 1 ? "" : "s"}</span><button className="primaryAction" type="button" onClick={() => runOperation({ action: "sync_analytics", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "Meta analytics synchronized")} disabled={!accountHasLiveToken(activeAccount)}><RefreshCcw size={17} /> Sync last 30 days</button></div><div className="analyticsSnapshotGrid">{operations.analytics.map((snapshot) => { const metrics = summarizeAnalyticsPayload(snapshot.payload); return <article key={snapshot.id}><BarChart3 size={19} /><div><strong>{snapshot.metricType.toUpperCase()}</strong><span>{formatTime(snapshot.periodStart)} to {formatTime(snapshot.periodEnd)}</span><small>Collected {formatTime(snapshot.collectedAt)}</small>{metrics.hasMetrics ? <div className="chipRow compact"><span>Sent {metrics.sent}</span><span>Delivered {metrics.delivered}</span><span>Read {metrics.read}</span><span>Conversations {metrics.conversations}</span>{metrics.cost > 0 && <span>Cost {metrics.cost}</span>}</div> : <small>Snapshot stored — open Sync again after Meta returns period metrics.</small>}</div></article>; })}</div>{!operations.analytics.length && <EmptyState text="Sync Meta analytics to create the first snapshot" />}</Panel>}
+    {section === "analytics" && <Panel title="Meta WhatsApp analytics" subtitle="Account-level messaging and conversation analytics from Meta Graph for this workspace.">
+      <div className="assetToolbar whatsappReferralToolbar">
+        <span>{operations.analytics.length} recent snapshot{operations.analytics.length === 1 ? "" : "s"}</span>
+        <button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync_analytics", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "Meta analytics synchronized")} disabled={!accountHasLiveToken(activeAccount)}>
+          <RefreshCcw size={16} /> Sync last 30 days
+        </button>
+      </div>
+      {!accountHasLiveToken(activeAccount) && (
+        <div className="analyticsSectionError" role="status">
+          <strong>Meta connection required</strong>
+          <p>Reconnect WhatsApp with a live Meta token before syncing messaging analytics.</p>
+          {onNavigateSection ? <button className="secondaryAction" type="button" onClick={() => onNavigateSection('setup')}>Open connection</button> : null}
+        </div>
+      )}
+      <div className="analyticsSnapshotGrid">{operations.analytics.map((snapshot) => { const metrics = summarizeAnalyticsPayload(snapshot.payload); return <article key={snapshot.id}><BarChart3 size={19} /><div><strong>{snapshot.metricType.toUpperCase()}</strong><span>{formatTime(snapshot.periodStart)} to {formatTime(snapshot.periodEnd)}</span><small>Collected {formatTime(snapshot.collectedAt)}</small>{metrics.hasMetrics ? <div className="chipRow compact"><span>Sent {metrics.sent}</span><span>Delivered {metrics.delivered}</span><span>Read {metrics.read}</span><span>Conversations {metrics.conversations}</span>{metrics.cost > 0 && <span>Cost {metrics.cost}</span>}</div> : <small>Snapshot stored — sync again after Meta returns period metrics.</small>}</div></article>; })}</div>
+      {!operations.analytics.length && accountHasLiveToken(activeAccount) && <EmptyState text="No Meta analytics snapshots yet. Sync the last 30 days to create the first one." />}
+    </Panel>}
     {section === "capabilities" && <div className="contentGrid twoColumns"><Panel title="WhatsApp capabilities" subtitle="Refresh entitlements after Meta enables new features"><div className="assetToolbar"><Badge kind={operations.activationChecklist?.readyForMessaging ? "good" : "warn"}>{operations.activationChecklist?.readyForMessaging ? "Ready for messaging" : `${operations.activationChecklist?.blockerCount || 0} blocker(s)`}</Badge><button className="primaryAction" type="button" disabled={!accountHasLiveToken(activeAccount)} onClick={() => runOperation({ action: "refresh_entitlements", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "Meta entitlements refreshed")}><RefreshCcw size={17} /> Refresh entitlements</button></div><div className="readinessList">{operations.activationChecklist?.steps?.map((step) => <div key={step.id} className={step.status === "pass" ? "ready" : ""}><span>{step.label}</span><Badge kind={step.status === "pass" ? "good" : step.status === "warn" ? "warn" : "bad"}>{step.status === "pass" ? "OK" : step.status === "warn" ? "Review" : "Blocked"}</Badge><small>{step.detail}</small></div>)}</div></Panel><Panel title="WhatsApp capability readiness" subtitle="Inferred from your connected WABA and synced Meta data"><div className="capabilityGrid">{operations.capabilities.map((capability) => <article key={capability.key}><div className="capabilityIcon"><RadioTower size={18} /></div><div><strong>{capability.name}</strong><span>{capability.detail || capability.prerequisite}</span></div><Badge kind={capability.status === "available" ? "good" : capability.status === "setup" ? "warn" : "neutral"}>{capability.status === "available" ? "Configured" : capability.status === "setup" ? "Setup needed" : "Not integrated"}</Badge></article>)}</div><MmLiteOptimizerPanel api={api} /></Panel></div>}
   </div>;
 }
@@ -1728,26 +1746,36 @@ function WhatsAppReferralReport() {
   const [days, setDays] = useState(30);
   const [refresh, setRefresh] = useState(0);
   const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
     setError("");
-    setReport(null);
+    setLoading(true);
     api(`/api/whatsapp/referrals?days=${days}`).then((result) => {
       if (active) setReport(result);
     }).catch((cause) => {
-      if (active) setError(cause.message);
+      if (active) setError(cause.message || "Entry sources could not be loaded.");
+    }).finally(() => {
+      if (active) setLoading(false);
     });
     return () => { active = false; };
   }, [days, refresh]);
-  return <Panel title="WhatsApp entry sources" subtitle="Conversations that began from a WhatsApp ad or post">
+  return <Panel title="WhatsApp entry sources" subtitle="Conversations that began from a WhatsApp ad or post" className="analyticsEntrySources">
     <div className="assetToolbar whatsappReferralToolbar">
-      <label>Period<select value={days} onChange={(event) => setDays(Number(event.target.value))}>
+      <label>Period<select value={days} onChange={(event) => setDays(Number(event.target.value))} disabled={loading}>
         <option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option>
       </select></label>
-      <button className="secondaryAction" type="button" onClick={() => setRefresh((value) => value + 1)}><RefreshCcw size={16} /> Refresh</button>
+      <button className="secondaryAction" type="button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}><RefreshCcw size={16} /> Refresh</button>
     </div>
-    {error && <p className="errorLine" role="alert">{error}</p>}
+    {error && (
+      <div className="analyticsSectionError" role="alert">
+        <strong>Entry sources unavailable</strong>
+        <p>{error}</p>
+        <button className="secondaryAction" type="button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>Retry</button>
+      </div>
+    )}
+    {!error && loading && !report && <p className="wa-module-note">Loading entry sources…</p>}
     {report && <DataTable headers={["Source", "Meta ID", "Conversations", "Latest referral"]}>
       {report.sources.map((source) => <tr key={`${source.sourceType}-${source.sourceId}`}>
         <td>{source.sourceType === "AD" ? "WhatsApp ad" : "WhatsApp post"}</td>
@@ -1756,7 +1784,7 @@ function WhatsAppReferralReport() {
         <td>{formatTime(source.lastReferralAt)}</td>
       </tr>)}
     </DataTable>}
-    {report && !report.sources.length && <EmptyState text="No WhatsApp ad or post referrals in this period" />}
+    {report && !report.sources.length && !error && <EmptyState text="No WhatsApp ad or post referrals in this period" />}
   </Panel>;
 }
 function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
@@ -1773,7 +1801,7 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
     setActiveView('campaigns');
   };
   return (
-    <div className="screenGrid">
+    <div className="screenGrid analyticsScreen">
       {!canManage && (
         <section className="actionBand">
           <div>
@@ -1785,9 +1813,9 @@ function Results({ state, mutate, setActiveView, setCampaignRetarget }) {
       {canManage && campaignsEnabled && <WorkspaceResultsManagerShell api={api} postJson={postJson} />}
       {canManage && <WhatsAppReferralReport />}
       {canManage && campaignsEnabled && (
-        <section className="actionBand">
+        <section className="actionBand analyticsQueueBand">
           <div><strong>Scheduled sends</strong><span>Run pending and retry deliveries.</span></div>
-          <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={18} /> Run pending sends</button>
+          <button className="secondaryAction" type="button" onClick={processQueue}><RefreshCcw size={16} /> Run pending sends</button>
         </section>
       )}
       {state.campaigns.map((campaign) => (
@@ -2168,7 +2196,7 @@ function Unsubscribes({ state, suppressedContacts, mutate }) {
   </>;
 }
 
-function Panel({ title, subtitle, children }) { return <section className="panel"><div className="panelHead"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>{children}</section>; }
+function Panel({ title, subtitle, children, className = "" }) { return <section className={["panel", className].filter(Boolean).join(" ")}><div className="panelHead"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div></div>{children}</section>; }
 function Metric({ label, value }) { return <div className="metric"><span>{label}</span><strong>{value}</strong></div>; }
 function Badge({ kind = "neutral", children }) { return <span className={`badge ${kind}`}>{children}</span>; }
 function Input({ label, ...props }) { return <label>{label}<input {...props} /></label>; }

@@ -148,7 +148,7 @@ export const pageIntros = {
   conversions: 'Conversion signals from chats.',
   calling: 'WhatsApp calling with chat context.',
   ads: 'Click-to-WhatsApp campaigns, Meta assets, and entry conversation measurement.',
-  results: 'Delivery, engagement, and retargeting.',
+  results: 'Campaign delivery, entry sources, and retargeting for this workspace.',
   inbox: 'Shared conversations and agent replies.',
   unsubscribes: 'Opt-outs and suppressed contacts.',
   ai_agents: 'Knowledge-aware assistants, testing, and escalation rules.'
@@ -224,12 +224,18 @@ export const navGroups = [
   },
   {
     id: 'insights',
-    label: 'Insights & admin',
+    label: 'Analytics',
     items: [
       { id: 'results', label: 'Analytics', icon: 'BarChart3' },
       { id: 'meta_analytics', label: 'Meta insights', icon: 'BarChart3' },
       { id: 'conversions', label: 'Conversions', icon: 'Activity' },
-      { id: 'journeys', label: 'Journeys', icon: 'Activity' },
+      { id: 'journeys', label: 'Journeys', icon: 'Activity' }
+    ]
+  },
+  {
+    id: 'account',
+    label: 'Account',
+    items: [
       { id: 'capabilities', label: 'Capabilities', icon: 'RadioTower' },
       { id: 'groups', label: 'Groups', icon: 'MessageSquare' },
       { id: 'team', label: 'Team', icon: 'UserPlus' },
