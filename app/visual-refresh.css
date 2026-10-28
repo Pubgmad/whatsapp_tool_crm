@@ -15,7 +15,7 @@
 .heroPanel p,.automationHero span{color:var(--muted)}
 .softLabel{background:var(--brand-soft);border-color:var(--line-strong);color:var(--brand-dark)}
 .heroMetrics .metric,.automationKpis .metric{background:var(--soft);border-color:var(--line)}
-.toast{background:var(--ink)}
+.toast{color:var(--ink);background:var(--surface);border:1px solid var(--line)}
 .readinessList>div.ready{background:var(--brand-soft);border-color:var(--line-strong)}
 .authShell::before,.superAuthShell::before{background:linear-gradient(90deg,transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px),linear-gradient(transparent 31px,color-mix(in srgb, var(--brand) 6%, transparent) 32px,transparent 33px);background-size:32px 32px}
 .authPanel,.superAuthPanel{box-shadow:var(--shadow-md)}

@@ -19,6 +19,10 @@ import A11yCertificationPanel from './a11y-certification-panel';
 import ImprovementBacklogPanel from './improvement-backlog-panel';
 import { isSessionFailure } from '../lib/auth-navigation';
 import ThemeToggle from './theme-toggle';
+import ToastStack from './feedback/toast-stack';
+import NavProgress from './feedback/nav-progress';
+import { useFeedback } from '../hooks/use-feedback.js';
+import { pendingLabelForMessage } from '../lib/feedback-messages.js';
 
 const emptyPlan = {
   id: "",
@@ -118,10 +122,18 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   const [companyLoading, setCompanyLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [bootstrapError, setBootstrapError] = useState(null);
-  const [notice, setNotice] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [platformBrand, setPlatformBrand] = useState("Platform");
   const [platformLogo,setPlatformLogo]=useState('');
+  const {
+    toasts,
+    pendingHint,
+    isPending: actionPending,
+    notify,
+    dismissToast,
+    beginPending,
+    endPending
+  } = useFeedback();
 
   useEffect(() => { bootstrap(); }, []);
   useEffect(() => { api("/api/platform").then((result) => {setPlatformBrand(result.platform?.company_name || result.platform?.brand_name || "Platform");setPlatformLogo(result.platform?.logo_url||'');}).catch(() => {}); }, []);
@@ -135,7 +147,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   }, [admin, authOnly, loading, bootstrapError]);
   useEffect(() => {
     if (!admin || !initialCompanyId || selected?.company?.id === initialCompanyId) return;
-    api(`/api/super-admin/companies/${initialCompanyId}`).then(setSelected).catch((error) => notify(error.message));
+    api(`/api/super-admin/companies/${initialCompanyId}`).then(setSelected).catch((error) => notify(error.message, { kind: 'error', title: 'Action failed' }));
   }, [admin, initialCompanyId, selected?.company?.id]);
   useEffect(() => {
     if (!admin || initialSection !== "companies") return;
@@ -146,13 +158,11 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
         const params = new URLSearchParams({ page: String(companyPage), search: query, status: statusFilter, sort: companySort });
         const result = await api(`/api/super-admin/companies?${params}`);
         if (active) { setCompanyList(result.companies || []); setCompanyTotal(result.pagination?.total || 0); }
-      } catch (error) { if (active) notify(error.message); }
+      } catch (error) { if (active) notify(error.message, { kind: 'error', title: 'Action failed' }); }
       finally { if (active) setCompanyLoading(false); }
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
   }, [admin?.id, initialSection, companyPage, query, statusFilter, companySort, companyRefresh]);
-
-  const notify = (message) => { setNotice(message); window.setTimeout(() => setNotice(""), 2600); };
 
   const loadPlatformData = async () => {
     const [nextDashboard, planPayload, settingPayload] = await Promise.all([
@@ -167,14 +177,17 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   };
 
   const ensureDefaultPlans = async () => {
+    beginPending('Saving plan…');
     try {
       const result = await postJson("/api/super-admin/plans/ensure", {});
       setPlans(result.plans || []);
       const inserted = result.seed?.inserted?.length || 0;
-      notify(inserted ? `Added ${inserted} missing default plan(s)` : "Default catalogue already present — no overwrites");
       await loadPlatformData();
+      notify(inserted ? `Added ${inserted} missing default plan(s)` : "Default catalogue already present — no overwrites");
     } catch (error) {
-      notify(error.message);
+      notify(error.message, { kind: 'error', title: 'Action failed' });
+    } finally {
+      endPending();
     }
   };
 
@@ -199,13 +212,16 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   };
 
   const refresh = async () => {
+    beginPending('Refreshing…');
     try {
       await loadPlatformData();
       setCompanyRefresh((current) => current + 1);
       if (selected?.company?.id) setSelected(await api(`/api/super-admin/companies/${selected.company.id}`));
       notify("Dashboard refreshed");
     } catch (error) {
-      notify(error.message);
+      notify(error.message, { kind: 'error', title: 'Action failed' });
+    } finally {
+      endPending();
     }
   };
 
@@ -220,61 +236,85 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   };
 
   const openCompany = async (company) => {
+    beginPending('Loading…');
     try {
       setSelected(await api(`/api/super-admin/companies/${company.id}`));
       router.push(`/super-admin/companies/${encodeURIComponent(company.id)}`);
+    } catch (error) {
+      notify(error.message, { kind: 'error', title: 'Action failed' });
+    } finally {
+      endPending();
     }
-    catch (error) { notify(error.message); }
   };
 
   const updateCompany = async (companyId, action) => {
+    const message = action === "activate" ? "Company activated" : "Company suspended";
+    beginPending(pendingLabelForMessage(message));
     try {
       const detail = await postJson(`/api/super-admin/companies/${companyId}/status`, { action }, "PATCH");
       setSelected(detail);
       await loadPlatformData();
       setCompanyRefresh((current) => current + 1);
-      notify(action === "activate" ? "Company activated" : "Company suspended");
+      notify(message);
     } catch (error) {
-      notify(error.message);
+      notify(error.message, { kind: 'error', title: 'Action failed' });
+    } finally {
+      endPending();
     }
   };
 
   const updateCompanyFeature = async (companyId, feature, enabled) => {
+    beginPending('Updating…');
     try {
       setSelected(await postJson(`/api/super-admin/companies/${encodeURIComponent(companyId)}/features`, { feature, enabled }, 'PATCH'));
       notify('Feature access updated');
-    } catch (error) { notify(error.message); }
+    } catch (error) {
+      notify(error.message, { kind: 'error', title: 'Action failed' });
+    } finally {
+      endPending();
+    }
   };
 
   const savePlan = async (payload, planId = "") => {
+    const message = planId ? "Plan updated" : "Plan created";
+    beginPending(pendingLabelForMessage(message));
     try {
       await postJson(planId ? `/api/super-admin/plans/${planId}` : "/api/super-admin/plans", payload, planId ? "PUT" : "POST");
       await loadPlatformData();
-      notify(planId ? "Plan updated" : "Plan created");
+      notify(message);
     } catch (error) {
-      notify(error.message);
+      notify(error.message, { kind: 'error', title: 'Action failed' });
       throw error;
+    } finally {
+      endPending();
     }
   };
 
   const deletePlan = async (plan) => {
+    const message = plan.subscribers > 0 ? "Plan hidden and deactivated" : "Plan deleted";
+    beginPending(pendingLabelForMessage(message));
     try {
       await api(`/api/super-admin/plans/${plan.id}`, { method: "DELETE" });
       await loadPlatformData();
-      notify(plan.subscribers > 0 ? "Plan hidden and deactivated" : "Plan deleted");
+      notify(message);
     } catch (error) {
-      notify(error.message);
+      notify(error.message, { kind: 'error', title: 'Action failed' });
+    } finally {
+      endPending();
     }
   };
 
   const saveSetting = async (setting) => {
+    beginPending('Saving…');
     try {
       await postJson("/api/super-admin/settings", setting);
       setSettings((await api("/api/super-admin/settings")).settings || []);
       notify("Platform content saved");
     } catch (error) {
-      notify(error.message);
+      notify(error.message, { kind: 'error', title: 'Action failed' });
       throw error;
+    } finally {
+      endPending();
     }
   };
 
@@ -312,7 +352,14 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
         </div>
       </header>
 
-      {notice && <div className="toast">{notice}</div>}
+      <NavProgress active={actionPending} label={pendingHint || 'Working'} />
+      <ToastStack items={toasts} onDismiss={dismissToast} />
+      {actionPending && pendingHint ? (
+        <div className="msGlobalBusyHint" role="status" aria-live="polite">
+          <Loader2 className="spin" size={14} aria-hidden="true" />
+          <span>{pendingHint}</span>
+        </div>
+      ) : null}
 
       {initialSection === "overview" && <><section className="superMetrics" aria-label="Platform metrics">
         <Metric icon={Building2} label="Companies" value={dashboard.summary.totalCompanies} note={`${dashboard.summary.activeCompanies} active`} />
@@ -651,6 +698,7 @@ function PlansBillingWorkspace({ plans, catalogue, onSave, onDelete, onEnsureDef
 function PlanManager({ plans, onSave, entitlementLabels = {} }) {
   const [editingId, setEditingId] = useState("");
   const [form, setForm] = useState(emptyPlan);
+  const [pending, setPending] = useState(false);
   const editing = plans.find((plan) => plan.id === editingId);
   const featureKeys = Object.keys(entitlementLabels);
 
@@ -675,9 +723,17 @@ function PlanManager({ plans, onSave, entitlementLabels = {} }) {
 
   const submit = async (event) => {
     event.preventDefault();
+    if (pending) return;
     const payload = formToPlanPayload(form);
-    await onSave(payload, editing?.id || "");
-    reset();
+    setPending(true);
+    try {
+      await onSave(payload, editing?.id || "");
+      reset();
+    } catch {
+      /* parent notifies; keep form values */
+    } finally {
+      setPending(false);
+    }
   };
 
   return <Panel title={editing ? "Edit subscription plan" : "Create subscription plan"} subtitle="Stored in PostgreSQL. Public Pricing and customer Billing read the same records." id="plan-editor">
@@ -709,7 +765,7 @@ function PlanManager({ plans, onSave, entitlementLabels = {} }) {
         <label className="checkRow"><input type="checkbox" checked={form.isActive} onChange={(event) => setFormValue(setForm, "isActive", event.target.checked)} /> Active</label>
         <label className="checkRow"><input type="checkbox" checked={form.isPopular} onChange={(event) => setFormValue(setForm, "isPopular", event.target.checked)} /> Mark popular</label>
       </div>
-      <div className="formActions"><button className="primaryAction" type="submit"><Save size={17} /> {editing ? "Update plan" : "Create plan"}</button>{editing && <button className="secondaryAction" type="button" onClick={reset}>Cancel</button>}</div>
+      <div className="formActions"><button className={`primaryAction${pending ? ' isPending' : ''}`} type="submit" disabled={pending} aria-busy={pending ? 'true' : undefined}>{pending ? <Loader2 className="spin" size={17} aria-hidden="true" /> : <Save size={17} />}<span>{pending ? (editing ? 'Saving plan…' : 'Creating plan…') : (editing ? 'Update plan' : 'Create plan')}</span></button>{editing && <button className="secondaryAction" type="button" onClick={reset} disabled={pending}>Cancel</button>}</div>
     </form>
     <div className="editablePlanList">{plans.map((plan) => <button type="button" key={plan.id} onClick={() => edit(plan)} className={editingId === plan.id ? "active" : ""}><Pencil size={16} /><span>{plan.name}</span><small>{plan.visible ? "Published" : "Draft"} · {money(plan.monthlyPriceCents, plan.currency)}/mo</small></button>)}</div>
   </Panel>;
@@ -853,7 +909,7 @@ function SettingForm({ setting, onSave }) {
 function BooleanSettingForm({ setting, onSave }) {
   const [value, setValue] = useState(setting.value === true);
   const [pending, setPending] = useState(false);
-  return <form className='settingRow' onSubmit={async (event) => { event.preventDefault(); setPending(true); try { await onSave({ ...setting, value }); } finally { setPending(false); } }}><label className='checkRow'><input type='checkbox' checked={value} onChange={(event) => setValue(event.target.checked)} /> {setting.label}</label><button className='secondaryAction' type='submit' disabled={pending}><Save size={15} /> Save</button></form>;
+  return <form className='settingRow' onSubmit={async (event) => { event.preventDefault(); if (pending) return; setPending(true); try { await onSave({ ...setting, value }); } catch { /* keep value; parent notifies */ } finally { setPending(false); } }}><label className='checkRow'><input type='checkbox' checked={value} onChange={(event) => setValue(event.target.checked)} /> {setting.label}</label><button className={`secondaryAction${pending ? ' isPending' : ''}`} type='submit' disabled={pending} aria-busy={pending ? 'true' : undefined}>{pending ? <Loader2 className="spin" size={15} aria-hidden="true" /> : <Save size={15} />}<span>{pending ? 'Saving…' : 'Save'}</span></button></form>;
 }
 
 function TextSettingForm({ setting, onSave }) {
@@ -862,16 +918,19 @@ function TextSettingForm({ setting, onSave }) {
   const isLong = setting.valueType === "rich_text" || setting.valueType === "json";
   const submit = async (event) => {
     event.preventDefault();
+    if (pending) return;
     setPending(true);
     try {
       await onSave({ ...setting, value });
+    } catch {
+      /* keep value; parent notifies */
     } finally {
       setPending(false);
     }
   };
   return <form className="settingRow" onSubmit={submit}>
     <label>{setting.label}{isLong ? <textarea rows="3" value={typeof value === "string" ? value : JSON.stringify(value, null, 2)} onChange={(event) => setValue(event.target.value)} /> : <input value={typeof value === "string" || typeof value === "number" ? value : JSON.stringify(value)} onChange={(event) => setValue(event.target.value)} />}</label>
-    <button className="secondaryAction" type="submit" disabled={pending}><Save size={15} /> Save</button>
+    <button className={`secondaryAction${pending ? ' isPending' : ''}`} type="submit" disabled={pending} aria-busy={pending ? 'true' : undefined}>{pending ? <Loader2 className="spin" size={15} aria-hidden="true" /> : <Save size={15} />}<span>{pending ? 'Saving…' : 'Save'}</span></button>
   </form>;
 }
 
