@@ -1667,7 +1667,7 @@ function AutomationFlows({ state, mutate, approvedTemplates, changePage }) {
         <span>{dirty ? "Unsaved changes" : "Draft until you save"} · {flowMeta.status}</span>
       </div>
       <div className="actionCluster">
-        <button className="secondaryAction" type="button" onClick={reset}>Back to list</button>
+        <button className="secondaryAction" type="button" onClick={() => { if (dirty && !window.confirm("Discard unsaved workflow changes and return to the list?")) return; reset(); }}>Back to list</button>
         <button className="secondaryAction" type="button" onClick={() => addNode("question")}><Plus size={16} /> Add node</button>
         <details className="techDetails automationOpsMenu">
           <summary>Ops</summary>

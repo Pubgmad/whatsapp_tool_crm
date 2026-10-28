@@ -13,9 +13,15 @@ test('automation UI separates list and canvas-first editor', () => {
   assert.match(app, /startNewWorkflow/);
   assert.match(app, /duplicateFlow/);
   assert.match(app, /Back to list/);
+  assert.match(app, /Discard unsaved workflow changes/);
   const css = readFileSync(join(root, 'components/automation-flow-canvas.css'), 'utf8');
   assert.match(css, /automationEditorShell/);
   assert.match(css, /minmax\(0,1fr\) minmax\(280px,340px\)/);
+});
+
+test('handoff always cancels pending AI replies', () => {
+  const source = readFileSync(join(root, 'lib/automation.js'), 'utf8');
+  assert.match(source, /if \(status === "handoff"\) \{[\s\S]*?cancelPendingAiReply/);
 });
 
 test('media and ai-agent routes exist', () => {
