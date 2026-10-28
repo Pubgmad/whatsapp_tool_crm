@@ -50,7 +50,8 @@ export default function WhatsAppGroups({ api, postJson, enabled, embedded = fals
   if (!enabled) {
     return (
       <section className="wa-module">
-        <p>WhatsApp Groups are disabled for this workspace. Ask your platform administrator to enable the feature.</p>
+        <header className="wa-module-heading"><strong>WhatsApp Groups</strong></header>
+        <p className="wa-module-note">Groups are off for this workspace. Enable <code>feature_whatsapp_groups</code> in Super Admin / plan entitlements, then sync Capabilities. Meta must also grant Groups API on the WABA.</p>
       </section>
     );
   }

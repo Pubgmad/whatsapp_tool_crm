@@ -436,7 +436,7 @@ The **Meta Setup** workspace is backed by tenant-scoped PostgreSQL data and the 
 
 To use a managed Flow endpoint, set the public HTTPS `APP_URL` and server-only `META_APP_SECRET` and `ENCRYPTION_KEY`. In **Meta Setup > WhatsApp Flows**, configure encryption for the selected phone and wait for Meta to report `VALID`. Create a Flow with **Use CRM data endpoint**, upload its Flow JSON, then save response mappings for `INIT` and each `data_exchange:SCREEN_ID` or `navigate:SCREEN_ID` step before publishing. The mappings are stored per company in PostgreSQL; private keys are encrypted and never returned to the browser. This endpoint returns configured screen data, not a general business-logic engine or a store for submitted personal data.
 
-Coexistence history sync, Calling, Click-to-WhatsApp ad management, specialized Marketing Messages API, per-template insights, OTP app-signature management, and Meta credit-line/payment visibility are **not integrated**. A connected WABA alone does not enable those products. Expired customer authorization is recovered through Embedded Signup reauthorization, not an invented token refresh.
+Calling, CTWA ads, Marketing Messages API, coexistence, Groups, native payments, template library, and Meta billing visibility are implemented in the product. A connected WABA alone does not turn every Meta product on — each capability still requires its Meta entitlement (and for browser Calling, platform TURN via Super Admin `whatsapp_calling_turn` or `WHATSAPP_CALL_TURN_*`). Expired customer authorization is recovered through Embedded Signup reauthorization, not an invented token refresh.
 
 ### Meta connection monitoring
 
