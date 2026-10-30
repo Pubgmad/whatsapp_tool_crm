@@ -144,6 +144,13 @@ button.isPending{
   font-weight:650;
 }
 
+.inboxSectionErrorWrap{
+  padding:10px 12px 12px;
+}
+.inboxSectionErrorWrap .msSectionError{
+  max-width:none;
+}
+
 .msGlobalBusyHint{
   position:fixed;
   left:50%;
@@ -185,6 +192,136 @@ button.isPending{
     width:auto;
   }
 }
+
+/* —— Error presentation (light-first, subtle semantic accents) —— */
+
+.msInlineError{
+  display:flex;
+  align-items:flex-start;
+  gap:6px;
+  width:100%;
+  max-width:100%;
+  margin:6px 0 0;
+  padding:0;
+  color:#9f1239;
+  background:transparent;
+  border:0;
+  font-size:12px;
+  font-weight:650;
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
+.msInlineError svg{flex:0 0 auto;margin-top:1px;color:#e11d48}
+
+.msSectionError{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:start;
+  gap:12px;
+  width:100%;
+  max-width:40rem;
+  margin:0;
+  padding:14px 16px;
+  color:var(--ink,#0f172a);
+  background:var(--surface,#fff);
+  border:1px solid #fecdd3;
+  border-left:3px solid #e11d48;
+  border-radius:10px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+.msSectionErrorIcon{
+  display:grid;
+  place-items:center;
+  width:28px;
+  height:28px;
+  margin-top:1px;
+  color:#be123c;
+  background:#fff1f2;
+  border-radius:999px;
+}
+.msSectionErrorBody{display:grid;gap:4px;min-width:0}
+.msSectionErrorBody strong{
+  margin:0;
+  font-size:14px;
+  font-weight:750;
+  line-height:1.3;
+  color:var(--ink,#0f172a);
+}
+.msSectionErrorBody>p{
+  margin:0;
+  color:var(--ink-soft,#334155);
+  font-size:13px;
+  font-weight:500;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+}
+.msErrorDiagnostics{
+  margin:2px 0 0!important;
+  color:var(--muted,#64748b)!important;
+  font-size:11px!important;
+  font-weight:600!important;
+}
+.msSectionErrorActions{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:8px;
+}
+.msSectionErrorActions .secondaryAction{
+  min-height:36px;
+  padding:7px 12px;
+  gap:6px;
+}
+.msSectionErrorDismiss{
+  display:grid;
+  place-items:center;
+  width:32px;
+  height:32px;
+  padding:0;
+  color:var(--muted,#64748b);
+  background:transparent;
+  border:0;
+  border-radius:8px;
+  cursor:pointer;
+}
+.msSectionErrorDismiss:hover{color:var(--ink);background:var(--soft,#f8fafc)}
+
+.msPageError{
+  display:grid;
+  justify-items:center;
+  align-content:center;
+  gap:12px;
+  min-height:100dvh;
+  padding:32px 24px;
+  text-align:center;
+  background:var(--canvas,#f8fafc);
+}
+.msPageErrorIcon{
+  display:grid;
+  place-items:center;
+  width:52px;
+  height:52px;
+  color:#be123c;
+  background:#fff1f2;
+  border:1px solid #fecdd3;
+  border-radius:999px;
+}
+.msPageError h1{
+  margin:0;
+  color:var(--ink,#0f172a);
+  font-size:22px;
+  font-weight:750;
+  line-height:1.25;
+}
+.msPageError p{
+  max-width:28rem;
+  margin:0;
+  color:var(--muted,#64748b);
+  font-size:14px;
+  line-height:1.55;
+}
+.msPageError .primaryAction{margin-top:6px}
 
 @media (prefers-reduced-motion:reduce){
   .msToast,

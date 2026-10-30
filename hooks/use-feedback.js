@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { classifyFeedbackMessage, pendingLabelForMessage } from '../lib/feedback-messages.js';
+import { toastOptionsFromError } from '../lib/error-presentation.js';
 
 let toastSeq = 0;
 
@@ -25,6 +26,18 @@ export function useFeedback() {
   }, []);
 
   const notify = useCallback((message, options = {}) => {
+    // Accept Error objects for accurate classification; strings remain supported.
+    if (message && typeof message === 'object' && (message.message || message.code)) {
+      const fromError = toastOptionsFromError(message, options.context || {});
+      options = {
+        ...fromError,
+        ...options,
+        kind: options.kind || fromError.kind,
+        title: options.title ?? fromError.title,
+        body: options.body || fromError.body
+      };
+      message = options.body;
+    }
     if (!message && !options.body) return;
     const classified = classifyFeedbackMessage(options.body || message);
     const kind = options.kind || classified.kind;
@@ -34,7 +47,7 @@ export function useFeedback() {
       kind,
       title: options.title ?? classified.title,
       body: options.body || message,
-      sticky: options.sticky === true || kind === 'error'
+      sticky: options.sticky === true || kind === 'error' || kind === 'warning'
     };
     setToasts((current) => {
       const next = [...current.filter((toast) => toast.body !== item.body || toast.kind !== item.kind), item];
@@ -57,10 +70,6 @@ export function useFeedback() {
     });
   }, []);
 
-  /**
-   * Wrap an existing promise lifecycle with pending UI + success/error toast.
-   * successMessage is only shown after the promise resolves (caller already awaits real work).
-   */
   const runAction = useCallback(
     async (promise, successMessage = '', options = {}) => {
       const hint = options.pendingLabel || pendingLabelForMessage(successMessage);
@@ -70,7 +79,7 @@ export function useFeedback() {
         if (successMessage) notify(successMessage, { kind: 'success' });
         return { ok: true, result };
       } catch (error) {
-        notify(error?.message || 'Something went wrong. Try again.', { kind: 'error', title: 'Action failed' });
+        notify(error, { context: options.context || {} });
         return { ok: false, error };
       } finally {
         endPending();

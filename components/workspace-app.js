@@ -66,6 +66,8 @@ import {
 import ToastStack from './feedback/toast-stack';
 import NavProgress from './feedback/nav-progress';
 import { SkeletonBlock, SkeletonTable } from './feedback/skeleton';
+import SectionError from './feedback/section-error';
+import PageError from './feedback/page-error';
 import { useFeedback } from '../hooks/use-feedback.js';
 import { pendingLabelForMessage } from '../lib/feedback-messages.js';
 
@@ -113,6 +115,7 @@ const api = async (path, options = {}) => {
     if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return api(path, { ...requestOptions, csrfRetry: true }); }
     const error = new Error(payload.error || "Action failed");
     error.code = payload.code;
+    error.status = response.status;
     throw error;
   }
   return payload;
@@ -122,7 +125,13 @@ const postJson = (path, body, method = "POST") => api(path, { method, body: JSON
 const uploadForm = async (path, form, csrfRetry = false) => {
   const response = await fetch(path, { method: 'POST', headers: { 'x-csrf-token': await getCsrfToken() }, body: form });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) { if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return uploadForm(path, form, true); } const error = new Error(payload.error || "Upload failed"); error.code = payload.code; throw error; }
+  if (!response.ok) {
+    if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return uploadForm(path, form, true); }
+    const error = new Error(payload.error || "Upload failed");
+    error.code = payload.code;
+    error.status = response.status;
+    throw error;
+  }
   return payload;
 };
 const formatTime = (iso) => iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Never";
@@ -261,7 +270,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const [platform, setPlatform] = useState({ ...fallbackPlatform, ...(initialPlatform || {}) });
   const [campaignRetarget, setCampaignRetarget] = useState(null);
   const [pages, setPages] = useState({});
-  const [inboxSyncError, setInboxSyncError] = useState('');
+  const [inboxSyncError, setInboxSyncError] = useState(null);
   const [inboxSyncing, setInboxSyncing] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
   const scopeGate = useRef(null);
@@ -351,10 +360,10 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
     setInboxSyncing(true);
     try {
       await loadScope(location, false, { page, inboxFilter: nextFilter, inboxQ: nextQ });
-      setInboxSyncError('');
+      setInboxSyncError(null);
     } catch (error) {
-      setInboxSyncError(error.message || 'Inbox could not be refreshed.');
-      notify(error.message);
+      // Section banner owns this failure — avoid a duplicate toast.
+      setInboxSyncError(error);
     } finally {
       setInboxSyncing(false);
     }
@@ -462,7 +471,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
       if (message) notify(message);
       return true;
     } catch (error) {
-      notify(error?.message || 'Something went wrong. Try again.', { kind: 'error', title: 'Action failed' });
+      notify(error, { context: { operation: 'action' } });
       return false;
     } finally {
       endPending();
@@ -540,8 +549,12 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   }
   if (configError) return <SystemSetup message={configError} platform={platform} />;
   if (!authMode && isSessionFailure(bootstrapError)) return <main className='loading'><Loader2 className='spin' size={30} /><p>Opening sign in</p></main>;
-  if (account && !state && bootstrapError) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
-  if (!account && !authMode && bootstrapError && !isSessionFailure(bootstrapError)) return <main className='loading errorLoading'><CircleAlert size={32} /><p>Workspace could not be loaded</p><span>{bootstrapError.message || 'The server returned an unexpected response.'}</span><button className='primaryAction' type='button' onClick={bootstrap}>Retry</button></main>;
+  if (account && !state && bootstrapError) {
+    return <PageError error={bootstrapError} title="Workspace unavailable" onRetry={bootstrap} />;
+  }
+  if (!account && !authMode && bootstrapError && !isSessionFailure(bootstrapError)) {
+    return <PageError error={bootstrapError} title="Workspace unavailable" onRetry={bootstrap} />;
+  }
   if (!account && authMode) {
     return (
       <Suspense fallback={<main className="loading"><Loader2 className="spin" size={30} /><p>Opening sign in</p></main>}>
@@ -607,7 +620,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
       }
     }));
   };
-  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "", inboxSyncError, inboxSyncing, actionPending };
+  const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "", inboxSyncError: inboxSyncError || null, inboxSyncing, actionPending };
 
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
@@ -1508,7 +1521,7 @@ function Contacts({ state, mutate, actionPending = false }) {
   const [contacts, setContacts] = useState(state.contacts || []);
   const [pagination, setPagination] = useState(state.pagination?.contacts || { page: 1, pages: 1, total: contacts.length });
   const [loadingContacts, setLoadingContacts] = useState(false);
-  const [contactsError, setContactsError] = useState('');
+  const [contactsError, setContactsError] = useState(null);
   const [editContact, setEditContact] = useState(null);
   const [contactsRefreshKey, setContactsRefreshKey] = useState(0);
   const canManage = isWorkspaceManager(state?.account?.role);
@@ -1526,10 +1539,10 @@ function Contacts({ state, mutate, actionPending = false }) {
         if (!active) return;
         setContacts(result.contacts || []);
         setPagination(result.pagination?.contacts || { page, pages: 1, total: 0 });
-        setContactsError('');
+        setContactsError(null);
       } catch (cause) {
         if (active) {
-          setContactsError(cause?.message || 'Unable to load contacts.');
+          setContactsError(cause || new Error('Contacts could not be loaded.'));
           setContacts([]);
         }
       } finally {
@@ -1549,25 +1562,25 @@ function Contacts({ state, mutate, actionPending = false }) {
       {canManage && <Panel title="Import contacts" subtitle="CSV: name, phone, permission, tags, opt_in_source, consent_evidence"><form className="formGrid importForm" onSubmit={importRows}><label className="fileDrop"><input type="file" accept=".csv,text/csv" onChange={chooseFile} /><Upload size={22} /><strong>{fileName || "Choose CSV file"}</strong><span>{fileName ? "Ready to import" : "or paste CSV rows below"}</span></label><label>CSV rows<textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder="name,phone,permission,tags,opt_in_source,consent_evidence" /></label><div className="importMeta"><span>{csvText.trim() ? `${csvText.trim().split(/\r?\n/).length} rows ready` : "No rows loaded"}</span><button className={`secondaryAction${actionPending ? ' isPending' : ''}`} type="submit" disabled={!csvText.trim() || actionPending} aria-busy={actionPending ? 'true' : undefined}>{actionPending ? <Loader2 className="spin" size={18} aria-hidden="true" /> : <Upload size={18} />}<span>{actionPending ? 'Importing…' : 'Import'}</span></button></div></form></Panel>}
     </div>
     {state.featureFlags?.segments && <SavedSegments initialSegments={state.audienceSegments || []} canManage={canManage} mutate={mutate} />}
-    <Panel title="Contacts" subtitle={loadingContacts && contacts.length ? 'Refreshing…' : loadingContacts ? 'Loading…' : `${contacts.length} on page · ${pagination.total ?? 0} total`}><div className="dataToolbar contactToolbar"><label className="searchBox"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search contacts" aria-label="Search contacts" /></label><select value={permissionFilter} aria-label="Filter contacts by consent" onChange={(event) => { setPermissionFilter(event.target.value); setPage(1); }}><option value="all">All contacts</option><option value="allowed">Marketable</option><option value="blocked">Suppressed</option></select>{canManage && <a className="secondaryAction exportAction" href="/api/contacts/export"><Download size={18} /> Export CSV</a>}</div>{contactsError && <div className="analyticsSectionError" role="alert"><strong>Could not load contacts</strong><p>{contactsError}</p><button className="secondaryAction" type="button" onClick={refreshContacts}>Retry</button></div>}{loadingContacts && !contacts.length ? <SkeletonTable rows={6} /> : <DataTable headers={["Name", "Phone", "Permission", "Last activity", "Actions"]}>{contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong><div className="chipRow compact">{(contact.tags || []).map((tag) => <span key={tag}>{tag}</span>)}</div></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions">{canManage && <><button onClick={() => setEditContact(contact)}><Pencil size={15} /> Edit</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE").then(() => refreshContacts()), "Contact removed")}><Trash2 size={15} /> Remove</button></>}</td></tr>)}</DataTable>}{!contacts.length && !loadingContacts && !contactsError && <EmptyState text={search.trim() ? 'No contacts match this search' : permissionFilter !== 'all' ? 'No contacts match this filter' : 'No contacts yet'} />}{(pagination.pages > 1 || page > 1) && <nav className="pagination" aria-label="Contacts pagination"><span>Page {pagination.page} of {pagination.pages}</span><div><button className="secondaryAction" type="button" disabled={page <= 1 || loadingContacts} onClick={() => setPage((p) => p - 1)}>Previous</button><button className="secondaryAction" type="button" disabled={page >= pagination.pages || loadingContacts} onClick={() => setPage((p) => p + 1)}>Next</button></div></nav>}</Panel>
+    <Panel title="Contacts" subtitle={loadingContacts && contacts.length ? 'Refreshing…' : loadingContacts ? 'Loading…' : `${contacts.length} on page · ${pagination.total ?? 0} total`}><div className="dataToolbar contactToolbar"><label className="searchBox"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search contacts" aria-label="Search contacts" /></label><select value={permissionFilter} aria-label="Filter contacts by consent" onChange={(event) => { setPermissionFilter(event.target.value); setPage(1); }}><option value="all">All contacts</option><option value="allowed">Marketable</option><option value="blocked">Suppressed</option></select>{canManage && <a className="secondaryAction exportAction" href="/api/contacts/export"><Download size={18} /> Export CSV</a>}</div>{contactsError ? <SectionError error={contactsError} operation="contacts" onRetry={refreshContacts} onDismiss={() => setContactsError(null)} /> : null}{loadingContacts && !contacts.length ? <SkeletonTable rows={6} /> : <DataTable headers={["Name", "Phone", "Permission", "Last activity", "Actions"]}>{contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong><div className="chipRow compact">{(contact.tags || []).map((tag) => <span key={tag}>{tag}</span>)}</div></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions">{canManage && <><button onClick={() => setEditContact(contact)}><Pencil size={15} /> Edit</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE").then(() => refreshContacts()), "Contact removed")}><Trash2 size={15} /> Remove</button></>}</td></tr>)}</DataTable>}{!contacts.length && !loadingContacts && !contactsError && <EmptyState text={search.trim() ? 'No contacts match this search' : permissionFilter !== 'all' ? 'No contacts match this filter' : 'No contacts yet'} />}{(pagination.pages > 1 || page > 1) && <nav className="pagination" aria-label="Contacts pagination"><span>Page {pagination.page} of {pagination.pages}</span><div><button className="secondaryAction" type="button" disabled={page <= 1 || loadingContacts} onClick={() => setPage((p) => p - 1)}>Previous</button><button className="secondaryAction" type="button" disabled={page >= pagination.pages || loadingContacts} onClick={() => setPage((p) => p + 1)}>Next</button></div></nav>}</Panel>
     {editContact && <div className="modalBackdrop" role="presentation" onMouseDown={() => setEditContact(null)}><section className="editModal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="kicker">Contact profile</p><h2>Edit contact</h2></div><button className="iconButton" type="button" onClick={() => setEditContact(null)} aria-label="Close"><X size={18} /></button></header><form className="formGrid" onSubmit={saveContact}><Input name="name" label="Name" defaultValue={editContact.name} required /><Input name="phone" label="Phone" defaultValue={editContact.phone} required /><Input name="tags" label="Tags" defaultValue={(editContact.tags || []).join(", ")} /><Input name="optInSource" label="Opt-in source" defaultValue={editContact.optInSource || ""} /><Input name="consentEvidence" label="New consent evidence (if restoring permission)" /><label>Marketing permission<select name="marketingPermission" defaultValue={editContact.marketingPermission && !editContact.unsubscribed ? "allowed" : "blocked"}><option value="allowed">Allowed</option><option value="blocked">Suppressed</option></select></label><label>Custom fields<textarea name="customAttributes" defaultValue={attributesToText(editContact.customAttributes)} placeholder={"company=Example\ninterest=Pricing"} /></label><button className="primaryAction" type="submit"><Save size={18} /> Save changes</button></form></section></div>}
   </div>;
 }
 function TemplateInsights({ template }) {
   const [days, setDays] = useState(30);
   const [insights, setInsights] = useState(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   if (!template.metaTemplateId) return null;
   const load = async () => {
     setLoading(true);
-    setError("");
+    setError(null);
     try {
       const result = await api(`/api/templates/${encodeURIComponent(template.id)}/analytics?days=${days}`);
       setInsights(result);
     } catch (cause) {
       setInsights(null);
-      setError(cause.message);
+      setError(cause);
     } finally {
       setLoading(false);
     }
@@ -1581,7 +1594,7 @@ function TemplateInsights({ template }) {
         <BarChart3 size={16} /> {loading ? "Loading" : "Meta insights"}
       </button>
     </div>
-    {error && <p className="errorLine" role="alert">{error}</p>}
+    {error ? <SectionError error={error} operation="analytics" onRetry={load} onDismiss={() => setError(null)} /> : null}
     {insights && <div className="templateInsightsMetrics">
       <div><strong>{insights.sent}</strong><span>Sent</span></div>
       <div><strong>{insights.delivered}</strong><span>Delivered</span></div>
@@ -2099,15 +2112,15 @@ function WhatsAppReferralReport() {
   const [refresh, setRefresh] = useState(0);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(null);
   useEffect(() => {
     let active = true;
-    setError("");
+    setError(null);
     setLoading(true);
     api(`/api/whatsapp/referrals?days=${days}`).then((result) => {
       if (active) setReport(result);
     }).catch((cause) => {
-      if (active) setError(cause.message || "Entry sources could not be loaded.");
+      if (active) setError(cause || new Error('Entry sources could not be loaded.'));
     }).finally(() => {
       if (active) setLoading(false);
     });
@@ -2120,13 +2133,14 @@ function WhatsAppReferralReport() {
       </select></label>
       <button className="secondaryAction" type="button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}><RefreshCcw size={16} /> Refresh</button>
     </div>
-    {error && (
-      <div className="analyticsSectionError" role="alert">
-        <strong>Entry sources unavailable</strong>
-        <p>{error}</p>
-        <button className="secondaryAction" type="button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>Retry</button>
-      </div>
-    )}
+    {error ? (
+      <SectionError
+        error={error}
+        operation="analytics"
+        onRetry={() => setRefresh((value) => value + 1)}
+        onDismiss={() => setError(null)}
+      />
+    ) : null}
     {!error && loading && !report && <p className="wa-module-note">Loading entry sources…</p>}
     {report && <DataTable headers={["Source", "Meta ID", "Conversations", "Latest referral"]}>
       {report.sources.map((source) => <tr key={`${source.sourceType}-${source.sourceId}`}>
@@ -2283,7 +2297,7 @@ function InteractiveReplyForm({ activeContact, mutate }) {
   return <details className="interactiveComposer"><summary><MessageSquareText size={16} /> Interactive message</summary><form onSubmit={submit}><label>Message<textarea name="body" rows="3" required /></label><div className="formSplit"><label>Format<select name="mode"><option value="buttons">Reply buttons (up to 3)</option><option value="list">List (up to 10)</option></select></label><Input name="buttonText" label="List button text" placeholder="Choose" maxLength="20" /></div><Input name="sectionTitle" label="List section title" placeholder="Options" maxLength="24" /><label>Options<textarea name="options" rows="4" placeholder={"pricing|Pricing|View pricing\ndemo|Book a demo|Choose a time"} required /></label><small>Use one option per line: identifier | title | description</small><button className="secondaryAction"><Send size={17} /> Send interactive message</button></form></details>;
 }
 
-function InboxView({ state, activeConversation, activeContact, approvedTemplates, openConversation, mutate, reloadInbox, setActiveView, inboxFilter: serverFilter = "", inboxQ: serverQ = "", inboxSyncError = "", inboxSyncing = false }) {
+function InboxView({ state, activeConversation, activeContact, approvedTemplates, openConversation, mutate, reloadInbox, setActiveView, inboxFilter: serverFilter = "", inboxQ: serverQ = "", inboxSyncError = null, inboxSyncing = false }) {
   const teamMembers = state.teamMembers || [];
   const currentUserId = state.account?.user?.id || "";
   const [search, setSearch] = useState(serverQ);
@@ -2427,8 +2441,8 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
     ? 'Incoming WhatsApp messages to your connected number will appear here.'
     : 'Connect WhatsApp to receive conversations in this inbox.';
   if (inboxSyncError) {
-    emptyTitle = 'Inbox could not load';
-    emptyBody = inboxSyncError;
+    emptyTitle = 'Inbox unavailable';
+    emptyBody = typeof inboxSyncError === 'string' ? inboxSyncError : (inboxSyncError.message || 'Conversations could not be loaded.');
   } else if (listIsEmpty && hasSearch) {
     emptyTitle = 'No search results';
     emptyBody = 'Try a different name or phone number.';
@@ -2463,7 +2477,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
       <button type="button" role="tab" aria-selected={inboxSurface === "groups"} className={inboxSurface === "groups" ? "active" : ""} onClick={() => setInboxSurface("groups")}>Groups</button>
     </div>}
     {inboxSurface === "groups" ? <WhatsAppGroups api={api} postJson={postJson} enabled={groupsEnabled} embedded /> : <><section className={`inboxShell${activeConversation && activeContact && !profileOpen ? ' inboxShellProfileCollapsed' : ''}`}>
-    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" aria-label="Search conversations" /></label><select value={inboxFilter} aria-label="Filter conversations" onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{inboxSyncing && <p className="inboxSyncStatus" role="status">Refreshing conversations…</p>}{inboxSyncError && <div className="inboxEmptyHero" role="alert"><strong>Inbox could not load</strong><p>{inboxSyncError}</p><button className="secondaryAction compactAction" type="button" onClick={() => reloadInbox?.({ inboxFilter, inboxQ: search.trim(), page: 1 })}>Retry</button></div>}{!inboxSyncError && filteredConversations.map((conversation) => { const contact = contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages?.at?.(-1); return <button key={conversation.id} type="button" className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone || 'Unknown contact'}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages yet"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!inboxSyncError && listIsEmpty && <div className="inboxEmptyHero" role="status"><strong>{emptyTitle}</strong><p>{emptyBody}</p></div>}</aside>
+    <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" aria-label="Search conversations" /></label><select value={inboxFilter} aria-label="Filter conversations" onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{inboxSyncing && <p className="inboxSyncStatus" role="status">Refreshing conversations…</p>}{inboxSyncError ? <div className="inboxSectionErrorWrap"><SectionError error={inboxSyncError} operation="inbox" onRetry={() => reloadInbox?.({ inboxFilter, inboxQ: search.trim(), page: 1 })} /></div> : null}{!inboxSyncError && filteredConversations.map((conversation) => { const contact = contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages?.at?.(-1); return <button key={conversation.id} type="button" className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone || 'Unknown contact'}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages yet"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!inboxSyncError && listIsEmpty && <div className="inboxEmptyHero" role="status"><strong>{emptyTitle}</strong><p>{emptyBody}</p></div>}</aside>
     <div className="threadPane">{activeConversation && activeContact ? <>
       <header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><div className="threadPaneHeaderActions"><button className="secondaryAction compactAction" type="button" onClick={() => setProfileOpen((open) => !open)}>{profileOpen ? 'Hide profile' : 'Show profile'}</button><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></div></header>
       <div className="inboxControls"><select value={activeConversation.assignedUserId || ""} onChange={(event) => workflowAction("assign", { assignedUserId: event.target.value })}><option value="">Unassigned</option>{teamMembers.map((member) => <option key={member.id} value={member.id}>{member.name || member.email}</option>)}</select><button className="secondaryAction" type="button" onClick={() => workflowAction("takeover", { assignedUserId: activeConversation.assignedUserId || currentUserId })}>Take over</button><button className="secondaryAction" type="button" onClick={() => workflowAction("resume")} disabled={!activeConversation.automationPaused}>Resume automation</button><button className="secondaryAction" type="button" onClick={() => workflowAction(activeConversation.status === "closed" ? "reopen" : "close")}>{activeConversation.status === "closed" ? <Play size={16} /> : <CheckCheck size={16} />}{activeConversation.status === "closed" ? "Reopen" : "Close"}</button></div>

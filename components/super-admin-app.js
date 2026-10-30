@@ -21,6 +21,7 @@ import { isSessionFailure } from '../lib/auth-navigation';
 import ThemeToggle from './theme-toggle';
 import ToastStack from './feedback/toast-stack';
 import NavProgress from './feedback/nav-progress';
+import PageError from './feedback/page-error';
 import { useFeedback } from '../hooks/use-feedback.js';
 import { pendingLabelForMessage } from '../lib/feedback-messages.js';
 
@@ -67,6 +68,7 @@ const api = async (path, options = {}) => {
     if (payload.code === 'CSRF_INVALID' && !csrfRetry) { csrfToken = ''; return api(path, { ...requestOptions, csrfRetry: true }); }
     const error = new Error(payload.error || "Action failed");
     error.code = payload.code;
+    error.status = response.status;
     throw error;
   }
   return payload;
@@ -147,7 +149,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   }, [admin, authOnly, loading, bootstrapError]);
   useEffect(() => {
     if (!admin || !initialCompanyId || selected?.company?.id === initialCompanyId) return;
-    api(`/api/super-admin/companies/${initialCompanyId}`).then(setSelected).catch((error) => notify(error.message, { kind: 'error', title: 'Action failed' }));
+    api(`/api/super-admin/companies/${initialCompanyId}`).then(setSelected).catch((error) => notify(error));
   }, [admin, initialCompanyId, selected?.company?.id]);
   useEffect(() => {
     if (!admin || initialSection !== "companies") return;
@@ -158,7 +160,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
         const params = new URLSearchParams({ page: String(companyPage), search: query, status: statusFilter, sort: companySort });
         const result = await api(`/api/super-admin/companies?${params}`);
         if (active) { setCompanyList(result.companies || []); setCompanyTotal(result.pagination?.total || 0); }
-      } catch (error) { if (active) notify(error.message, { kind: 'error', title: 'Action failed' }); }
+      } catch (error) { if (active) notify(error); }
       finally { if (active) setCompanyLoading(false); }
     }, 250);
     return () => { active = false; window.clearTimeout(timer); };
@@ -185,7 +187,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       await loadPlatformData();
       notify(inserted ? `Added ${inserted} missing default plan(s)` : "Default catalogue already present — no overwrites");
     } catch (error) {
-      notify(error.message, { kind: 'error', title: 'Action failed' });
+      notify(error, { context: { operation: 'plan' } });
     } finally {
       endPending();
     }
@@ -219,7 +221,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       if (selected?.company?.id) setSelected(await api(`/api/super-admin/companies/${selected.company.id}`));
       notify("Dashboard refreshed");
     } catch (error) {
-      notify(error.message, { kind: 'error', title: 'Action failed' });
+      notify(error);
     } finally {
       endPending();
     }
@@ -241,7 +243,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       setSelected(await api(`/api/super-admin/companies/${company.id}`));
       router.push(`/super-admin/companies/${encodeURIComponent(company.id)}`);
     } catch (error) {
-      notify(error.message, { kind: 'error', title: 'Action failed' });
+      notify(error);
     } finally {
       endPending();
     }
@@ -257,7 +259,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       setCompanyRefresh((current) => current + 1);
       notify(message);
     } catch (error) {
-      notify(error.message, { kind: 'error', title: 'Action failed' });
+      notify(error);
     } finally {
       endPending();
     }
@@ -269,7 +271,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       setSelected(await postJson(`/api/super-admin/companies/${encodeURIComponent(companyId)}/features`, { feature, enabled }, 'PATCH'));
       notify('Feature access updated');
     } catch (error) {
-      notify(error.message, { kind: 'error', title: 'Action failed' });
+      notify(error);
     } finally {
       endPending();
     }
@@ -283,7 +285,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       await loadPlatformData();
       notify(message);
     } catch (error) {
-      notify(error.message, { kind: 'error', title: 'Action failed' });
+      notify(error, { context: { operation: 'plan' } });
       throw error;
     } finally {
       endPending();
@@ -298,7 +300,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       await loadPlatformData();
       notify(message);
     } catch (error) {
-      notify(error.message, { kind: 'error', title: 'Action failed' });
+      notify(error, { context: { operation: 'plan' } });
     } finally {
       endPending();
     }
@@ -311,7 +313,7 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
       setSettings((await api("/api/super-admin/settings")).settings || []);
       notify("Platform content saved");
     } catch (error) {
-      notify(error.message, { kind: 'error', title: 'Action failed' });
+      notify(error, { context: { operation: 'settings' } });
       throw error;
     } finally {
       endPending();
@@ -319,7 +321,9 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
   };
 
   if (loading) return <main className="superLoading"><ShieldCheck size={30} /><span>Checking platform access</span></main>;
-  if (bootstrapError && !isSessionFailure(bootstrapError)) return <main className="superLoading"><ShieldCheck size={30}/><span>Platform could not be loaded</span><p role="alert">{bootstrapError.message}</p><button className="primaryAction" onClick={bootstrap}><RefreshCcw size={18}/>Retry</button></main>;
+  if (bootstrapError && !isSessionFailure(bootstrapError)) {
+    return <PageError error={bootstrapError} title="Platform unavailable" onRetry={bootstrap} />;
+  }
   if (!admin && authOnly) return <SuperAdminLogin onDone={bootstrap} brandName={platformBrand} />;
   if (!admin) return <main className="superLoading"><Loader2 className="spin" size={30} /><span>Opening Super Admin sign in</span></main>;
   if (authOnly) return <main className="superLoading"><Loader2 className="spin" size={30} /><span>Opening Super Admin</span></main>;
