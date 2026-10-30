@@ -140,9 +140,20 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                         <td>{rule.pattern}</td>
                         <td>{rule.match_type}</td>
                         <td>{rule.reply_text}</td>
-                        <td>
+                        <td className="actionCluster">
                           {canEdit && (
-                            <button type="button" disabled={busy} onClick={() => run(() => postJson('/api/bots/reply', { action: 'deleteRule', ruleId: rule.id }), 'Rule deleted')}>Delete</button>
+                            <button type="button" disabled={busy} onClick={() => run(async () => {
+                              await postJson('/api/bots/reply', { action: 'duplicateRule', ruleId: rule.id });
+                              const refreshed = await postJson('/api/bots/reply', { action: 'listRules', botId: selectedBot });
+                              setRules(refreshed.rules || []);
+                            }, 'Rule duplicated')}>Duplicate</button>
+                          )}
+                          {canEdit && (
+                            <button type="button" disabled={busy} onClick={() => run(async () => {
+                              await postJson('/api/bots/reply', { action: 'deleteRule', ruleId: rule.id });
+                              const refreshed = await postJson('/api/bots/reply', { action: 'listRules', botId: selectedBot });
+                              setRules(refreshed.rules || []);
+                            }, 'Rule deleted')}>Delete</button>
                           )}
                         </td>
                       </tr>
@@ -231,7 +242,15 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
             }}>
               <label>Bot name<input value={sheetForm.name} onChange={(e) => setSheetForm((c) => ({ ...c, name: e.target.value }))} /></label>
               <label>Schema
-                <select value={sheetForm.schemaId} onChange={(e) => setSheetForm((c) => ({ ...c, schemaId: e.target.value }))}>
+                <select value={sheetForm.schemaId} onChange={(e) => {
+                  const schemaId = e.target.value;
+                  const schema = (sheets.schemas || []).find((item) => item.id === schemaId);
+                  const columnMap = {};
+                  (schema?.fields || []).forEach((field) => {
+                    columnMap[field.key] = field.label;
+                  });
+                  setSheetForm((c) => ({ ...c, schemaId, columnMap: Object.keys(columnMap).length ? columnMap : c.columnMap }));
+                }}>
                   {(sheets.schemas || []).map((schema) => <option key={schema.id} value={schema.id}>{schema.label}</option>)}
                 </select>
               </label>
@@ -264,9 +283,19 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                   </select>
                 </label>
               )}
-              <label>Question column<input value={sheetForm.columnMap.question || ''} onChange={(e) => setSheetForm((c) => ({ ...c, columnMap: { ...c.columnMap, question: e.target.value } }))} /></label>
-              <label>Answer column<input value={sheetForm.columnMap.answer || ''} onChange={(e) => setSheetForm((c) => ({ ...c, columnMap: { ...c.columnMap, answer: e.target.value } }))} /></label>
-              <label>Keywords column<input value={sheetForm.columnMap.keywords || ''} onChange={(e) => setSheetForm((c) => ({ ...c, columnMap: { ...c.columnMap, keywords: e.target.value } }))} /></label>
+              {((sheets.schemas || []).find((schema) => schema.id === sheetForm.schemaId)?.fields || [
+                { key: 'question', label: 'Question' },
+                { key: 'answer', label: 'Answer' },
+                { key: 'keywords', label: 'Keywords' }
+              ]).map((field) => (
+                <label key={field.key}>{field.label} column
+                  <input
+                    value={sheetForm.columnMap[field.key] || ''}
+                    onChange={(e) => setSheetForm((c) => ({ ...c, columnMap: { ...c.columnMap, [field.key]: e.target.value } }))}
+                    required={field.required !== false && ['question', 'answer', 'reply', 'product', 'service'].includes(field.key)}
+                  />
+                </label>
+              ))}
               <label>Fallback<textarea rows={2} value={sheetForm.fallbackText} onChange={(e) => setSheetForm((c) => ({ ...c, fallbackText: e.target.value }))} /></label>
               <button className="primaryAction" type="submit" disabled={busy || !sheetForm.spreadsheetId || !sheetForm.sheetName}>Save mapping</button>
             </form>

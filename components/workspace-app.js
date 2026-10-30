@@ -155,6 +155,7 @@ const emptyWorkspaceState = {
   featureFlags: {},
   experienceMode: 'advanced',
   onboardingState: {},
+  simpleNav: null,
   meta: {}
 };
 
@@ -171,6 +172,7 @@ function mergeWorkspaceState(current, incoming) {
     featureFlags: { ...(current?.featureFlags || {}), ...(incoming?.featureFlags || {}) },
     experienceMode: incoming?.experienceMode || current?.experienceMode || 'advanced',
     onboardingState: { ...(current?.onboardingState || {}), ...(incoming?.onboardingState || {}) },
+    simpleNav: incoming?.simpleNav ?? current?.simpleNav ?? null,
     meta: { ...(current?.meta || {}), ...(incoming?.meta || {}) },
     pagination: { ...(current?.pagination || {}), ...(incoming?.pagination || {}) }
   };
@@ -632,7 +634,11 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "", inboxSyncError: inboxSyncError || null, inboxSyncing, actionPending };
 
   const simpleMode = state.experienceMode === 'simple' && state.featureFlags?.simple_mode !== false;
-  const allowedSimple = new Set(SIMPLE_MODE_VIEWS);
+  const allowedSimple = new Set(
+    Array.isArray(state.simpleNav) && state.simpleNav.length
+      ? state.simpleNav.map(String)
+      : SIMPLE_MODE_VIEWS
+  );
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
     .filter(Boolean)

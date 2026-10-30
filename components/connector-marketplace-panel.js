@@ -78,11 +78,30 @@ export default function ConnectorMarketplacePanel({ api, postJson, role, setActi
                   return result;
                 })}>Connect Zoho</button>
               )}
+              {provider.id === 'zoho_crm' && canEdit && provider.installStatus === 'connected' && (
+                <button type="button" className="secondaryAction" disabled={busy} onClick={() => run(
+                  () => postJson('/api/integrations/marketplace/connectors', { action: 'testZoho', provider: 'zoho_crm' }),
+                  'Zoho connection verified'
+                )}>Test connection</button>
+              )}
               {['zapier', 'pabbly'].includes(provider.id) && canEdit && (
                 <button type="button" className="primaryAction" disabled={busy} onClick={() => run(
                   () => postJson('/api/integrations/marketplace/connectors', { action: 'installWebhook', provider: provider.id }),
                   'Webhook credentials created — copy the secret now'
                 )}>Generate webhook</button>
+              )}
+              {['zapier', 'pabbly'].includes(provider.id) && canEdit && provider.installStatus === 'connected' && (
+                <button type="button" className="secondaryAction" disabled={busy} onClick={() => run(async () => {
+                  const outboundUrl = window.prompt('Paste your Zapier/Pabbly Catch Hook HTTPS URL (leave blank to clear)');
+                  if (outboundUrl === null) return null;
+                  return postJson('/api/integrations/marketplace/connectors', {
+                    action: 'setOutboundUrl',
+                    provider: provider.id,
+                    outboundUrl: outboundUrl.trim()
+                  });
+                }, 'Outbound webhook saved')}>
+                  {provider.outboundConfigured ? 'Update outbound URL' : 'Set outbound URL'}
+                </button>
               )}
               {['shopify', 'woocommerce'].includes(provider.id) && (
                 <button type="button" className="secondaryAction" onClick={() => setActiveView?.('integrations')}>Open store connectors</button>
