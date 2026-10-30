@@ -79,10 +79,16 @@ export default function ConnectorMarketplacePanel({ api, postJson, role, setActi
                 })}>Connect Zoho</button>
               )}
               {provider.id === 'zoho_crm' && canEdit && provider.installStatus === 'connected' && (
-                <button type="button" className="secondaryAction" disabled={busy} onClick={() => run(
-                  () => postJson('/api/integrations/marketplace/connectors', { action: 'testZoho', provider: 'zoho_crm' }),
-                  'Zoho connection verified'
-                )}>Test connection</button>
+                <>
+                  <button type="button" className="secondaryAction" disabled={busy} onClick={() => run(
+                    () => postJson('/api/integrations/marketplace/connectors', { action: 'testZoho', provider: 'zoho_crm' }),
+                    'Zoho connection verified'
+                  )}>Test connection</button>
+                  <button type="button" className="primaryAction" disabled={busy} onClick={() => run(
+                    () => postJson('/api/integrations/marketplace/connectors', { action: 'syncZoho', provider: 'zoho_crm' }),
+                    'Zoho contacts/leads synced'
+                  )}>Sync contacts</button>
+                </>
               )}
               {['zapier', 'pabbly'].includes(provider.id) && canEdit && (
                 <button type="button" className="primaryAction" disabled={busy} onClick={() => run(

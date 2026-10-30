@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { matchReplyRule } from '../lib/reply-bots.js';
 import { planAllowsFeature, planEntitlementKeys } from '../lib/plan-features.js';
 import { builtInSubscriptionPlans } from '../lib/default-plans.js';
-import { MARKETPLACE_PROVIDERS } from '../lib/marketplace-connectors.js';
+import { DEFAULT_PROVIDERS } from '../lib/smb-platform-config.js';
 import { ECOMMERCE_PLAYBOOKS } from '../lib/ecommerce-playbooks.js';
 import { SIMPLE_MODE_VIEWS } from '../components/workspace/nav-config.js';
 
@@ -22,7 +22,7 @@ test('default plans include SMB entitlement keys by tier', () => {
 });
 
 test('marketplace providers expose guided connectors without fake OAuth for Zapier/Pabbly', () => {
-  const byId = Object.fromEntries(MARKETPLACE_PROVIDERS.map((item) => [item.id, item]));
+  const byId = Object.fromEntries(DEFAULT_PROVIDERS.map((item) => [item.id, item]));
   assert.equal(byId.zapier.kind, 'webhook');
   assert.equal(byId.pabbly.kind, 'webhook');
   assert.equal(byId.zoho_crm.kind, 'oauth');

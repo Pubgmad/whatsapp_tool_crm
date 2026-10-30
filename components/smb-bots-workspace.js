@@ -103,6 +103,25 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
               </button>
             )}
           </header>
+          {canEdit && !!(reply?.templates || []).length && (
+            <div className="actionCluster" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+              <span className="wa-module-note">Starter templates</span>
+              {(reply.templates || []).map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="secondaryAction"
+                  disabled={busy}
+                  onClick={() => run(
+                    () => postJson('/api/bots/reply', { action: 'applyTemplate', templateId: template.id }),
+                    `Created from ${template.label}`
+                  )}
+                >
+                  {template.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="wa-module-table">
             <table>
               <thead><tr><th>Name</th><th>Status</th><th>Rules</th><th>Priority</th><th /></tr></thead>
@@ -336,7 +355,9 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
               {testResult.replyText ? `: ${testResult.replyText}` : ''}
             </p>
           )}
-          <p className="wa-module-note">Sync uses Google Sheets API polling about every 5 minutes for published bots, plus Manual Refresh. Instant cell-level push is not claimed.</p>
+          <p className="wa-module-note">
+            Sync uses Google Sheets API polling about every {sheets?.syncPolicy?.pollIntervalMinutes || 5} minutes for published bots (Super Admin policy), plus Manual Refresh. Instant cell-level push is not claimed.
+          </p>
         </section>
       )}
     </div>
