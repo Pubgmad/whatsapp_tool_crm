@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Activity, BadgeCheck, Ban, Building2, Eye, EyeOff, FileText, Loader2, LockKeyhole,
-  LogOut, Menu, Pencil, Plus, RefreshCcw, Save, Search, ShieldCheck, SlidersHorizontal,
+  LogOut, Menu, MessageSquareText, Pencil, Plus, RefreshCcw, Save, Search, ShieldCheck, SlidersHorizontal,
   ArrowDown, ArrowUp, History,
   Trash2, WalletCards, Wifi, WifiOff, X
 } from "lucide-react";
@@ -86,6 +86,7 @@ const adminSections = [
   { id: "overview", label: "Overview", href: "/super-admin", icon: Activity },
   { id: "plans", label: "Plans", href: "/super-admin/plans", icon: WalletCards },
   { id: 'features', label: 'Features', href: '/super-admin/features', icon: SlidersHorizontal },
+  { id: 'concierge', label: 'Concierge', href: '/super-admin/concierge', icon: MessageSquareText },
   { id: 'meta-webhooks', label: 'Meta webhooks', href: '/super-admin/meta-webhooks', icon: Wifi },
   { id: "content", label: "Content", href: "/super-admin/content", icon: FileText },
   { id: "privacy-policy", label: "Privacy policy", href: "/super-admin/privacy-policy", icon: ShieldCheck },
@@ -98,6 +99,7 @@ const adminHeadings = {
   overview: ["Platform overview", "Companies, subscriptions, and system health."],
   plans: ["Billing & plans", "Draft catalogue, entitlements, limits, and public pricing control."],
   features: ['Feature controls', 'Enable or disable modules for workspaces.'],
+  concierge: ['Concierge requests', 'Assisted onboarding and customer help cases.'],
   'meta-webhooks': ['Meta webhooks', 'Delivery failures and event replay.'],
   content: ["Website CMS", "Pages, navigation, branding, and feature content."],
   "privacy-policy": ["Privacy policy", "Draft, preview, and publish."],
@@ -405,7 +407,8 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
         razorpayConfigured={Boolean(dashboard.operations?.razorpayConfigured)}
       />}
       {initialSection === "content" && <><CmsSiteEditor api={api} notify={notify}/><ContentManager settings={settings.filter((item) => item.category !== 'feature_controls')} onSave={saveSetting} /></>}
-      {initialSection === 'features' && <ContentManager settings={settings.filter((item) => item.category === 'feature_controls')} onSave={saveSetting} />}
+      {initialSection === 'features' && <ContentManager settings={settings.filter((item) => item.category === 'feature_controls' || item.category === 'smb_experience')} onSave={saveSetting} />}
+      {initialSection === 'concierge' && <ConciergeQueue notify={notify} />}
       {initialSection === 'meta-webhooks' && <MetaWebhookOperations notify={notify} />}
       {initialSection === "privacy-policy" && <PrivacyPolicyEditor settings={settings} notify={notify} />}
       {initialSection === "data-requests" && <><WorkspaceDeletionQueue notify={notify} /><MetaDeletionQueue notify={notify} /></>}
@@ -428,6 +431,79 @@ export default function SuperAdminApp({ initialSection = "overview", initialComp
 
 function MetaCreditLines() {
   return <Panel title="Meta credit lines"><MetaCreditOperations api={api}/></Panel>;
+}
+
+function ConciergeQueue({ notify }) {
+  const [status, setStatus] = useState('open');
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [pendingId, setPendingId] = useState('');
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await api(`/api/super-admin/concierge?status=${encodeURIComponent(status)}`);
+      setRequests(result.requests || []);
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, [status]);
+  const update = async (id, nextStatus) => {
+    setPendingId(id);
+    try {
+      await api('/api/super-admin/concierge', {
+        method: 'POST',
+        body: JSON.stringify({ id, status: nextStatus, resolutionNote: nextStatus === 'resolved' ? 'Resolved by platform admin' : '' })
+      });
+      notify?.('Concierge request updated');
+      await load();
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setPendingId('');
+    }
+  };
+  return (
+    <Panel title="Concierge requests" subtitle="Assisted onboarding and customer help cases">
+      <div className="companyToolbar">
+        <label className="filterBox">
+          <SlidersHorizontal size={17} />
+          <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Concierge status">
+            <option value="open">Open</option>
+            <option value="in_progress">In progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <button className="secondaryAction" type="button" onClick={load} disabled={loading}><RefreshCcw size={16} /> Refresh</button>
+      </div>
+      {error && <p className="formError" role="alert">{error}</p>}
+      {loading && <p role="status">Loading…</p>}
+      <div className="companyList">
+        {requests.map((row) => (
+          <article key={row.id} className="companyRow">
+            <div>
+              <strong>{row.company_name || row.business_id}</strong>
+              <span>{row.request_type} · {row.status} · {new Date(row.created_at).toLocaleString()}</span>
+              <p>{row.description}</p>
+              {row.stage && <small>Stage: {row.stage}</small>}
+            </div>
+            <div className="actionCluster">
+              {row.status === 'open' && <button type="button" className="secondaryAction" disabled={pendingId === row.id} onClick={() => update(row.id, 'in_progress')}>Start</button>}
+              {['open', 'in_progress'].includes(row.status) && <button type="button" className="primaryAction" disabled={pendingId === row.id} onClick={() => update(row.id, 'resolved')}>Resolve</button>}
+              {row.status !== 'closed' && <button type="button" className="secondaryAction" disabled={pendingId === row.id} onClick={() => update(row.id, 'closed')}>Close</button>}
+            </div>
+          </article>
+        ))}
+        {!loading && !requests.length && <Empty text="No concierge requests in this view" />}
+      </div>
+    </Panel>
+  );
 }
 
 function MetaWebhookOperations({ notify }) {

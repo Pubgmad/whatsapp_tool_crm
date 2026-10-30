@@ -18,7 +18,9 @@ export const managerViews = new Set([
   'profile',
   'catalog',
   'meta_analytics',
-  'ai_agents'
+  'ai_agents',
+  'bots',
+  'onboarding'
 ]);
 
 export const featureForView = {
@@ -38,8 +40,24 @@ export const featureForView = {
   // Do not bind the whole view to `automation` or entitled connector workspaces get blocked.
   journeys: 'automation',
   groups: 'whatsapp_groups',
-  ai_agents: 'ai_agent'
+  ai_agents: 'ai_agent',
+  // Bots hub gates reply_bots / sheets_bot inside the panel (either entitlement is enough).
+  onboarding: 'assisted_onboarding'
 };
+
+/** Default Simple Mode destinations (overridable via platform smb_simple_nav). */
+export const SIMPLE_MODE_VIEWS = Object.freeze([
+  'overview',
+  'inbox',
+  'contacts',
+  'campaigns',
+  'bots',
+  'integrations',
+  'results',
+  'billing',
+  'onboarding',
+  'setup'
+]);
 
 /** Primary workspace routes (view id → pathname). */
 export const workspaceRoutes = {
@@ -70,7 +88,9 @@ export const workspaceRoutes = {
   results: '/app/analytics',
   inbox: '/app/inbox',
   unsubscribes: '/app/suppression',
-  ai_agents: '/app/ai-agents'
+  ai_agents: '/app/ai-agents',
+  bots: '/app/bots',
+  onboarding: '/app/onboarding'
 };
 
 /** Map setup subpaths to Setup() section ids (keeps existing panel components). */
@@ -117,7 +137,9 @@ export const pageTitles = {
   results: 'Analytics',
   inbox: 'Inbox',
   unsubscribes: 'Suppression',
-  ai_agents: 'AI Agents'
+  ai_agents: 'AI Agents',
+  bots: 'Bots',
+  onboarding: 'Get started'
 };
 
 /** One-line captions under page titles (keep short for premium density). */
@@ -150,7 +172,9 @@ export const pageIntros = {
   results: 'Campaign delivery, entry sources, and retargeting for this workspace.',
   inbox: 'Shared conversations and agent replies.',
   unsubscribes: 'Opt-outs and suppressed contacts.',
-  ai_agents: 'Configure assistants, knowledge, testing, and human handoff.'
+  ai_agents: 'Configure assistants, knowledge, testing, and human handoff.',
+  bots: 'Quick reply bots, Google Sheets brain, and links to AI Agents.',
+  onboarding: 'Guided WhatsApp setup for nontechnical owners.'
 };
 
 /** Cross-feature journey strips removed — they recreated dashboard-style chrome. */
@@ -206,10 +230,18 @@ export const navGroups = [
     id: 'automation',
     label: 'Automation & AI',
     items: [
-      { id: 'automation', label: 'Automation', icon: 'Bot' },
+      { id: 'bots', label: 'Bots', icon: 'Bot' },
+      { id: 'automation', label: 'Automation', icon: 'Workflow' },
       { id: 'ai_agents', label: 'AI Agents', icon: 'Sparkles' },
       { id: 'flows', label: 'Flows', icon: 'Workflow' },
       { id: 'media', label: 'Media', icon: 'Paperclip' }
+    ]
+  },
+  {
+    id: 'getting_started',
+    label: 'Getting started',
+    items: [
+      { id: 'onboarding', label: 'Get started', icon: 'Sparkles' }
     ]
   },
   {

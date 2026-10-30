@@ -22,6 +22,10 @@ import WorkspaceResultsManagerShell from './workspace-results-manager-shell';
 import { isWorkspaceManager } from '../lib/workspace-roles.ts';
 import WhatsAppGroups from './whatsapp-groups';
 import IntegrationMarketplace from './integration-marketplace';
+import ConnectorMarketplacePanel from './connector-marketplace-panel';
+import SmbBotsWorkspace from './smb-bots-workspace';
+import AssistedOnboardingPanel from './assisted-onboarding-panel';
+import EcommercePlaybooksPanel from './ecommerce-playbooks-panel';
 import MmLiteOptimizerPanel from './mm-lite-optimizer-panel';
 import MetaBillingVisibility from './meta-billing-visibility';
 import TemplateLibraryBrowser from './template-library-browser';
@@ -60,6 +64,7 @@ import {
   pageTitle as workspacePageTitle,
   productSwitcherIdForView,
   setupSectionByView,
+  SIMPLE_MODE_VIEWS,
   workspaceLocation,
   workspaceRoutes
 } from './workspace/nav-config.js';
@@ -89,7 +94,7 @@ const navItems = flatNavItems.map((item) => ({ ...item, icon: NAV_ICONS[item.ico
 
 /** Primary products shown in the compact switcher (not a full CRM dashboard nav). */
 const PRODUCT_SWITCHER_IDS = [
-  'setup', 'inbox', 'campaigns', 'ads', 'automation', 'calling', 'ai_agents',
+  'onboarding', 'setup', 'inbox', 'campaigns', 'ads', 'bots', 'automation', 'calling', 'ai_agents',
   'templates', 'contacts', 'results', 'commerce', 'integrations',
   'capabilities', 'team', 'billing', 'security', 'unsubscribes'
 ];
@@ -148,6 +153,8 @@ const emptyWorkspaceState = {
   events: [], automationFlows: [], teamMembers: [], pagination: {},
   setup: { status: 'Needs setup', health: null },
   featureFlags: {},
+  experienceMode: 'advanced',
+  onboardingState: {},
   meta: {}
 };
 
@@ -162,6 +169,8 @@ function mergeWorkspaceState(current, incoming) {
     ...incoming,
     setup: { ...emptyWorkspaceState.setup, ...(current?.setup || {}), ...(incoming?.setup || {}) },
     featureFlags: { ...(current?.featureFlags || {}), ...(incoming?.featureFlags || {}) },
+    experienceMode: incoming?.experienceMode || current?.experienceMode || 'advanced',
+    onboardingState: { ...(current?.onboardingState || {}), ...(incoming?.onboardingState || {}) },
     meta: { ...(current?.meta || {}), ...(incoming?.meta || {}) },
     pagination: { ...(current?.pagination || {}), ...(incoming?.pagination || {}) }
   };
@@ -622,17 +631,25 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   };
   const screenProps = { state, mutate, notify, changePage, reloadInbox, reloadSetup, applyWhatsAppConnection, clearWhatsAppConnection, setActiveView: navigate, approvedTemplates, marketableContacts, suppressedContacts, latestCampaign, activeConversation, activeContact, openConversation, platform: platformConfig, role: account.role, campaignRetarget, setCampaignRetarget, inboxFilter: pages.inboxFilter || state?.pagination?.inbox?.appliedFilter || "", inboxQ: pages.inboxQ || "", inboxSyncError: inboxSyncError || null, inboxSyncing, actionPending };
 
+  const simpleMode = state.experienceMode === 'simple' && state.featureFlags?.simple_mode !== false;
+  const allowedSimple = new Set(SIMPLE_MODE_VIEWS);
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
     .filter(Boolean)
     .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
-    .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups);
+    .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups)
+    .filter((item) => item.id !== 'bots' || state.featureFlags?.reply_bots || state.featureFlags?.sheets_bot)
+    .filter((item) => item.id !== 'onboarding' || state.featureFlags?.assisted_onboarding)
+    .filter((item) => !simpleMode || allowedSimple.has(item.id) || item.id === activeView);
   const activeGroup = navGroups.find((group) => group.items.some((item) => item.id === activeView));
   const secondaryItems = (activeGroup?.items || [])
     .map((item) => navItems.find((entry) => entry.id === item.id))
     .filter(Boolean)
     .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
-    .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups);
+    .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups)
+    .filter((item) => item.id !== 'bots' || state.featureFlags?.reply_bots || state.featureFlags?.sheets_bot)
+    .filter((item) => item.id !== 'onboarding' || state.featureFlags?.assisted_onboarding)
+    .filter((item) => !simpleMode || allowedSimple.has(item.id) || item.id === activeView);
   const isMetaSetup = activeView === 'setup' || Boolean(setupSectionByView[activeView]);
   const pageHeading = activeView === 'setup' ? 'WhatsApp connection' : workspacePageTitle(activeView);
 
@@ -960,7 +977,7 @@ function Screens({ activeView, setupSection = null, ...props }) {
     ads: <WhatsAppAds api={api} postJson={postJson} uploadForm={uploadForm} role={props.role} />,
     calling: <WhatsAppCalling api={api} postJson={postJson} role={props.role} />,
     conversions: <WhatsAppConversions api={api} postJson={postJson} role={props.role} />,
-    commerce: <><CommerceOpsPanel api={api} role={props.role} onOpenOrders={() => props.setActiveView?.('commerce')} /><WhatsAppCommerce api={api} postJson={postJson} role={props.role} automationEnabled={Boolean(props.state?.featureFlags?.automation)} /></>,
+    commerce: <><CommerceOpsPanel api={api} role={props.role} onOpenOrders={() => props.setActiveView?.('commerce')} />{props.state?.featureFlags?.ecommerce_playbooks && <EcommercePlaybooksPanel api={api} postJson={postJson} role={props.role} />}<WhatsAppCommerce api={api} postJson={postJson} role={props.role} automationEnabled={Boolean(props.state?.featureFlags?.automation)} /></>,
     catalog: <><WhatsAppCommerce api={api} postJson={postJson} role={props.role} automationEnabled={Boolean(props.state?.featureFlags?.automation)} initialView="catalogs" /><Setup {...props} forcedSection="commerce" hideSectionTabs onNavigateSection={props.setActiveView} /></>,
     // Overview dashboard retired from navigation; keep alias → Workspace/Meta setup.
     overview: <Setup {...props} forcedSection="connection" hideSectionTabs={false} onNavigateSection={props.setActiveView} />,
@@ -968,6 +985,8 @@ function Screens({ activeView, setupSection = null, ...props }) {
     contacts: <Contacts {...props} />,
     team: <Team {...props} />,
     ai_agents: <AiAgentsWorkspace {...props} />,
+    bots: <SmbBotsWorkspace api={api} postJson={postJson} role={props.role} featureFlags={props.state?.featureFlags} setActiveView={props.setActiveView} />,
+    onboarding: <AssistedOnboardingPanel api={api} postJson={postJson} role={props.role} setActiveView={props.setActiveView} experienceMode={props.state?.experienceMode} />,
     billing: <Billing {...props} />,
     security: <SecuritySettings />,
     templates: <Templates {...props} />,
@@ -1376,7 +1395,8 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
     {section === 'groups' && <WhatsAppGroups api={api} postJson={postJson} enabled={state.featureFlags?.whatsapp_groups} />}
     {section === 'integrations' && isWorkspaceManager(accountRole) && <>
       {accountRole !== 'Owner' && <p className="wa-module-note" role="status">Managers can review connector status. Connecting stores, CRM sync, API keys, and webhooks require the workspace Owner.</p>}
-      <IntegrationMarketplace api={api} />
+      <ConnectorMarketplacePanel api={api} postJson={postJson} role={accountRole} setActiveView={onNavigateSection} />
+      <details className="techDetails"><summary>Legacy catalog recipes</summary><IntegrationMarketplace api={api} /></details>
       {state.featureFlags?.connectors && <ProviderConnectors api={api} postJson={postJson} canEdit={accountRole === 'Owner'} recoveryAllowed={Boolean(state.featureFlags?.checkout_recovery && state.featureFlags?.automation)} />}
       {state.featureFlags?.segments && <TrackedLinks api={api} postJson={postJson} role={accountRole}/>}
       {state.featureFlags?.webviews&&<WhatsAppWebviews api={api} postJson={postJson}/>}

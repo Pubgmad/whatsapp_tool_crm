@@ -264,6 +264,7 @@ try {
   await client.query(await fs.readFile(new URL('../db/other-features-production.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/production-parity-extensions.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/feature-completion-wave.sql', import.meta.url), 'utf8'));
+  await client.query(await fs.readFile(new URL('../db/smb-competitive-wave.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/meta-webhook-queue.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/public-site.sql', import.meta.url), 'utf8'));
   await client.query(await fs.readFile(new URL('../db/google-login-oauth.sql', import.meta.url), 'utf8'));
