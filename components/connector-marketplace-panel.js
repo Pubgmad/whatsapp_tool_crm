@@ -59,14 +59,14 @@ export default function ConnectorMarketplacePanel({ api, postJson, role, setActi
         <Search size={16} />
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search connectors" />
       </label>
-      <div className="capabilityGrid">
+      <div className="capabilityGrid smbCapabilityGrid">
         {filtered.map((provider) => (
-          <article key={provider.id}>
+          <article key={provider.id} className={provider.installStatus === 'connected' ? 'is-selected' : ''}>
             <strong>{provider.label}</strong>
             <small>{provider.category} · {provider.installStatus}</small>
             <p>{provider.summary}</p>
             <p className="wa-module-note">{provider.connectionNote}</p>
-            {provider.inboundUrl && <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{provider.inboundUrl}</code>}
+            {provider.inboundUrl && <code className="wa-module-code">{provider.inboundUrl}</code>}
             <div className="actionCluster">
               {provider.id === 'google_sheets' && (
                 <button type="button" className="secondaryAction" onClick={() => setActiveView?.('bots')}>Open Sheets bot</button>

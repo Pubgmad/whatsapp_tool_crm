@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ShoppingBag } from 'lucide-react';
 import './whatsapp-modules.css';
 
@@ -11,7 +11,8 @@ export default function EcommercePlaybooksPanel({ api, postJson, role }) {
   const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState('');
   const [form, setForm] = useState({ connectorId: '', flowId: '', templateId: '', delayMinutes: 60, consentAcknowledged: false });
-  const canEdit = role === 'Owner';
+  const canManage = role === 'Owner' || role === 'Manager';
+  const canActivate = role === 'Owner';
 
   const load = async () => {
     try {
@@ -26,6 +27,25 @@ export default function EcommercePlaybooksPanel({ api, postJson, role }) {
   useEffect(() => { load(); }, [api]);
 
   const playbook = (data?.playbooks || []).find((item) => item.id === selected);
+  const playbookLabels = useMemo(
+    () => Object.fromEntries((data?.playbooks || []).map((item) => [item.id, item.label])),
+    [data?.playbooks]
+  );
+
+  const setStatus = async (activationId, status, success) => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await postJson('/api/commerce/playbooks', { action: 'setStatus', activationId, status });
+      setNotice(success);
+      await load();
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <section className="wa-module">
@@ -35,11 +55,11 @@ export default function EcommercePlaybooksPanel({ api, postJson, role }) {
       {error && <p className="wa-module-error" role="alert">{error}</p>}
       {notice && <p className="formSuccess" role="status">{notice}</p>}
       {!data && !error && <p role="status">Loading playbooks…</p>}
-      <div className="capabilityGrid">
+      <div className="capabilityGrid smbCapabilityGrid">
         {(data?.playbooks || []).map((item) => (
           <article key={item.id} className={selected === item.id ? 'is-selected' : ''}>
             <strong>{item.label}</strong>
-            <small>{item.provider} · {item.kind}</small>
+            <small>{item.provider} · {item.kind}{item.version ? ` · v${item.version}` : ''}</small>
             <p>{item.description}</p>
             <button type="button" className="secondaryAction" onClick={() => {
               setSelected(item.id);
@@ -47,9 +67,12 @@ export default function EcommercePlaybooksPanel({ api, postJson, role }) {
             }}>Configure</button>
           </article>
         ))}
+        {data && !(data.playbooks || []).length && (
+          <p className="wa-module-note">No playbooks published. Ask Super Admin to enable items in smb_ecommerce_playbooks.</p>
+        )}
       </div>
 
-      {playbook && canEdit && (
+      {playbook && canActivate && (
         <form className="formGrid" onSubmit={async (event) => {
           event.preventDefault();
           setBusy(true);
@@ -93,9 +116,12 @@ export default function EcommercePlaybooksPanel({ api, postJson, role }) {
             </select>
           </label>
           <label>Delay (minutes)<input type="number" min={0} max={43200} value={form.delayMinutes} onChange={(e) => setForm((c) => ({ ...c, delayMinutes: Number(e.target.value) }))} /></label>
-          <label><input type="checkbox" checked={form.consentAcknowledged} onChange={(e) => setForm((c) => ({ ...c, consentAcknowledged: e.target.checked }))} required /> I confirm recovery messages only go to eligible consented contacts</label>
-          <button className="primaryAction" type="submit" disabled={busy || !form.consentAcknowledged}>Activate playbook</button>
+          <label className="checkRow"><input type="checkbox" checked={form.consentAcknowledged} onChange={(e) => setForm((c) => ({ ...c, consentAcknowledged: e.target.checked }))} required /> I confirm recovery messages only go to eligible consented contacts</label>
+          <button className="primaryAction" type="submit" disabled={busy || !form.consentAcknowledged}>{busy ? 'Activating…' : 'Activate playbook'}</button>
         </form>
+      )}
+      {playbook && !canActivate && canManage && (
+        <p className="wa-module-note">Only the workspace owner can activate ecommerce playbooks. Managers can pause or resume existing activations.</p>
       )}
 
       <h3>Active activations</h3>
@@ -105,23 +131,16 @@ export default function EcommercePlaybooksPanel({ api, postJson, role }) {
           <tbody>
             {(data?.activations || []).map((row) => (
               <tr key={row.id}>
-                <td>{row.playbook_id}</td>
+                <td>{playbookLabels[row.playbook_id] || row.config?.playbookLabel || row.playbook_id}</td>
                 <td>{row.provider}</td>
                 <td>{row.delay_minutes}m</td>
                 <td>{row.status}</td>
-                <td>
-                  {canEdit && row.status === 'active' && (
-                    <button type="button" disabled={busy} onClick={async () => {
-                      setBusy(true);
-                      try {
-                        await postJson('/api/commerce/playbooks', { action: 'setStatus', activationId: row.id, status: 'paused' });
-                        await load();
-                      } catch (cause) {
-                        setError(cause.message);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}>Pause</button>
+                <td className="actionCluster">
+                  {canManage && row.status === 'active' && (
+                    <button type="button" disabled={busy} onClick={() => setStatus(row.id, 'paused', 'Playbook paused')}>Pause</button>
+                  )}
+                  {canManage && row.status === 'paused' && (
+                    <button type="button" disabled={busy} onClick={() => setStatus(row.id, 'active', 'Playbook resumed')}>Resume</button>
                   )}
                 </td>
               </tr>

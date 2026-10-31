@@ -16,15 +16,16 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
   const [rules, setRules] = useState([]);
   const [testText, setTestText] = useState('');
   const [testResult, setTestResult] = useState(null);
-  const [ruleForm, setRuleForm] = useState({ pattern: '', replyText: '', matchType: 'contains', synonymsText: '' });
+  const [ruleForm, setRuleForm] = useState({ ruleId: '', pattern: '', replyText: '', matchType: 'contains', synonymsText: '' });
   const [sheetForm, setSheetForm] = useState({
     name: 'FAQ bot',
     schemaId: 'faq',
     spreadsheetId: '',
     spreadsheetTitle: '',
     sheetName: '',
-    fallbackText: "Thanks — a teammate will follow up shortly.",
+    fallbackText: '',
     matchMode: 'keyword',
+    syncMode: 'poll',
     columnMap: { question: 'Question', answer: 'Answer', keywords: 'Keywords', enabled: 'Enabled' }
   });
   const [files, setFiles] = useState([]);
@@ -39,6 +40,13 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
       ]);
       setReply(replyData);
       setSheets(sheetsData);
+      const fallback = replyData.defaultFallback || sheetsData.defaultFallback || '';
+      const matchModes = sheetsData.syncPolicy?.matchModes || [];
+      setSheetForm((current) => ({
+        ...current,
+        fallbackText: current.fallbackText || fallback,
+        matchMode: matchModes.includes(current.matchMode) ? current.matchMode : (matchModes[0] || current.matchMode)
+      }));
       if (!selectedBot && replyData.bots?.[0]?.id) setSelectedBot(replyData.bots[0].id);
     } catch (cause) {
       setError(cause.message);
@@ -82,7 +90,7 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
       {error && <p className="formError" role="alert">{error}</p>}
       {notice && <p className="formSuccess" role="status">{notice}</p>}
 
-      <div className="wa-module-controls" style={{ gap: 8, flexWrap: 'wrap' }}>
+      <div className="wa-module-controls wa-module-tabs">
         <button type="button" className={tab === 'quick' ? 'primaryAction' : 'secondaryAction'} onClick={() => setTab('quick')}><Bot size={16} /> Quick reply bot</button>
         <button type="button" className={tab === 'sheets' ? 'primaryAction' : 'secondaryAction'} onClick={() => setTab('sheets')} disabled={!featureFlags?.sheets_bot}><Sheet size={16} /> Google Sheets bot</button>
         <button type="button" className="secondaryAction" onClick={() => setActiveView?.('ai_agents')}><Sparkles size={16} /> AI Agent</button>
@@ -97,14 +105,14 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
               <button type="button" disabled={busy} onClick={() => run(async () => {
                 const name = window.prompt('Bot name', 'Store FAQ');
                 if (!name) return;
-                await postJson('/api/bots/reply', { action: 'create', name, fallbackText: 'Thanks — a teammate will follow up shortly.' });
+                await postJson('/api/bots/reply', { action: 'create', name, fallbackText: reply?.defaultFallback || '' });
               }, 'Bot created')}>
                 <Plus size={16} /> New bot
               </button>
             )}
           </header>
           {canEdit && !!(reply?.templates || []).length && (
-            <div className="actionCluster" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+            <div className="actionCluster wa-module-wrap">
               <span className="wa-module-note">Starter templates</span>
               {(reply.templates || []).map((template) => (
                 <button
@@ -161,6 +169,15 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                         <td>{rule.reply_text}</td>
                         <td className="actionCluster">
                           {canEdit && (
+                            <button type="button" disabled={busy} onClick={() => setRuleForm({
+                              ruleId: rule.id,
+                              pattern: rule.pattern || '',
+                              replyText: rule.reply_text || '',
+                              matchType: rule.match_type || 'contains',
+                              synonymsText: Array.isArray(rule.synonyms) ? rule.synonyms.join(', ') : ''
+                            })}>Edit</button>
+                          )}
+                          {canEdit && (
                             <button type="button" disabled={busy} onClick={() => run(async () => {
                               await postJson('/api/bots/reply', { action: 'duplicateRule', ruleId: rule.id });
                               const refreshed = await postJson('/api/bots/reply', { action: 'listRules', botId: selectedBot });
@@ -177,7 +194,7 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                         </td>
                       </tr>
                     ))}
-                    {!rules.length && <tr><td colSpan={4}>No rules yet.</td></tr>}
+                    {!rules.length && <tr><td colSpan={4}>No rules yet. Add a rule or apply a Super Admin template.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -186,10 +203,10 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                   event.preventDefault();
                   run(async () => {
                     await postJson('/api/bots/reply', { action: 'upsertRule', botId: selectedBot, ...ruleForm });
-                    setRuleForm({ pattern: '', replyText: '', matchType: 'contains', synonymsText: '' });
+                    setRuleForm({ ruleId: '', pattern: '', replyText: '', matchType: 'contains', synonymsText: '' });
                     const refreshed = await postJson('/api/bots/reply', { action: 'listRules', botId: selectedBot });
                     setRules(refreshed.rules || []);
-                  }, 'Rule saved');
+                  }, ruleForm.ruleId ? 'Rule updated' : 'Rule saved');
                 }}>
                   <label>When customer says<input value={ruleForm.pattern} onChange={(e) => setRuleForm((c) => ({ ...c, pattern: e.target.value }))} required /></label>
                   <label>Match type
@@ -202,7 +219,16 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                   </label>
                   <label>Synonyms (optional)<input value={ruleForm.synonymsText} onChange={(e) => setRuleForm((c) => ({ ...c, synonymsText: e.target.value }))} placeholder="price, cost, fee" /></label>
                   <label>Reply with<textarea value={ruleForm.replyText} onChange={(e) => setRuleForm((c) => ({ ...c, replyText: e.target.value }))} required rows={3} /></label>
-                  <button className="primaryAction" type="submit" disabled={busy}><Plus size={16} /> Add rule</button>
+                  <div className="actionCluster wa-module-wrap">
+                    <button className="primaryAction" type="submit" disabled={busy}>
+                      <Plus size={16} /> {ruleForm.ruleId ? 'Update rule' : 'Add rule'}
+                    </button>
+                    {ruleForm.ruleId ? (
+                      <button type="button" className="secondaryAction" disabled={busy} onClick={() => setRuleForm({ ruleId: '', pattern: '', replyText: '', matchType: 'contains', synonymsText: '' })}>
+                        Cancel edit
+                      </button>
+                    ) : null}
+                  </div>
                 </form>
               )}
               <form className="formGrid" onSubmit={(event) => {
@@ -273,7 +299,7 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                   {(sheets.schemas || []).map((schema) => <option key={schema.id} value={schema.id}>{schema.label}</option>)}
                 </select>
               </label>
-              <div className="actionCluster">
+              <div className="actionCluster wa-module-wrap">
                 <button type="button" className="secondaryAction" disabled={busy} onClick={() => run(async () => {
                   const result = await postJson('/api/bots/sheets', { action: 'listSpreadsheets' });
                   setFiles(result.files || []);
@@ -294,29 +320,56 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                   </select>
                 </label>
               )}
-              {!!sheetNames.length && (
+              <label>Spreadsheet ID
+                <input
+                  value={sheetForm.spreadsheetId}
+                  onChange={(e) => setSheetForm((c) => ({ ...c, spreadsheetId: e.target.value.trim() }))}
+                  placeholder="From Drive URL or Load spreadsheets"
+                  required
+                />
+              </label>
+              <label>Spreadsheet title<input value={sheetForm.spreadsheetTitle} onChange={(e) => setSheetForm((c) => ({ ...c, spreadsheetTitle: e.target.value }))} /></label>
+              {!!sheetNames.length ? (
                 <label>Worksheet
                   <select value={sheetForm.sheetName} onChange={(e) => setSheetForm((c) => ({ ...c, sheetName: e.target.value }))}>
                     <option value="">Select worksheet</option>
                     {sheetNames.map((name) => <option key={name} value={name}>{name}</option>)}
                   </select>
                 </label>
+              ) : (
+                <label>Worksheet name
+                  <input value={sheetForm.sheetName} onChange={(e) => setSheetForm((c) => ({ ...c, sheetName: e.target.value }))} placeholder="Sheet1" required />
+                </label>
               )}
-              {((sheets.schemas || []).find((schema) => schema.id === sheetForm.schemaId)?.fields || [
-                { key: 'question', label: 'Question' },
-                { key: 'answer', label: 'Answer' },
-                { key: 'keywords', label: 'Keywords' }
-              ]).map((field) => (
+              <label>Match mode
+                <select value={sheetForm.matchMode} onChange={(e) => setSheetForm((c) => ({ ...c, matchMode: e.target.value }))}>
+                  {(sheets.syncPolicy?.matchModes || ['keyword', 'exact', 'normalized']).map((mode) => (
+                    <option key={mode} value={mode}>{mode}</option>
+                  ))}
+                </select>
+              </label>
+              <label>Sync mode
+                <select value={sheetForm.syncMode} onChange={(e) => setSheetForm((c) => ({ ...c, syncMode: e.target.value }))}>
+                  <option value="poll">Automatic poll (Super Admin interval)</option>
+                  <option value="manual">Manual refresh only</option>
+                </select>
+              </label>
+              {!(sheets.schemas || []).length && (
+                <p className="wa-module-note" role="status">No schema templates configured. Ask Super Admin to edit smb_sheets_schemas.</p>
+              )}
+              {((sheets.schemas || []).find((schema) => schema.id === sheetForm.schemaId)?.fields || []).map((field) => (
                 <label key={field.key}>{field.label} column
                   <input
                     value={sheetForm.columnMap[field.key] || ''}
                     onChange={(e) => setSheetForm((c) => ({ ...c, columnMap: { ...c.columnMap, [field.key]: e.target.value } }))}
-                    required={field.required !== false && ['question', 'answer', 'reply', 'product', 'service'].includes(field.key)}
+                    required={field.required === true}
                   />
                 </label>
               ))}
               <label>Fallback<textarea rows={2} value={sheetForm.fallbackText} onChange={(e) => setSheetForm((c) => ({ ...c, fallbackText: e.target.value }))} /></label>
-              <button className="primaryAction" type="submit" disabled={busy || !sheetForm.spreadsheetId || !sheetForm.sheetName}>Save mapping</button>
+              <button className="primaryAction" type="submit" disabled={busy || !sheetForm.spreadsheetId || !sheetForm.sheetName}>
+                {busy ? 'Saving…' : 'Save mapping'}
+              </button>
             </form>
           )}
 

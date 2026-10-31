@@ -24,6 +24,10 @@ export default function AssistedOnboardingPanel({ api, postJson, role, setActive
       const idx = Math.max(0, steps.findIndex((step) => step.id === current));
       setStepIndex(idx >= 0 ? idx : 0);
       setBusinessNotes(result.state?.businessNotes || '');
+      const topics = result.conciergeTopics || [];
+      if (topics.length && !topics.some((topic) => topic.id === helpType)) {
+        setHelpType(topics[0].id);
+      }
     } catch (cause) {
       setError(cause.message);
     }
@@ -65,29 +69,44 @@ export default function AssistedOnboardingPanel({ api, postJson, role, setActive
           <strong>Get started</strong>
           <span>Plain-language setup for WhatsApp — no WABA jargon required.</span>
         </div>
-        {canEdit && (
-          <button
-            type="button"
-            className="secondaryAction"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                const next = (experienceMode || data.experienceMode) === 'simple' ? 'advanced' : 'simple';
-                await postJson('/api/onboarding/assisted', { action: 'setExperienceMode', mode: next });
-                setNotice(`Switched to ${next} mode`);
-                await load();
-                window.location.reload();
-              } catch (cause) {
-                setError(cause.message);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {(experienceMode || data.experienceMode) === 'simple' ? 'Switch to Advanced' : 'Switch to Simple Mode'}
-          </button>
-        )}
+        <div className="actionCluster wa-module-wrap">
+          {canEdit && (
+            <button
+              type="button"
+              className="secondaryAction"
+              disabled={busy}
+              onClick={async () => {
+                await save({ businessNotes, resumedAt: new Date().toISOString() }, step.id);
+                setActiveView?.('overview');
+              }}
+            >
+              Resume later
+            </button>
+          )}
+          {canEdit && (
+            <button
+              type="button"
+              className="secondaryAction"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const next = (experienceMode || data.experienceMode) === 'simple' ? 'advanced' : 'simple';
+                  await postJson('/api/onboarding/assisted', { action: 'setExperienceMode', mode: next });
+                  setNotice(`Switched to ${next} mode`);
+                  await load();
+                  window.location.reload();
+                } catch (cause) {
+                  setError(cause.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {(experienceMode || data.experienceMode) === 'simple' ? 'Switch to Advanced' : 'Switch to Simple Mode'}
+            </button>
+          )}
+        </div>
       </section>
       {error && <p className="formError" role="alert">{error}</p>}
       {notice && <p className="formSuccess" role="status">{notice}</p>}
@@ -123,9 +142,9 @@ export default function AssistedOnboardingPanel({ api, postJson, role, setActive
         )}
 
         {step.id === 'goal' && (
-          <div className="capabilityGrid">
+          <div className="capabilityGrid smbCapabilityGrid">
             {(data.goals || []).map((goal) => (
-              <article key={goal.id}>
+              <article key={goal.id} className={data.state?.goalId === goal.id ? 'is-selected' : ''}>
                 <strong>{goal.label}</strong>
                 <button type="button" className="secondaryAction" disabled={busy || !canEdit} onClick={async () => {
                   await save({ goalId: goal.id });
@@ -155,7 +174,7 @@ export default function AssistedOnboardingPanel({ api, postJson, role, setActive
           </div>
         )}
 
-        <div className="actionCluster" style={{ marginTop: 16 }}>
+        <div className="actionCluster wa-module-wrap">
           <button type="button" className="secondaryAction" disabled={stepIndex === 0} onClick={() => setStepIndex((i) => Math.max(0, i - 1))}>Back</button>
           <button type="button" className="secondaryAction" disabled={stepIndex >= steps.length - 1} onClick={() => setStepIndex((i) => Math.min(steps.length - 1, i + 1))}>Next</button>
         </div>
@@ -163,9 +182,9 @@ export default function AssistedOnboardingPanel({ api, postJson, role, setActive
 
       <section className="wa-module">
         <header className="wa-module-heading"><h2>Checklist</h2></header>
-        <ul className="wa-module-note" style={{ listStyle: 'none', padding: 0 }}>
+        <ul className="wa-module-checklist wa-module-note">
           {(data.checklist || []).map((item) => (
-            <li key={item.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+            <li key={item.id}>
               {item.done ? <CheckCircle2 size={16} /> : <Circle size={16} />}
               <button type="button" className="linkish" onClick={() => {
                 if (item.href?.includes('/bots')) setActiveView?.('bots');
@@ -205,13 +224,9 @@ export default function AssistedOnboardingPanel({ api, postJson, role, setActive
           }}>
             <label>Topic
               <select value={helpType} onChange={(e) => setHelpType(e.target.value)}>
-                <option value="meta_connection">Meta / WhatsApp connection</option>
-                <option value="phone_setup">Phone number setup</option>
-                <option value="templates">Template approval</option>
-                <option value="first_campaign">First campaign</option>
-                <option value="sheets_bot">Google Sheets bot</option>
-                <option value="ecommerce">Ecommerce integration</option>
-                <option value="automation">First automation</option>
+                {(data.conciergeTopics || []).map((topic) => (
+                  <option key={topic.id} value={topic.id}>{topic.label}</option>
+                ))}
               </select>
             </label>
             <label>Describe what you need<textarea rows={4} value={helpText} onChange={(e) => setHelpText(e.target.value)} required minLength={10} /></label>

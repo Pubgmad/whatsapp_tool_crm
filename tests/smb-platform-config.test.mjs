@@ -5,6 +5,10 @@ import {
   DEFAULT_PROVIDERS,
   DEFAULT_PLAYBOOKS,
   DEFAULT_BOT_TEMPLATES,
+  DEFAULT_ONBOARDING_GOALS,
+  DEFAULT_CONCIERGE_TOPICS,
+  DEFAULT_ZOHO_POLICY,
+  DEFAULT_FALLBACK,
   MARKETPLACE_ADAPTERS
 } from '../lib/smb-platform-config.js';
 
@@ -36,4 +40,21 @@ test('reply bot templates include rules with pattern and reply', () => {
       assert.ok(rule.replyText);
     }
   }
+});
+
+test('onboarding goals and concierge topics have ids and labels', () => {
+  assert.ok(DEFAULT_ONBOARDING_GOALS.length >= 3);
+  for (const goal of DEFAULT_ONBOARDING_GOALS) {
+    assert.ok(goal.id && goal.label && goal.next);
+  }
+  assert.ok(DEFAULT_CONCIERGE_TOPICS.length >= 3);
+  for (const topic of DEFAULT_CONCIERGE_TOPICS) {
+    assert.ok(topic.id && topic.label);
+  }
+});
+
+test('zoho sync policy and default fallback are defined', () => {
+  assert.ok(DEFAULT_ZOHO_POLICY.intervalMinutes >= DEFAULT_ZOHO_POLICY.minIntervalMinutes);
+  assert.ok(DEFAULT_ZOHO_POLICY.modules.includes('Contacts'));
+  assert.ok(String(DEFAULT_FALLBACK).length > 10);
 });

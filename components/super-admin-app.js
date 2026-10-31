@@ -974,7 +974,8 @@ function PrivacyPolicyEditor({ settings, notify }) {
 
 function ContentManager({ settings, onSave }) {
   const groups = useMemo(() => settings.reduce((acc, setting) => ({ ...acc, [setting.category]: [...(acc[setting.category] || []), setting] }), {}), [settings]);
-  return <Panel title="Platform content" subtitle="Public business copy and labels controlled by Super Admin" id="content">
+  const hasSmb = settings.some((item) => item.category === 'smb_experience');
+  return <Panel title="Platform content" subtitle={hasSmb ? "Feature flags and SMB experience JSON (sync policy, marketplace, playbooks, templates, onboarding) controlled by Super Admin" : "Public business copy and labels controlled by Super Admin"} id="content">
     <div className="settingsGrid">
       {Object.entries(groups).map(([category, rows]) => <section className="settingGroup" key={category}><h3>{category.replace(/_/g, " ")}</h3>{rows.map((setting) => <SettingForm setting={setting} key={setting.key} onSave={onSave} />)}</section>)}
       {!settings.length && <Empty text="No platform settings found. Run the database initializer." />}
@@ -995,7 +996,9 @@ function BooleanSettingForm({ setting, onSave }) {
 function TextSettingForm({ setting, onSave }) {
   const [value, setValue] = useState(setting.value ?? "");
   const [pending, setPending] = useState(false);
-  const isLong = setting.valueType === "rich_text" || setting.valueType === "json";
+  const isJson = setting.valueType === "json";
+  const isLong = setting.valueType === "rich_text" || isJson;
+  const jsonRows = setting.category === 'smb_experience' ? 12 : 6;
   const submit = async (event) => {
     event.preventDefault();
     if (pending) return;
@@ -1008,8 +1011,14 @@ function TextSettingForm({ setting, onSave }) {
       setPending(false);
     }
   };
-  return <form className="settingRow" onSubmit={submit}>
-    <label>{setting.label}{isLong ? <textarea rows="3" value={typeof value === "string" ? value : JSON.stringify(value, null, 2)} onChange={(event) => setValue(event.target.value)} /> : <input value={typeof value === "string" || typeof value === "number" ? value : JSON.stringify(value)} onChange={(event) => setValue(event.target.value)} />}</label>
+  return <form className={`settingRow${isJson ? ' settingRowJson' : ''}`} onSubmit={submit}>
+    <label>
+      {setting.label}
+      {setting.key ? <small className="muted" style={{ display: 'block', marginTop: 2 }}>{setting.key}</small> : null}
+      {isLong
+        ? <textarea rows={isJson ? jsonRows : 3} spellCheck={false} value={typeof value === "string" ? value : JSON.stringify(value, null, 2)} onChange={(event) => setValue(event.target.value)} />
+        : <input value={typeof value === "string" || typeof value === "number" ? value : JSON.stringify(value)} onChange={(event) => setValue(event.target.value)} />}
+    </label>
     <button className={`secondaryAction${pending ? ' isPending' : ''}`} type="submit" disabled={pending} aria-busy={pending ? 'true' : undefined}>{pending ? <Loader2 className="spin" size={15} aria-hidden="true" /> : <Save size={15} />}<span>{pending ? 'Saving…' : 'Save'}</span></button>
   </form>;
 }

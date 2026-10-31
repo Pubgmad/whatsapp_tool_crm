@@ -29,6 +29,28 @@ INSERT INTO platform_settings (id, key, label, category, value, value_type, is_p
       {"id":"pricing_intro","label":"Pricing intro","description":"Acknowledge price questions and ask for the product.","enabled":true,"version":1,"fallbackText":"Thanks — a teammate will share pricing shortly.","rules":[{"matchType":"any_keyword","pattern":"price","synonyms":["cost","fee","rate"],"replyText":"Happy to help with pricing. Which product or service are you asking about?"}]}
     ]'::jsonb,
     'json', FALSE, 513)
+  ,
+  ('ps_smb_onboarding_goals', 'smb_onboarding_goals', 'Assisted onboarding goals', 'smb_experience',
+    '[{"id":"answer_questions","label":"Answer customer questions automatically","next":"bots"},{"id":"leads","label":"Capture leads","next":"campaigns"},{"id":"campaigns","label":"Send promotional campaigns","next":"campaigns"},{"id":"support","label":"Manage WhatsApp customer support","next":"inbox"},{"id":"checkout_recovery","label":"Recover abandoned checkouts","next":"commerce"},{"id":"appointments","label":"Send appointment reminders","next":"automation"}]'::jsonb,
+    'json', FALSE, 514),
+  ('ps_smb_concierge_topics', 'smb_concierge_topics', 'Concierge request topic options', 'smb_experience',
+    '[{"id":"meta_connection","label":"Meta / WhatsApp connection"},{"id":"phone_setup","label":"Phone number setup"},{"id":"templates","label":"Template approval"},{"id":"first_campaign","label":"First campaign"},{"id":"sheets_bot","label":"Google Sheets bot"},{"id":"ecommerce","label":"Ecommerce integration"},{"id":"automation","label":"First automation"}]'::jsonb,
+    'json', FALSE, 515),
+  ('ps_smb_zoho_sync_policy', 'smb_zoho_sync_policy', 'Zoho CRM sync policy', 'smb_experience',
+    '{"intervalMinutes":15,"minIntervalMinutes":5,"maxIntervalMinutes":1440,"modules":["Contacts","Leads"],"accountsHost":"https://accounts.zoho.com","phoneFields":["Phone","Mobile","Other_Phone"],"nameFields":["Full_Name","Last_Name","First_Name","Company","Email"]}'::jsonb,
+    'json', FALSE, 516),
+  ('ps_smb_default_fallback', 'smb_default_fallback', 'Default bot fallback reply', 'smb_experience',
+    '"Thanks — a teammate will follow up shortly."'::jsonb,
+    'json', FALSE, 517)
 ON CONFLICT (key) DO NOTHING;
+
+-- Align Simple Mode seed with product destinations (idempotent update only when still the original 8-item seed).
+UPDATE platform_settings
+SET value = '["overview","inbox","contacts","campaigns","bots","integrations","results","billing","onboarding","setup"]'::jsonb,
+    updated_at = NOW()
+WHERE key = 'smb_simple_nav'
+  AND value = '["overview","inbox","contacts","campaigns","bots","integrations","results","billing"]'::jsonb;
+
+ALTER TABLE sheets_bots ADD COLUMN IF NOT EXISTS sync_fail_count INTEGER NOT NULL DEFAULT 0;
 
 -- Workspace Zoho sync cursor / mapping lives on marketplace_connector_installs.config (no schema change required).

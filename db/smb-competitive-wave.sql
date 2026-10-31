@@ -14,7 +14,7 @@ INSERT INTO platform_settings (id, key, label, category, value, value_type, is_p
     '[{"id":"business","label":"Tell us about your business","help":"Share a short description so we can recommend the right setup."},{"id":"connect","label":"Connect WhatsApp","help":"Use Meta Embedded Signup to link your Business number."},{"id":"verify","label":"Verify connection","help":"Confirm WABA and phone readiness."},{"id":"goal","label":"Choose your goal","help":"Pick what you want to achieve first."},{"id":"setup","label":"Set up your first feature","help":"Activate a starter bot, campaign, or store playbook."},{"id":"test","label":"Test","help":"Preview replies or send an authorized test."},{"id":"live","label":"Go live","help":"Activate only when prerequisites are met."}]'::jsonb,
     'json', FALSE, 501),
   ('ps_smb_simple_nav', 'smb_simple_nav', 'Simple Mode primary destinations', 'smb_experience',
-    '["overview","inbox","contacts","campaigns","bots","integrations","results","billing"]'::jsonb,
+    '["overview","inbox","contacts","campaigns","bots","integrations","results","billing","onboarding","setup"]'::jsonb,
     'json', FALSE, 502),
   ('ps_smb_concierge_enabled', 'smb_concierge_enabled', 'Concierge assistance requests enabled', 'smb_experience', 'true'::jsonb, 'boolean', FALSE, 503)
 ON CONFLICT (key) DO NOTHING;
