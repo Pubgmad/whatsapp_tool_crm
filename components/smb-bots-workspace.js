@@ -18,10 +18,9 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(() => {
     if (typeof window === 'undefined') return '';
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('sheets') === 'connected') return 'Google Sheets connected.';
-    const sheetsError = params.get('sheets_error');
-    return sheetsError ? '' : '';
+    return new URLSearchParams(window.location.search).get('sheets') === 'connected'
+      ? 'Google Sheets connected.'
+      : '';
   });
   const [selectedBot, setSelectedBot] = useState('');
   const [rules, setRules] = useState([]);
