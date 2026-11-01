@@ -6,12 +6,23 @@ import './whatsapp-modules.css';
 
 export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, setActiveView }) {
   const canEdit = role === 'Owner' || role === 'Manager';
-  const [tab, setTab] = useState('quick');
+  const [tab, setTab] = useState(() => {
+    if (typeof window === 'undefined') return 'quick';
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('sheets') === 'connected' || params.get('sheets_error')) return 'sheets';
+    return 'quick';
+  });
   const [reply, setReply] = useState(null);
   const [sheets, setSheets] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('sheets') === 'connected') return 'Google Sheets connected.';
+    const sheetsError = params.get('sheets_error');
+    return sheetsError ? '' : '';
+  });
   const [selectedBot, setSelectedBot] = useState('');
   const [rules, setRules] = useState([]);
   const [testText, setTestText] = useState('');
@@ -54,6 +65,25 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
   }, [api, featureFlags?.reply_bots, featureFlags?.sheets_bot, selectedBot]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const sheetsError = params.get('sheets_error');
+    if (sheetsError) {
+      setTab('sheets');
+      setError(sheetsError);
+    } else if (params.get('sheets') === 'connected') {
+      setTab('sheets');
+      setNotice('Google Sheets connected.');
+    }
+    if (sheetsError || params.get('sheets') === 'connected') {
+      params.delete('sheets');
+      params.delete('sheets_error');
+      const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
+      window.history.replaceState({}, '', next);
+    }
+  }, []);
 
   useEffect(() => {
     if (!selectedBot || !featureFlags?.reply_bots) return;
@@ -263,6 +293,11 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
             <button type="button" disabled={busy} onClick={() => load()}><RefreshCcw size={16} /></button>
           </header>
           {!sheets?.configured && <p className="wa-module-note" role="status">Platform Google Sheets OAuth is not configured yet. Ask your platform admin to set GOOGLE_SHEETS_CLIENT_ID / SECRET (or Google Login credentials).</p>}
+          {sheets?.configured && sheets?.connection?.status !== 'connected' && (
+            <p className="wa-module-note" role="status">
+              Google may show an “unverified app” warning. Open Advanced, then continue to this app to finish connecting.
+            </p>
+          )}
           <div className="actionCluster">
             {canEdit && sheets?.connection?.status !== 'connected' && sheets?.configured && (
               <button type="button" className="primaryAction" disabled={busy} onClick={() => run(async () => {
