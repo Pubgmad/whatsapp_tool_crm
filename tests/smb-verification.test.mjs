@@ -35,11 +35,17 @@ test('ecommerce playbooks include shopify and woocommerce recovery', () => {
   assert.ok(ids.includes('woo_abandoned_checkout_recovery'));
 });
 
-test('simple mode default destinations are focused', () => {
+test('simple mode default destinations are WhatsApp-first', () => {
+  assert.ok(SIMPLE_MODE_VIEWS.includes('setup'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('inbox'));
-  assert.ok(SIMPLE_MODE_VIEWS.includes('bots'));
+  assert.ok(SIMPLE_MODE_VIEWS.includes('contacts'));
+  assert.ok(SIMPLE_MODE_VIEWS.includes('templates'));
+  assert.ok(SIMPLE_MODE_VIEWS.includes('campaigns'));
+  assert.ok(SIMPLE_MODE_VIEWS.includes('ads'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('onboarding'));
-  assert.ok(!SIMPLE_MODE_VIEWS.includes('ads'));
+  assert.ok(!SIMPLE_MODE_VIEWS.includes('bots'));
+  assert.ok(!SIMPLE_MODE_VIEWS.includes('integrations'));
+  assert.ok(!SIMPLE_MODE_VIEWS.includes('commerce'));
 });
 
 test('reply rule matching remains deterministic', () => {

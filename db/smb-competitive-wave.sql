@@ -19,8 +19,9 @@ INSERT INTO platform_settings (id, key, label, category, value, value_type, is_p
   ('ps_smb_concierge_enabled', 'smb_concierge_enabled', 'Concierge assistance requests enabled', 'smb_experience', 'true'::jsonb, 'boolean', FALSE, 503)
 ON CONFLICT (key) DO NOTHING;
 
-ALTER TABLE businesses ADD COLUMN IF NOT EXISTS experience_mode TEXT NOT NULL DEFAULT 'advanced'
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS experience_mode TEXT NOT NULL DEFAULT 'simple'
   CHECK (experience_mode IN ('simple', 'advanced'));
+ALTER TABLE businesses ALTER COLUMN experience_mode SET DEFAULT 'simple';
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS onboarding_state JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS reply_bots (

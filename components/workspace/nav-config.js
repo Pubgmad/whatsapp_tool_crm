@@ -45,18 +45,24 @@ export const featureForView = {
   onboarding: 'assisted_onboarding'
 };
 
-/** Default Simple Mode destinations (overridable via platform smb_simple_nav). */
+/**
+ * Default Simple Mode destinations (overridable via platform smb_simple_nav).
+ * feature/staging-irfan: WhatsApp-first only — connect, audience, templates,
+ * broadcasts, inbox, Status/CTWA ads. Shopify/Woo/CRM connectors stay Advanced.
+ */
 export const SIMPLE_MODE_VIEWS = Object.freeze([
-  'overview',
+  'setup',
   'inbox',
   'contacts',
+  'templates',
   'campaigns',
-  'bots',
-  'integrations',
+  'ads',
   'results',
+  'unsubscribes',
   'billing',
   'onboarding',
-  'setup'
+  'team',
+  'security'
 ]);
 
 /** Primary workspace routes (view id → pathname). */
