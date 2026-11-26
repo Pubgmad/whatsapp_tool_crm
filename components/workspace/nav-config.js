@@ -47,20 +47,22 @@ export const featureForView = {
 
 /**
  * Default Simple Mode destinations (overridable via platform smb_simple_nav).
- * feature/staging-irfan: WhatsApp-first only — connect, audience, templates,
- * broadcasts, inbox, Status/CTWA ads. Shopify/Woo/CRM connectors stay Advanced.
+ * WhatsApp Automation release: include Bots + Automation alongside connect,
+ * audience, templates, broadcasts, inbox. Shopify/Woo/CRM stay Advanced.
  */
 export const SIMPLE_MODE_VIEWS = Object.freeze([
   'setup',
+  'onboarding',
   'inbox',
   'contacts',
   'templates',
+  'bots',
+  'automation',
   'campaigns',
   'ads',
   'results',
   'unsubscribes',
   'billing',
-  'onboarding',
   'team',
   'security'
 ]);
