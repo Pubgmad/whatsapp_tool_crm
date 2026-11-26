@@ -25,7 +25,7 @@ test('variable templates include positional body examples for Meta', async (cont
   await createWhatsAppTemplate({
     setup,
     name: 'appointment confirmation',
-    body: 'Hi {{1}}, your appointment on {{2}} at {{3}} is confirmed. Location: {{4}}.',
+    body: 'Hi {{1}}, thank you for booking with us. Your appointment on {{2}} at {{3}} is confirmed. Please arrive a few minutes early at {{4}}. Reply to this chat if you need to reschedule or cancel.',
     category: 'UTILITY',
     headerText: 'Appointment confirmed',
     componentSchema: {
