@@ -24,6 +24,7 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
   });
   const [selectedBot, setSelectedBot] = useState('');
   const [rules, setRules] = useState([]);
+  const [executions, setExecutions] = useState([]);
   const [testText, setTestText] = useState('');
   const [testResult, setTestResult] = useState(null);
   const [ruleForm, setRuleForm] = useState({ ruleId: '', pattern: '', replyText: '', matchType: 'contains', synonymsText: '' });
@@ -87,8 +88,15 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
   useEffect(() => {
     if (!selectedBot || !featureFlags?.reply_bots) return;
     let active = true;
-    postJson('/api/bots/reply', { action: 'listRules', botId: selectedBot })
-      .then((result) => { if (active) setRules(result.rules || []); })
+    Promise.all([
+      postJson('/api/bots/reply', { action: 'listRules', botId: selectedBot }),
+      postJson('/api/bots/reply', { action: 'listExecutions', botId: selectedBot, limit: 15 })
+    ])
+      .then(([rulesResult, execResult]) => {
+        if (!active) return;
+        setRules(rulesResult.rules || []);
+        setExecutions(execResult.executions || []);
+      })
       .catch((cause) => { if (active) setError(cause.message); });
     return () => { active = false; };
   }, [selectedBot, featureFlags?.reply_bots, postJson]);
@@ -109,21 +117,23 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
   };
 
   return (
-    <div className="screenGrid">
-      <section className="actionBand">
+    <div className="screenGrid botsScreen">
+      <section className="actionBand automationTopbar compactAutomationTopbar">
         <div>
           <strong>WhatsApp bots</strong>
-          <span>Create a quick reply bot, connect Google Sheets, or open AI Agents and Automation.</span>
+          <span>Keyword replies and Sheets-backed answers first — then hand off to Automation or AI when needed.</span>
+        </div>
+        <div className="actionCluster">
+          <button type="button" className="secondaryAction" onClick={() => setActiveView?.('automation')}><Workflow size={16} /> Automation</button>
+          <button type="button" className="secondaryAction" onClick={() => setActiveView?.('ai_agents')}><Sparkles size={16} /> AI Agents</button>
         </div>
       </section>
       {error && <p className="formError" role="alert">{error}</p>}
       {notice && <p className="formSuccess" role="status">{notice}</p>}
 
-      <div className="wa-module-controls wa-module-tabs">
-        <button type="button" className={tab === 'quick' ? 'primaryAction' : 'secondaryAction'} onClick={() => setTab('quick')}><Bot size={16} /> Quick reply bot</button>
-        <button type="button" className={tab === 'sheets' ? 'primaryAction' : 'secondaryAction'} onClick={() => setTab('sheets')} disabled={!featureFlags?.sheets_bot}><Sheet size={16} /> Google Sheets bot</button>
-        <button type="button" className="secondaryAction" onClick={() => setActiveView?.('ai_agents')}><Sparkles size={16} /> AI Agent</button>
-        <button type="button" className="secondaryAction" onClick={() => setActiveView?.('automation')}><Workflow size={16} /> Advanced automation</button>
+      <div className="wa-module-controls wa-module-tabs" role="tablist" aria-label="Bot types">
+        <button type="button" role="tab" aria-selected={tab === 'quick'} className={tab === 'quick' ? 'primaryAction' : 'secondaryAction'} onClick={() => { setTab('quick'); setTestResult(null); setError(''); }}><Bot size={16} /> Quick reply</button>
+        <button type="button" role="tab" aria-selected={tab === 'sheets'} className={tab === 'sheets' ? 'primaryAction' : 'secondaryAction'} onClick={() => { setTab('sheets'); setTestResult(null); setError(''); }} disabled={!featureFlags?.sheets_bot} title={!featureFlags?.sheets_bot ? 'Not on this plan' : undefined}><Sheet size={16} /> Google Sheets</button>
       </div>
 
       {tab === 'quick' && featureFlags?.reply_bots && (
@@ -131,12 +141,12 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
           <header className="wa-module-heading">
             <h2>Quick reply bots</h2>
             {canEdit && (
-              <button type="button" disabled={busy} onClick={() => run(async () => {
+              <button type="button" className="primaryAction" disabled={busy} onClick={() => run(async () => {
                 const name = window.prompt('Bot name', 'Store FAQ');
                 if (!name) return;
                 await postJson('/api/bots/reply', { action: 'create', name, fallbackText: reply?.defaultFallback || '' });
               }, 'Bot created')}>
-                <Plus size={16} /> New bot
+                <Plus size={16} /> {busy ? 'Creating…' : 'New bot'}
               </button>
             )}
           </header>
@@ -164,25 +174,30 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
               <thead><tr><th>Name</th><th>Status</th><th>Rules</th><th>Priority</th><th /></tr></thead>
               <tbody>
                 {(reply?.bots || []).map((bot) => (
-                  <tr key={bot.id}>
-                    <td><button type="button" className="linkish" onClick={() => setSelectedBot(bot.id)}>{bot.name}</button></td>
+                  <tr key={bot.id} className={selectedBot === bot.id ? 'is-selected' : undefined}>
+                    <td><button type="button" className="linkish" aria-current={selectedBot === bot.id ? 'true' : undefined} onClick={() => setSelectedBot(bot.id)}>{bot.name}</button></td>
                     <td>{bot.status}</td>
                     <td>{bot.rule_count}</td>
                     <td>{bot.priority}</td>
-                    <td>
+                    <td className="actionCluster">
                       {canEdit && bot.status !== 'published' && (
-                        <button type="button" disabled={busy} onClick={() => run(() => postJson('/api/bots/reply', { action: 'setStatus', botId: bot.id, status: 'published' }), 'Published')}>Publish</button>
+                        <button type="button" className="secondaryAction" disabled={busy} onClick={() => run(() => postJson('/api/bots/reply', { action: 'setStatus', botId: bot.id, status: 'published' }), 'Published')}>Publish</button>
                       )}
                       {canEdit && bot.status === 'published' && (
-                        <button type="button" disabled={busy} onClick={() => run(() => postJson('/api/bots/reply', { action: 'setStatus', botId: bot.id, status: 'paused' }), 'Paused')}>Pause</button>
+                        <button type="button" className="secondaryAction" disabled={busy} onClick={() => run(() => postJson('/api/bots/reply', { action: 'setStatus', botId: bot.id, status: 'paused' }), 'Paused')}>Pause</button>
                       )}
                     </td>
                   </tr>
                 ))}
-                {!reply?.bots?.length && <tr><td colSpan={5}>No quick reply bots yet.</td></tr>}
               </tbody>
             </table>
           </div>
+          {!reply?.bots?.length && (
+            <div className="wa-module-empty" role="status">
+              <strong>No quick reply bots yet</strong>
+              <p>{canEdit ? 'Create a bot or apply a starter template, then add keyword rules.' : 'Ask a workspace manager to create a quick reply bot.'}</p>
+            </div>
+          )}
 
           {selectedBot && (
             <>
@@ -223,10 +238,15 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                         </td>
                       </tr>
                     ))}
-                    {!rules.length && <tr><td colSpan={4}>No rules yet. Add a rule or apply a Super Admin template.</td></tr>}
                   </tbody>
                 </table>
               </div>
+              {!rules.length && (
+                <div className="wa-module-empty" role="status">
+                  <strong>No rules yet</strong>
+                  <p>{canEdit ? 'Add a keyword rule below, or apply a starter template above.' : 'No rules are configured for this bot yet.'}</p>
+                </div>
+              )}
               {canEdit && (
                 <form className="formGrid" onSubmit={(event) => {
                   event.preventDefault();
@@ -262,19 +282,45 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
               )}
               <form className="formGrid" onSubmit={(event) => {
                 event.preventDefault();
+                if (!testText.trim()) {
+                  setError('Enter a test message first.');
+                  return;
+                }
                 run(async () => {
                   const result = await postJson('/api/bots/reply', { action: 'test', botId: selectedBot, text: testText });
                   setTestResult(result.preview);
                 });
               }}>
                 <label>Test message<input value={testText} onChange={(e) => setTestText(e.target.value)} placeholder="What is your price?" /></label>
-                <button className="secondaryAction" type="submit" disabled={busy}><Play size={16} /> Test bot</button>
+                <button className="secondaryAction" type="submit" disabled={busy || !testText.trim()}><Play size={16} /> {busy ? 'Testing…' : 'Test bot'}</button>
               </form>
               {testResult && (
-                <p className="wa-module-note" role="status">
+                <p className="formSuccess" role="status">
                   {testResult.matched ? 'Matched rule' : testResult.fallback ? 'Fallback' : 'No match'}
                   {testResult.replyText ? `: ${testResult.replyText}` : ''}
                 </p>
+              )}
+              <h3>Recent automatic replies</h3>
+              <div className="wa-module-table">
+                <table>
+                  <thead><tr><th>When</th><th>Customer said</th><th>Reply sent</th><th>Outcome</th></tr></thead>
+                  <tbody>
+                    {executions.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.created_at ? new Date(row.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—'}</td>
+                        <td>{row.matched_text || '—'}</td>
+                        <td>{row.reply_text || '—'}</td>
+                        <td>{row.outcome || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!executions.length && (
+                <div className="wa-module-empty" role="status">
+                  <strong>No live replies yet</strong>
+                  <p>Published rules will appear here after WhatsApp customers receive an automatic reply.</p>
+                </div>
               )}
             </>
           )}
@@ -282,14 +328,24 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
       )}
 
       {tab === 'quick' && !featureFlags?.reply_bots && (
-        <p className="wa-module-note">Quick reply bots are not enabled on this plan.</p>
+        <div className="wa-module-empty" role="status">
+          <strong>Quick reply bots unavailable</strong>
+          <p>This plan does not include keyword reply bots. Open Automation or AI Agents from the top bar if those are enabled.</p>
+        </div>
+      )}
+
+      {tab === 'sheets' && !featureFlags?.sheets_bot && (
+        <div className="wa-module-empty" role="status">
+          <strong>Google Sheets bot unavailable</strong>
+          <p>Sheets-backed answers are not enabled on this plan.</p>
+        </div>
       )}
 
       {tab === 'sheets' && featureFlags?.sheets_bot && (
         <section className="wa-module">
           <header className="wa-module-heading">
             <h2>Google Sheets bot</h2>
-            <button type="button" disabled={busy} onClick={() => load()}><RefreshCcw size={16} /></button>
+            <button type="button" className="secondaryAction" disabled={busy} aria-label="Refresh Sheets bots" onClick={() => load()}><RefreshCcw size={16} /> Refresh</button>
           </header>
           {!sheets?.configured && <p className="wa-module-note" role="status">Platform Google Sheets OAuth is not configured yet. Ask your platform admin to set GOOGLE_SHEETS_CLIENT_ID / SECRET (or Google Login credentials).</p>}
           {sheets?.configured && sheets?.connection?.status !== 'connected' && (
@@ -431,12 +487,17 @@ export default function SmbBotsWorkspace({ api, postJson, role, featureFlags, se
                     </td>
                   </tr>
                 ))}
-                {!sheets?.bots?.length && <tr><td colSpan={6}>No Sheets bots configured.</td></tr>}
               </tbody>
             </table>
           </div>
+          {!sheets?.bots?.length && (
+            <div className="wa-module-empty" role="status">
+              <strong>No Sheets bots configured</strong>
+              <p>{canEdit ? (sheets?.connection?.status === 'connected' ? 'Map a spreadsheet above, then save to create your first Sheets bot.' : 'Connect Google, then map a spreadsheet to publish FAQ answers.') : 'No Sheets bots are set up for this workspace yet.'}</p>
+            </div>
+          )}
           {testResult && tab === 'sheets' && (
-            <p className="wa-module-note" role="status">
+            <p className="formSuccess" role="status">
               {testResult.matched ? `Row ${testResult.rowIndex}` : testResult.fallback ? 'Fallback' : 'No match'}
               {testResult.syncVersion != null ? ` · sync v${testResult.syncVersion}` : ''}
               {testResult.replyText ? `: ${testResult.replyText}` : ''}

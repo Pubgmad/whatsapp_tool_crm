@@ -61,8 +61,8 @@ test('public feature and product hrefs map to workspaces', () => {
   assert.equal(workspacePathForPublicHref('/pricing'), '');
 });
 
-test('pricing architecture stays draft and separates charge layers', () => {
-  assert.equal(PRICING_ARCHITECTURE.status, 'draft');
+test('pricing architecture documents charge layers for published public pricing', () => {
+  assert.equal(PRICING_ARCHITECTURE.status, 'published');
   assert.ok(PRICING_ARCHITECTURE.chargeLayers.some((layer) => layer.id === 'platform'));
   assert.ok(PRICING_ARCHITECTURE.chargeLayers.some((layer) => layer.id === 'messaging'));
   assert.ok(PRICING_ARCHITECTURE.draftPlanCodes.includes('enterprise'));

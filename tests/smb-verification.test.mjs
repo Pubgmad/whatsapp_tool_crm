@@ -40,10 +40,11 @@ test('simple mode default destinations are WhatsApp-first', () => {
   assert.ok(SIMPLE_MODE_VIEWS.includes('inbox'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('contacts'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('templates'));
+  assert.ok(SIMPLE_MODE_VIEWS.includes('bots'));
+  assert.ok(SIMPLE_MODE_VIEWS.includes('automation'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('campaigns'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('ads'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('onboarding'));
-  assert.ok(!SIMPLE_MODE_VIEWS.includes('bots'));
   assert.ok(!SIMPLE_MODE_VIEWS.includes('integrations'));
   assert.ok(!SIMPLE_MODE_VIEWS.includes('commerce'));
 });

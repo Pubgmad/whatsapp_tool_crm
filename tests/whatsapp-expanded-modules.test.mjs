@@ -5,7 +5,7 @@ import {callSession,callingIceServers} from '../lib/whatsapp-calling.js';
 import {whatsappAdPayload} from '../lib/whatsapp-ads.js';
 import {nativeOrderPayload,verifiedNativePayment} from '../lib/whatsapp-native-payments.js';
 
-test('calling accepts audio-only SDP and mints short-lived user-bound relay credentials',()=>{
+test('calling accepts audio-only SDP and mints short-lived user-bound relay credentials',async ()=>{
   const sdp='v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=fingerprint:sha-256 00:11\r\n';
   assert.equal(callSession({sdp_type:'offer',sdp},'offer').sdp,sdp);
   assert.throws(()=>callSession({sdp_type:'answer',sdp},'offer'));
@@ -13,10 +13,11 @@ test('calling accepts audio-only SDP and mints short-lived user-bound relay cred
   const before={url:process.env.WHATSAPP_CALL_TURN_URLS,secret:process.env.WHATSAPP_CALL_TURN_SECRET};
   try{
     process.env.WHATSAPP_CALL_TURN_URLS='turns:relay.example.com:5349?transport=tcp';process.env.WHATSAPP_CALL_TURN_SECRET='test-only-turn-secret';
-    const [first]=callingIceServers('tenant:user',0),[second]=callingIceServers('other:user',0);
+    const [first]=(await callingIceServers('tenant:user',0)),[second]=(await callingIceServers('other:user',0));
     assert.match(first.username,/^3600:/);assert.notEqual(first.username,second.username);
     assert.equal(first.credential,crypto.createHmac('sha1','test-only-turn-secret').update(first.username).digest('base64'));
-    process.env.WHATSAPP_CALL_TURN_URLS='https://untrusted.example.com';assert.throws(()=>callingIceServers('user'));
+    process.env.WHATSAPP_CALL_TURN_URLS='https://untrusted.example.com';
+    await assert.rejects(() => callingIceServers('user'));
   }finally{if(before.url===undefined)delete process.env.WHATSAPP_CALL_TURN_URLS;else process.env.WHATSAPP_CALL_TURN_URLS=before.url;if(before.secret===undefined)delete process.env.WHATSAPP_CALL_TURN_SECRET;else process.env.WHATSAPP_CALL_TURN_SECRET=before.secret;}
 });
 test('ad creation remains paused and bound to WhatsApp assets and owner currency',()=>{

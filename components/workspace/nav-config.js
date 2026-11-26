@@ -146,7 +146,7 @@ export const pageTitles = {
   inbox: 'Inbox',
   unsubscribes: 'Suppression',
   ai_agents: 'AI Agents',
-  bots: 'Bots',
+  bots: 'Reply bots',
   onboarding: 'Get started'
 };
 
@@ -168,8 +168,8 @@ export const pageIntros = {
   team: 'Invite agents and manage workspace roles.',
   billing: 'Current plan, usage limits, and subscription billing.',
   security: 'Account multi-factor authentication and recovery codes.',
-  templates: 'Meta-approved message templates.',
-  automation: 'Create, test, and activate reply workflows for this workspace.',
+  templates: 'Meta-approved message templates for broadcasts and automation.',
+  automation: 'Keyword-triggered reply workflows — canvas editor, drafts, and activation.',
   campaigns: 'Template campaigns and scheduling.',
   commerce: 'Catalogs and commerce settings.',
   catalog: 'Meta product catalogs, products, and catalog messaging settings.',
@@ -181,7 +181,7 @@ export const pageIntros = {
   inbox: 'Shared conversations and agent replies.',
   unsubscribes: 'Opt-outs and suppressed contacts.',
   ai_agents: 'Configure assistants, knowledge, testing, and human handoff.',
-  bots: 'Quick reply bots, Google Sheets brain, and links to AI Agents.',
+  bots: 'Keyword auto-replies and Google Sheets answers — before Automation or AI.',
   onboarding: 'Guided WhatsApp setup for nontechnical owners.'
 };
 
@@ -238,10 +238,10 @@ export const navGroups = [
     id: 'automation',
     label: 'Automation & AI',
     items: [
-      { id: 'bots', label: 'Bots', icon: 'Bot' },
+      { id: 'bots', label: 'Reply bots', icon: 'Bot' },
       { id: 'automation', label: 'Automation', icon: 'Workflow' },
       { id: 'ai_agents', label: 'AI Agents', icon: 'Sparkles' },
-      { id: 'flows', label: 'Flows', icon: 'Workflow' },
+      { id: 'flows', label: 'WhatsApp Flows', icon: 'Workflow' },
       { id: 'media', label: 'Media', icon: 'Paperclip' }
     ]
   },

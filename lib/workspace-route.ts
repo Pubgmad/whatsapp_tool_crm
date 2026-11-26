@@ -5,7 +5,8 @@ import { requireWorkspaceManager } from './workspace-permissions.js';
 
 type WorkspaceSession = Awaited<ReturnType<typeof requireSession>>;
 
-type RouteContext = { params?: Promise<Record<string, string>> };
+// Next.js 16 route handler typing expects `params` as a required Promise (not optional).
+type RouteContext = { params: Promise<Record<string, string>> };
 
 type WorkspaceHandler = (
   request: NextRequest | Request,
@@ -23,7 +24,7 @@ export function workspaceRoute(
   handler: WorkspaceHandler,
   { manager = false, cacheSeconds = 0 }: { manager?: boolean; cacheSeconds?: number } = {}
 ) {
-  return async (request: NextRequest | Request, context: RouteContext = {}) => {
+  return async (request: NextRequest | Request, context: RouteContext) => {
     try {
       const session = await requireSession(request);
       if (manager) requireWorkspaceManager(session);

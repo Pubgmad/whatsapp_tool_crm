@@ -88,6 +88,8 @@
 .callingWorkspace code{font-size:.85em}
 .wa-module-table{max-width:100%;overflow-x:auto}
 .wa-module table{width:100%;border-collapse:collapse;text-align:left}
+.wa-module-table tr.is-selected{background:var(--brand-soft)}
+.wa-module-table tr.is-selected td{color:var(--ink)}
 .wa-module th,.wa-module td{padding:12px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-soft)}
 .wa-module td small{display:block;overflow-wrap:anywhere}
 .wa-module details{border-top:1px solid var(--line);padding:16px 0}

@@ -58,3 +58,21 @@ test('db-init loads automation-flows-production after advanced automation nodes'
   assert.match(sql, /trigger_mode IN \('keywords', 'regex', 'any_inbound', 'manual'\)/);
   assert.match(sql, /whatsapp_webview_submissions/);
 });
+
+test('db-init loads WA automation release seeds after SMB platform config', async () => {
+  const waves = await dbInitWaves();
+  const saConfig = waves.indexOf('smb-sa-config-wave.sql');
+  const simpleNav = waves.indexOf('automation-release-simple-nav.sql');
+  const replyIdempotency = waves.indexOf('automation-release-reply-bot-idempotency.sql');
+  assert.ok(saConfig >= 0, 'smb-sa-config-wave.sql must be listed');
+  assert.ok(simpleNav >= 0, 'automation-release-simple-nav.sql must be listed');
+  assert.ok(replyIdempotency >= 0, 'automation-release-reply-bot-idempotency.sql must be listed');
+  assert.ok(simpleNav > saConfig, 'simple nav seed must run after SMB SA config');
+  assert.ok(replyIdempotency > simpleNav, 'reply-bot idempotency index must run after simple nav');
+  const navSql = await fs.readFile(path.join(root, 'db', 'automation-release-simple-nav.sql'), 'utf8');
+  assert.match(navSql, /ON CONFLICT \(key\) DO NOTHING/);
+  assert.doesNotMatch(navSql, /DO UPDATE SET value = EXCLUDED\.value/);
+  const idemSql = await fs.readFile(path.join(root, 'db', 'automation-release-reply-bot-idempotency.sql'), 'utf8');
+  assert.match(idemSql, /CREATE UNIQUE INDEX IF NOT EXISTS/);
+  assert.match(idemSql, /business_id, inbound_message_id/);
+});

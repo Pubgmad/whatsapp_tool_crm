@@ -23,12 +23,13 @@ function mockRun({ platformRows = [], overrides = {}, planFeatures = [], status 
   };
 }
 
-test('checkout recovery and whatsapp groups default off before settings are seeded', async () => {
+test('checkout recovery defaults off before settings are seeded', async () => {
   const flags = await workspaceFeatureFlags(null, async () => ({ rows: [] }));
   assert.deepEqual(Object.keys(flags).sort(), Object.keys(WORKSPACE_FEATURES).sort());
   assert.equal(flags.checkout_recovery, false);
-  assert.equal(flags.whatsapp_groups, false);
-  const defaultOff = new Set(['checkout_recovery', 'whatsapp_groups']);
+  // whatsapp_groups follows platform default-on unless Super Admin disables it.
+  assert.equal(flags.whatsapp_groups, true);
+  const defaultOff = new Set(['checkout_recovery']);
   assert.ok(Object.entries(flags).filter(([name]) => !defaultOff.has(name)).every(([, enabled]) => enabled));
 });
 
