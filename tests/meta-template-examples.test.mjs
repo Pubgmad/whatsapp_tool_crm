@@ -25,7 +25,7 @@ test('variable templates include positional body examples for Meta', async (cont
   await createWhatsAppTemplate({
     setup,
     name: 'appointment confirmation',
-    body: 'Hi {{1}}, thank you for booking with us. Your appointment on {{2}} at {{3}} is confirmed. Please arrive a few minutes early at {{4}}. Reply to this chat if you need to reschedule or cancel.',
+    body: 'Hi {{1}}, thank you for booking with us. Your appointment is confirmed for {{2}}. Please arrive a few minutes early at {{3}}. If you need to reschedule or cancel, reply to this chat and our team will help you.',
     category: 'UTILITY',
     headerText: 'Appointment confirmed',
     componentSchema: {
@@ -40,5 +40,5 @@ test('variable templates include positional body examples for Meta', async (cont
   assert.equal(submitted.parameter_format, 'POSITIONAL');
   assert.equal(submitted.allow_category_change, true);
   const body = submitted.components.find((item) => item.type === 'BODY');
-  assert.deepEqual(body.example.body_text, [['Sample 1', 'Sample 2', 'Sample 3', 'Sample 4']]);
+  assert.deepEqual(body.example.body_text, [['Sample 1', 'Sample 2', 'Sample 3']]);
 });

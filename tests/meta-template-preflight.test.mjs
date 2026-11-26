@@ -11,10 +11,19 @@ test('rejects short multi-variable appointment copy', () => {
 
 test('accepts lengthened appointment copy', () => {
   const result = assertMetaTemplateBodyRules(
-    'Hi {{1}}, thank you for booking with us. Your appointment on {{2}} at {{3}} is confirmed. Please arrive a few minutes early at {{4}}. Reply to this chat if you need to reschedule or cancel.'
+    'Hi {{1}}, thank you for booking with us. Your appointment is confirmed for {{2}}. Please arrive a few minutes early at {{3}}. If you need to reschedule or cancel, reply to this chat and our team will help you.'
   );
-  assert.equal(result.variableCount, 4);
-  assert.ok(result.fixedWordCount >= 9);
+  assert.equal(result.variableCount, 3);
+  assert.ok(result.fixedWordCount >= 14);
+});
+
+test('rejects prior four-variable appointment copy under stricter ratio', () => {
+  assert.throws(
+    () => assertMetaTemplateBodyRules(
+      'Hi {{1}}, thank you for booking with us. Your appointment on {{2}} at {{3}} is confirmed. Please arrive a few minutes early at {{4}}. Reply to this chat if you need to reschedule or cancel.'
+    ),
+    (error) => error.code === 'TEMPLATE_VARIABLE_RATIO'
+  );
 });
 
 test('rejects adjacent variables', () => {
