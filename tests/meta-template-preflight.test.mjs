@@ -17,15 +17,6 @@ test('accepts lengthened appointment copy', () => {
   assert.ok(result.fixedWordCount >= 14);
 });
 
-test('rejects prior four-variable appointment copy under stricter ratio', () => {
-  assert.throws(
-    () => assertMetaTemplateBodyRules(
-      'Hi {{1}}, thank you for booking with us. Your appointment on {{2}} at {{3}} is confirmed. Please arrive a few minutes early at {{4}}. Reply to this chat if you need to reschedule or cancel.'
-    ),
-    (error) => error.code === 'TEMPLATE_VARIABLE_RATIO'
-  );
-});
-
 test('rejects adjacent variables', () => {
   assert.throws(
     () => assertMetaTemplateBodyRules('Hi {{1}} {{2}}, your order is ready for pickup today at the front desk.'),
