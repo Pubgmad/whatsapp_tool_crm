@@ -1,4 +1,7 @@
--- Fix Meta error 2388293: fewer variables + longer fixed text (stricter than prior pass).
+-- FORCE RLS: writes need system access (plain UPDATE matched 0 rows on VPS).
+SELECT set_config('app.system_access', 'true', false);
+SELECT set_config('app.business_id', '', false);
+
 UPDATE template_library_items SET body = v.body, updated_at = NOW()
 FROM (VALUES
   ('welcome_offer', 'Hi {{1}}, welcome to {{2}}! Thank you for joining our community. Enjoy a first-order discount when you use code {{3}} at checkout. Reply to this chat if you need help finding a product or applying the offer.'),
@@ -17,3 +20,9 @@ FROM (VALUES
   ('shipping_delay', 'Hi {{1}}, we are sorry — order {{2}} is delayed. The new estimated arrival is {{3}}. Please reply if you need support while you wait, and thank you for your patience.')
 ) AS v(slug, body)
 WHERE template_library_items.slug = v.slug;
+
+-- Must show appointment_confirm with ONLY {{1}} {{2}} {{3}} (not {{4}}).
+SELECT slug, body
+FROM template_library_items
+WHERE slug IN ('appointment_confirm', 'welcome_offer', 'payment_due')
+ORDER BY slug;
