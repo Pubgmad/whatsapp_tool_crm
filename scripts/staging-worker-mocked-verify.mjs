@@ -31,6 +31,10 @@ const userId = `u_wkr_${suffix}`;
 const contactId = `c_wkr_${suffix}`;
 const conversationId = `cv_wkr_${suffix}`;
 const flowId = `flow_wkr_${suffix}`;
+const accountId = `wa_wkr_${suffix}`;
+const phoneRowId = `wpn_wkr_${suffix}`;
+const phoneNumberId = `pn_${suffix}`;
+const wabaId = `waba_${suffix}`;
 const phone = `1555${String(Date.now()).slice(-7)}`;
 const tokenEnc = encryptSecret('staging-mock-token-not-live');
 const report = { database, checks: [], passed: 0, failed: 0, metaLiveSends: 'mocked' };
@@ -45,7 +49,17 @@ try {
   await query(
     `INSERT INTO businesses (id,name,slug,waba_id,phone_number_id,access_token_encrypted,status,account_status,review_access)
      VALUES ($1,$2,$3,$4,$5,$6,'Connected','pending',TRUE)`,
-    [businessId, `Worker Verify ${suffix}`, `worker-${suffix}`, `waba_${suffix}`, `pn_${suffix}`, tokenEnc]
+    [businessId, `Worker Verify ${suffix}`, `worker-${suffix}`, wabaId, phoneNumberId, tokenEnc]
+  );
+  await query(
+    `INSERT INTO whatsapp_accounts (id,business_id,waba_id,onboarding_method,access_token_encrypted,is_default,status,webhook_subscribed)
+     VALUES ($1,$2,$3,'manual',$4,TRUE,'connected',FALSE)`,
+    [accountId, businessId, wabaId, tokenEnc]
+  );
+  await query(
+    `INSERT INTO whatsapp_phone_numbers (id,business_id,whatsapp_account_id,phone_number_id,display_phone_number,is_default,registration_state)
+     VALUES ($1,$2,$3,$4,$5,TRUE,'registered')`,
+    [phoneRowId, businessId, accountId, phoneNumberId, `+${phone}`]
   );
   await query(
     `INSERT INTO users (id,name,email,password_hash,email_verified_at) VALUES ($1,'Worker','worker-${suffix}@example.test','x',NOW())`,
@@ -57,7 +71,10 @@ try {
      VALUES ($1,$2,'Worker Contact',$3,TRUE,NOW(),'staging-worker-verify',NOW())`,
     [contactId, businessId, phone]
   );
-  await query(`INSERT INTO conversations (id,business_id,contact_id) VALUES ($1,$2,$3)`, [conversationId, businessId, contactId]);
+  await query(
+    `INSERT INTO conversations (id,business_id,contact_id,whatsapp_phone_number_id) VALUES ($1,$2,$3,$4)`,
+    [conversationId, businessId, contactId, phoneNumberId]
+  );
 
   const definition = {
     startNodeId: 'n1',
