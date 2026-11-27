@@ -144,7 +144,7 @@ try {
     `sessions=${handoffSessions} p2=${JSON.stringify(pass2)} p3=${JSON.stringify(pass3)}`
   );
 
-  const sessionId = (await query(`SELECT id FROM automation_sessions WHERE business_id=$1 LIMIT 1`, [businessId])).rows[0]?.id;
+  const sessionId = (await query(`SELECT id FROM automation_sessions WHERE business_id=$1 ORDER BY started_at DESC LIMIT 1`, [businessId])).rows[0]?.id;
   const failJobId = `aj_fail_${suffix}`;
   if (sessionId) {
     await query(
@@ -152,8 +152,13 @@ try {
        VALUES ($1,$2,$3,$4::jsonb,'queued',0,3,NOW())`,
       [failJobId, businessId, sessionId, JSON.stringify({ phase: 'scheduled', targetNodeId: 'missing_node' })]
     );
-    // Reactivate session so claim filter accepts the job
-    await query(`UPDATE automation_sessions SET status='active', ended_at=NULL WHERE id=$1`, [sessionId]);
+    // Reactivate session + clear handoff pause so claim filter accepts the synthetic failure job
+    await query(`UPDATE automation_sessions SET status='active', ended_at=NULL, human_takeover=FALSE WHERE id=$1`, [sessionId]);
+    await query(
+      `UPDATE conversations SET automation_paused=FALSE, assigned_user_id='', updated_at=NOW()
+       WHERE id=$1 AND business_id=$2`,
+      [conversationId, businessId]
+    );
     const failPass = await runAutomationQueue({ businessId, limit: 10 });
     const failRow = (await query(`SELECT status,attempts,error_message FROM automation_jobs WHERE id=$1`, [failJobId])).rows[0];
     check('error_reporting_on_bad_node', ['failed', 'retry'].includes(failRow?.status), JSON.stringify({ failPass, failRow }));
