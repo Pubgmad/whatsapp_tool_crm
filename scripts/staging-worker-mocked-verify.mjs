@@ -155,7 +155,7 @@ try {
     // Reactivate session + clear handoff pause so claim filter accepts the synthetic failure job
     await query(`UPDATE automation_sessions SET status='active', ended_at=NULL, human_takeover=FALSE WHERE id=$1`, [sessionId]);
     await query(
-      `UPDATE conversations SET automation_paused=FALSE, assigned_user_id='', updated_at=NOW()
+      `UPDATE conversations SET automation_paused=FALSE, assigned_user_id=NULL, updated_at=NOW()
        WHERE id=$1 AND business_id=$2`,
       [conversationId, businessId]
     );
