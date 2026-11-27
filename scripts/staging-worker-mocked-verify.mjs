@@ -44,7 +44,7 @@ function check(name, ok, detail = '') {
 try {
   await query(
     `INSERT INTO businesses (id,name,slug,waba_id,phone_number_id,access_token_encrypted,status,account_status,review_access)
-     VALUES ($1,$2,$3,$4,$5,$6,'Active','active',TRUE)`,
+     VALUES ($1,$2,$3,$4,$5,$6,'Connected','pending',TRUE)`,
     [businessId, `Worker Verify ${suffix}`, `worker-${suffix}`, `waba_${suffix}`, `pn_${suffix}`, tokenEnc]
   );
   await query(
