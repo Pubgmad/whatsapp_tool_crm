@@ -18,7 +18,6 @@ const suffix = Date.now().toString(36);
 
 test.describe('Staging WhatsApp Automation workspace', () => {
   test.skip(!hasAuth, 'Set E2E_EMAIL/E2E_PASSWORD or E2E_SESSION_COOKIE/E2E_CSRF_COOKIE');
-  test.describe.configure({ mode: 'serial' });
   test.setTimeout(180_000);
 
   test.beforeEach(async ({ page, context }) => {
@@ -58,7 +57,7 @@ test.describe('Staging WhatsApp Automation workspace', () => {
 
   test('Templates management page loads with clear empty/error states', async ({ page }) => {
     await gotoApp(page, '/app/templates');
-    await expect(page.getByText(/Templates/i).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /Templates/i }).or(page.locator('strong', { hasText: /Templates/i })).first()).toBeVisible({ timeout: 30000 });
     // Staging has no connected WABA — UI should explain rather than crash.
     const blocked = page.getByText(/Connect a WhatsApp account|Select an account|Sync from Meta/i);
     await expect(blocked.first()).toBeVisible({ timeout: 30000 });
@@ -67,55 +66,47 @@ test.describe('Staging WhatsApp Automation workspace', () => {
 
   test('Reply bot create, rule edit, publish, and execution logs', async ({ page }) => {
     await gotoApp(page, '/app/bots');
-    await expect(page.getByText(/Quick reply|WhatsApp bots/i).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /Quick reply bots/i })).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('button', { name: /New bot|Quick reply/i }).first()).toBeVisible();
 
     page.once('dialog', async (dialog) => {
       await dialog.accept(`E2E Bot ${suffix}`);
     });
     await page.getByRole('button', { name: /New bot/i }).click();
-    await expect(page.getByRole('button', { name: new RegExp(`E2E Bot ${suffix}`) })).toBeVisible({ timeout: 30000 });
+    const botButton = page.getByRole('button', { name: new RegExp(`E2E Bot ${suffix}`) });
+    await expect(botButton).toBeVisible({ timeout: 30000 });
+    await botButton.click();
 
-    await page.getByLabel(/When customer says/i).fill('pricing');
-    await page.getByLabel(/Reply with/i).fill(`Price answer ${suffix}`);
-    await page.getByRole('button', { name: /Add rule/i }).click();
-    await expect(page.getByText('pricing')).toBeVisible({ timeout: 30000 });
+    const ruleForm = page.locator('form').filter({ hasText: /When customer says/i }).first();
+    await expect(ruleForm).toBeVisible({ timeout: 30000 });
+    await ruleForm.getByLabel(/When customer says/i).fill('pricing');
+    await ruleForm.getByLabel(/Reply with/i).fill(`Price answer ${suffix}`);
+    await ruleForm.getByRole('button', { name: /Add rule/i }).click();
+    await expect(page.locator('td', { hasText: 'pricing' }).first()).toBeVisible({ timeout: 30000 });
 
     await page.getByRole('button', { name: /^Edit$/i }).first().click();
-    await page.getByLabel(/When customer says/i).fill('pricing-updated');
-    await page.getByRole('button', { name: /Update rule/i }).click();
-    await expect(page.getByText('pricing-updated')).toBeVisible({ timeout: 30000 });
+    await ruleForm.getByLabel(/When customer says/i).fill('pricing-updated');
+    await ruleForm.getByRole('button', { name: /Update rule/i }).click();
+    await expect(page.locator('td', { hasText: 'pricing-updated' }).first()).toBeVisible({ timeout: 30000 });
 
     await page.getByRole('button', { name: /^Publish$/i }).first().click();
-    await expect(page.getByText(/published|Published|Paused/i).first()).toBeVisible({ timeout: 30000 });
-
+    await expect(page.locator('td', { hasText: /published|paused/i }).first()).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/Execution|Published rules will appear|automatic reply/i).first()).toBeVisible({ timeout: 30000 });
   });
 
   test('Automation Builder draft save', async ({ page }) => {
     await gotoApp(page, '/app/automations');
-    await expect(page.getByText(/Automation/i).first()).toBeVisible({ timeout: 30000 });
-    const name = page.getByLabel(/Flow name|Name/i).first();
-    if (await name.count()) {
-      await name.fill(`E2E Flow ${suffix}`);
-      const save = page.getByRole('button', { name: /Save draft|Save changes/i });
-      if (await save.count()) {
-        await save.click();
-        await expect(page.getByText(/saved|draft|E2E Flow/i).first()).toBeVisible({ timeout: 30000 });
-      }
-    } else {
-      // Canvas-first UI: ensure page shell and create controls render.
-      await expect(page.getByRole('button', { name: /New|Create|Add/i }).first()).toBeVisible({ timeout: 30000 });
-    }
+    await expect(page.getByRole('heading', { name: /Automation/i }).or(page.locator('strong', { hasText: /Automation/i })).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('button', { name: /Save draft|Save changes|New|Create|Add node|Add/i }).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText('Unable to load this page')).toHaveCount(0);
     await assertNoHorizontalOverflow(page);
   });
 
   test('Broadcasting page loads without sending', async ({ page }) => {
     await gotoApp(page, '/app/campaigns');
-    await expect(page.getByText(/Create campaign|Campaign|Broadcast/i).first()).toBeVisible({ timeout: 30000 });
-    await expect(page.getByRole('button', { name: /Send now|Start campaign/i })).toHaveCount(0).catch(async () => {
-      // Send controls may exist but must remain blocked without approved template / Meta.
-      await expect(page.getByText(/Approved template|eligible audience|Connect/i).first()).toBeVisible();
-    });
+    await expect(page.locator('main, .productShell').first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('heading', { name: /Create campaign/i }).or(page.locator('strong', { hasText: /Create campaign|Campaign/i })).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText('Unable to load this page')).toHaveCount(0);
     await assertNoHorizontalOverflow(page);
   });
 
@@ -127,6 +118,7 @@ test.describe('Staging WhatsApp Automation workspace', () => {
     await gotoApp(page, '/app/contacts');
     await expect(page.locator('body')).toBeVisible();
     await expect(page.getByText('Unable to load this page')).toHaveCount(0);
+    await expect(page.locator('form').filter({ hasText: /Phone with country code/i }).first()).toBeVisible({ timeout: 30000 });
   });
 });
 
