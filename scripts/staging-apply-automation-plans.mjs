@@ -27,7 +27,7 @@ const legacy = await query(
   `UPDATE subscription_plans
       SET visible = FALSE,
           is_popular = FALSE,
-          metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('commercial_status','archived','catalogue_version',$1),
+          metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('commercial_status','archived','catalogue_version',$1::text),
           updated_at = NOW()
     WHERE code = ANY($2::text[])
     RETURNING code`,
@@ -56,7 +56,7 @@ for (const code of primaryCodes) {
             visible = TRUE,
             is_active = TRUE,
             is_popular = $15,
-            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('commercial_status','published','catalogue_version',$16),
+            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('commercial_status','published','catalogue_version',$16::text),
             updated_at = NOW()
       WHERE code = $1`,
     [
