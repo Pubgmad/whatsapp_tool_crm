@@ -1,23 +1,16 @@
+import { filterNavGroups, isReleaseViewAllowed } from '../../lib/release-feature-allowlist.js';
+
 export const managerViews = new Set([
   'setup',
   'templates',
   'automation',
-  'campaigns',
-  'commerce',
-  'conversions',
-  'calling',
-  'ads',
   'flows',
   'media',
   'entry_points',
   'integrations',
-  'journeys',
   'capabilities',
-  'groups',
   'numbers',
   'profile',
-  'catalog',
-  'meta_analytics',
   'ai_agents',
   'bots',
   'onboarding'
@@ -28,18 +21,10 @@ export const featureForView = {
   templates: 'templates',
   automation: 'automation',
   campaigns: 'campaigns',
-  commerce: 'commerce',
-  catalog: 'commerce',
-  conversions: 'conversions',
-  calling: 'calling',
-  ads: 'ads',
   flows: 'whatsapp_flows',
   media: 'templates',
   entry_points: 'entry_points',
-  // Integrations hosts connectors/crm/webviews/segments/API keys — panels gate themselves.
-  // Do not bind the whole view to `automation` or entitled connector workspaces get blocked.
-  journeys: 'automation',
-  groups: 'whatsapp_groups',
+  // Integrations hosts webhooks/API/calendar/sheets — panels gate themselves.
   ai_agents: 'ai_agent',
   // Bots hub gates reply_bots / sheets_bot inside the panel (either entitlement is enough).
   onboarding: 'assisted_onboarding'
@@ -47,12 +32,12 @@ export const featureForView = {
 
 /**
  * Default Simple Mode destinations (overridable via platform smb_simple_nav).
- * WhatsApp Automation release: include Bots + Automation alongside connect,
- * audience, templates, broadcasts, inbox. Shopify/Woo/CRM stay Advanced.
+ * WhatsApp Automation release: connect → audience → templates → bots →
+ * automation → broadcasts → inbox → analytics → billing/team.
  */
 export const SIMPLE_MODE_VIEWS = Object.freeze([
-  'setup',
   'onboarding',
+  'setup',
   'inbox',
   'contacts',
   'templates',
@@ -74,9 +59,7 @@ export const workspaceRoutes = {
   flows: '/app/settings/whatsapp/flows',
   media: '/app/settings/whatsapp/media',
   entry_points: '/app/settings/whatsapp/entry-points',
-  journeys: '/app/settings/whatsapp/journeys',
   capabilities: '/app/settings/whatsapp/capabilities',
-  groups: '/app/settings/whatsapp/groups',
   integrations: '/app/settings/integrations',
   contacts: '/app/contacts',
   team: '/app/team',
@@ -85,12 +68,6 @@ export const workspaceRoutes = {
   templates: '/app/templates',
   automation: '/app/automations',
   campaigns: '/app/campaigns',
-  commerce: '/app/commerce',
-  catalog: '/app/settings/whatsapp/catalog',
-  meta_analytics: '/app/settings/whatsapp/analytics',
-  conversions: '/app/conversions',
-  calling: '/app/calling',
-  ads: '/app/ads',
   results: '/app/analytics',
   inbox: '/app/inbox',
   unsubscribes: '/app/suppression',
@@ -107,25 +84,19 @@ export const setupSectionByView = {
   flows: 'flows',
   media: 'media',
   entry_points: 'entry_points',
-  journeys: 'journeys',
   capabilities: 'capabilities',
-  groups: 'groups',
-  integrations: 'integrations',
-  meta_analytics: 'analytics'
+  integrations: 'integrations'
 };
 
 export const pageTitles = {
   overview: 'Workspace',
   setup: 'WhatsApp connection',
-
   numbers: 'Phone numbers',
   profile: 'Business profile',
   flows: 'WhatsApp Flows',
   media: 'Media library',
   entry_points: 'Entry points',
-  journeys: 'Journeys',
-  capabilities: 'Capabilities',
-  groups: 'WhatsApp groups',
+  capabilities: 'Connection readiness',
   integrations: 'Integrations',
   contacts: 'Audience',
   team: 'Team',
@@ -134,12 +105,6 @@ export const pageTitles = {
   templates: 'Templates',
   automation: 'Automation',
   campaigns: 'Broadcasts',
-  commerce: 'Commerce',
-  catalog: 'Catalog',
-  meta_analytics: 'Meta insights',
-  conversions: 'Conversions',
-  calling: 'Calling',
-  ads: 'CTWA Ads',
   results: 'Analytics',
   inbox: 'Inbox',
   unsubscribes: 'Suppression',
@@ -152,35 +117,26 @@ export const pageTitles = {
 export const pageIntros = {
   overview: 'Workspace identity and WhatsApp connection status.',
   setup: 'Connect Meta when platform credentials are configured, or continue with offline drafts and setup.',
-
   numbers: 'Phone numbers linked to this workspace.',
   profile: 'Public WhatsApp business profile.',
-  flows: 'Meta WhatsApp Flows — interactive in-chat forms (separate from Automation workflows).',
+  flows: 'Native WhatsApp Flows — interactive in-chat forms (Advanced Automation).',
   media: 'Upload and manage Meta media assets for messaging.',
-  entry_points: 'Links and QR codes into WhatsApp.',
-  journeys: 'Recorded customer journey metrics for this workspace.',
-  capabilities: 'Meta permission, asset, and feature readiness for this workspace.',
-  groups: 'Group messaging when eligible.',
-  integrations: 'API keys and partner connectors.',
-  contacts: 'Audiences, consent, and segments — works without a live Meta connection.',
+  entry_points: 'WhatsApp links and QR codes for acquisition.',
+  capabilities: 'Meta permission and asset readiness for this workspace.',
+  integrations: 'API keys, webhooks, Google Sheets, Calendar, and automation connectors.',
+  contacts: 'Audiences, consent, segments, and suppression — works without a live Meta connection.',
   team: 'Invite agents and manage workspace roles.',
   billing: 'Current plan, usage limits, and subscription billing.',
   security: 'Account multi-factor authentication and recovery codes.',
   templates: 'Draft and manage templates. Live Meta submit/sync requires a connected WhatsApp account.',
   automation: 'Build and save automation drafts offline. Live sends require a connected WhatsApp account.',
   campaigns: 'Draft and preview broadcasts offline. Live send/schedule requires Meta connection.',
-  commerce: 'Catalogs and commerce settings.',
-  catalog: 'Meta product catalogs, products, and catalog messaging settings.',
-  meta_analytics: 'Meta Graph messaging and conversation snapshots.',
-  conversions: 'Conversion signals from chats.',
-  calling: 'WhatsApp calling with chat context.',
-  ads: 'Click-to-WhatsApp campaigns, Meta assets, and entry conversation measurement.',
-  results: 'Campaign delivery, entry sources, and retargeting for this workspace.',
-  inbox: 'Shared conversations and agent replies.',
+  results: 'Campaign delivery, tracked links, and retargeting for this workspace.',
+  inbox: 'Shared conversations, agent replies, and human handoff.',
   unsubscribes: 'Opt-outs and suppressed contacts.',
-  ai_agents: 'Configure assistants, knowledge, testing, and human handoff.',
+  ai_agents: 'Configure assistants, knowledge base, testing, and human handoff.',
   bots: 'Keyword auto-replies and Google Sheets answers — before Automation or AI.',
-  onboarding: 'Guided WhatsApp setup for nontechnical owners.'
+  onboarding: 'Guided WhatsApp Automation setup for your workspace.'
 };
 
 /** Cross-feature journey strips removed — they recreated dashboard-style chrome. */
@@ -200,106 +156,82 @@ export function pageJourney(view) {
 }
 
 /**
- * Grouped sidebar IA. Icons are string keys resolved in the shell.
- * Setup-related items open dedicated routes that mount the existing Setup panels.
+ * Grouped sidebar IA for WhatsApp Automation SaaS.
+ * Customer journey: get started → connect → audience → message → automate → broadcast → inbox → measure → admin.
  */
-export const navGroups = [
+const navGroupsRaw = [
   {
-    id: 'workspace',
-    label: 'Workspace',
+    id: 'getting_started',
+    label: 'Getting started',
+    items: [{ id: 'onboarding', label: 'Get started', icon: 'Sparkles' }]
+  },
+  {
+    id: 'connection',
+    label: 'Connection',
     items: [
       { id: 'setup', label: 'Connection', icon: 'Link2' },
       { id: 'numbers', label: 'Numbers', icon: 'Smartphone' },
-      { id: 'profile', label: 'Profile', icon: 'Building2' }
+      { id: 'profile', label: 'Profile', icon: 'Building2' },
+      { id: 'capabilities', label: 'Readiness', icon: 'RadioTower' }
     ]
   },
   {
-    id: 'communication',
-    label: 'Communication',
+    id: 'audience',
+    label: 'Audience',
     items: [
-      { id: 'inbox', label: 'Inbox', icon: 'Inbox' },
-      { id: 'calling', label: 'Calling', icon: 'PhoneCall' },
-      { id: 'contacts', label: 'Audience', icon: 'UsersRound' }
+      { id: 'contacts', label: 'Contacts', icon: 'UsersRound' },
+      { id: 'unsubscribes', label: 'Suppression', icon: 'Ban' }
     ]
   },
   {
-    id: 'marketing',
-    label: 'Marketing',
+    id: 'messaging',
+    label: 'Messaging',
     items: [
-      { id: 'campaigns', label: 'Broadcasting', icon: 'Send' },
       { id: 'templates', label: 'Templates', icon: 'MessageSquareText' },
-      { id: 'ads', label: 'CTWA Ads', icon: 'RadioTower' },
+      { id: 'media', label: 'Media', icon: 'Paperclip' },
       { id: 'entry_points', label: 'Entry points', icon: 'Link2' }
     ]
   },
   {
     id: 'automation',
-    label: 'Automation & AI',
+    label: 'Automation',
     items: [
       { id: 'bots', label: 'Reply bots', icon: 'Bot' },
-      { id: 'automation', label: 'Automation', icon: 'Workflow' },
+      { id: 'automation', label: 'Automation builder', icon: 'Workflow' },
       { id: 'ai_agents', label: 'AI Agents', icon: 'Sparkles' },
-      { id: 'flows', label: 'WhatsApp Flows', icon: 'Workflow' },
-      { id: 'media', label: 'Media', icon: 'Paperclip' }
+      { id: 'flows', label: 'WhatsApp Flows', icon: 'Workflow' }
     ]
   },
   {
-    id: 'getting_started',
-    label: 'Getting started',
+    id: 'broadcasting',
+    label: 'Broadcasting',
     items: [
-      { id: 'onboarding', label: 'Get started', icon: 'Sparkles' }
+      { id: 'campaigns', label: 'Campaigns', icon: 'Send' },
+      { id: 'results', label: 'Analytics', icon: 'BarChart3' }
     ]
   },
   {
-    id: 'commerce',
-    label: 'Commerce & integrations',
-    items: [
-      { id: 'commerce', label: 'Commerce', icon: 'ShoppingBag' },
-      { id: 'catalog', label: 'Catalog', icon: 'ShoppingBag' },
-      { id: 'integrations', label: 'Integrations', icon: 'KeyRound' }
-    ]
+    id: 'inbox',
+    label: 'Inbox',
+    items: [{ id: 'inbox', label: 'Shared inbox', icon: 'Inbox' }]
   },
   {
-    id: 'insights',
-    label: 'Analytics & Insights',
-    items: [
-      { id: 'results', label: 'Analytics', icon: 'BarChart3' },
-      { id: 'meta_analytics', label: 'Meta insights', icon: 'LineChart' },
-      { id: 'conversions', label: 'Conversions', icon: 'Activity' },
-      { id: 'journeys', label: 'Journeys', icon: 'Route' }
-    ]
-  },
-  {
-    id: 'readiness',
-    label: 'Meta readiness',
-    items: [
-      { id: 'capabilities', label: 'Capabilities', icon: 'RadioTower' },
-      { id: 'groups', label: 'Groups', icon: 'MessageSquare' }
-    ]
+    id: 'integrations',
+    label: 'Integrations',
+    items: [{ id: 'integrations', label: 'Integrations', icon: 'KeyRound' }]
   },
   {
     id: 'workspace_admin',
     label: 'Workspace',
     items: [
       { id: 'team', label: 'Team', icon: 'UserPlus' },
-      { id: 'security', label: 'Security', icon: 'ShieldCheck' }
-    ]
-  },
-  {
-    id: 'subscriptions',
-    label: 'Subscriptions',
-    items: [
+      { id: 'security', label: 'Security', icon: 'ShieldCheck' },
       { id: 'billing', label: 'Billing', icon: 'WalletCards' }
-    ]
-  },
-  {
-    id: 'compliance',
-    label: 'Contact compliance',
-    items: [
-      { id: 'unsubscribes', label: 'Suppression', icon: 'Ban' }
     ]
   }
 ];
+
+export const navGroups = filterNavGroups(navGroupsRaw);
 
 export const flatNavItems = navGroups.flatMap((group) => group.items);
 
@@ -313,6 +245,7 @@ export function productSwitcherIdForView(view, productIds = []) {
 }
 
 export function canOpenWorkspaceView(role, view) {
+  if (!isReleaseViewAllowed(view)) return false;
   if (view === 'billing') return role === 'Owner';
   return !managerViews.has(view) || role === 'Owner' || role === 'Manager';
 }
@@ -333,16 +266,14 @@ export function workspaceLocation(pathname) {
       flows: 'flows',
       media: 'media',
       'entry-points': 'entry_points',
-      journeys: 'journeys',
-      capabilities: 'capabilities',
-      groups: 'groups',
-      catalog: 'catalog',
-      analytics: 'meta_analytics'
+      capabilities: 'capabilities'
     };
-    return { view: map[rest] || 'setup', conversationId: null };
+    const view = map[rest] || 'setup';
+    return { view: isReleaseViewAllowed(view) ? view : 'setup', conversationId: null };
   }
   const entry = Object.entries(workspaceRoutes).find(([, route]) => route === pathname);
-  return { view: entry?.[0] || 'setup', conversationId: null };
+  const view = entry?.[0] || 'setup';
+  return { view: isReleaseViewAllowed(view) ? view : 'setup', conversationId: null };
 }
 
 export function pageTitle(view) {

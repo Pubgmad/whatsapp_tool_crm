@@ -31,12 +31,19 @@ test('built-in catalogue publishes Free/Pro/Custom and archives legacy tiers', (
   assert.equal(pro.monthly_price_cents, PROPOSED_PLAN_PRICES_INR.pro * 100);
   assert.equal(pro.yearly_price_cents, annualCents(PROPOSED_PLAN_PRICES_INR.pro));
   assert.ok(planAllowsFeature(pro.features, 'campaigns'));
+  assert.ok(!pro.features.includes('ads'));
+  assert.ok(!pro.features.includes('calling'));
+  assert.ok(!pro.features.includes('commerce'));
+  assert.ok(planAllowsFeature(pro.features, 'whatsapp_flows'));
+  assert.ok(planAllowsFeature(pro.features, 'ai_agent'));
 
   const custom = plans.find((plan) => plan.code === 'custom');
   assert.ok(custom);
   assert.equal(custom.visible, false);
   assert.equal(custom.contact_limit, null);
   assert.ok(planAllowsFeature(custom.features, 'automation'));
+  assert.ok(!custom.features.includes('crm_sync'));
+  assert.ok(!custom.features.includes('ecommerce_playbooks'));
 
   for (const code of ['starter', 'growth', 'professional', 'enterprise']) {
     const legacy = plans.find((plan) => plan.code === code);

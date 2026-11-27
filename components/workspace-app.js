@@ -1,37 +1,27 @@
 "use client";
-import WhatsAppCommerce from './whatsapp-commerce';
 import RazorpaySubscriptionActions from './razorpay-subscription-actions';
 import AdvancedTemplateComposer from './advanced-template-composer';
-import WhatsAppCalling from './whatsapp-calling';
-import WhatsAppAds from './whatsapp-ads';
-import WhatsAppConversions from './whatsapp-conversions';
 import TemplateParameterFields from './template-parameter-fields';
 import CampaignControls, {CampaignPolicy} from './campaign-controls';
 import CoexistenceProgress from './coexistence-progress';
 import WhatsAppEntryPoints from './whatsapp-entry-points';
 import SupportPolicy from './support-policy';
 import WhatsAppFlowDesigner from './whatsapp-flow-designer';
-import WhatsAppJourneyAnalytics from './whatsapp-journey-analytics';
 import NativeFlowWorkspace from './native-flow-workspace';
 import WorkspaceIntegrations from './workspace-integrations';
 import TrackedLinks from './tracked-links';
-import ProviderConnectors from './provider-connectors';
 import WhatsAppWebviews from './whatsapp-webviews';
 import InboxSlaWidget from './inbox-sla-widget';
 import WorkspaceResultsManagerShell from './workspace-results-manager-shell';
 import { isWorkspaceManager } from '../lib/workspace-roles.ts';
-import WhatsAppGroups from './whatsapp-groups';
 import IntegrationMarketplace from './integration-marketplace';
 import ConnectorMarketplacePanel from './connector-marketplace-panel';
 import SmbBotsWorkspace from './smb-bots-workspace';
 import AssistedOnboardingPanel from './assisted-onboarding-panel';
-import EcommercePlaybooksPanel from './ecommerce-playbooks-panel';
 import MmLiteOptimizerPanel from './mm-lite-optimizer-panel';
 import MetaBillingVisibility from './meta-billing-visibility';
 import TemplateLibraryBrowser from './template-library-browser';
 import AutomationAiGenerator from './automation-ai-generator';
-import HubSpotConnection from './hubspot-connection';
-import CommerceOpsPanel from './commerce-ops-panel';
 import AutomationAdvancedNodeFields from './automation-advanced-node-fields';
 import AutomationConnections from './automation-connections';
 import AutomationFlowCanvas from './automation-flow-canvas';
@@ -50,6 +40,7 @@ import SearchableOptionPicker from './searchable-option-picker';
 import AiSupportSettings from './ai-support-settings';
 import ThemeToggle from './theme-toggle';
 import { isSessionFailure, createRequestGate, authFormPasswordError } from '../lib/auth-navigation';
+import { isReleaseViewAllowed } from '../lib/release-feature-allowlist.js';
 import { DEFAULT_POST_AUTH_PATH, DEFAULT_WORKSPACE_PATH, safeAuthReturnPath, withAuthReturn } from '../lib/auth-return.js';
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../lib/password-policy.js';
 import { metaSdkCallback } from '../lib/meta-sdk-callback';
@@ -92,11 +83,23 @@ const NAV_ICONS = {
 
 const navItems = flatNavItems.map((item) => ({ ...item, icon: NAV_ICONS[item.icon] || LayoutDashboard }));
 
-/** Primary products shown in the compact switcher (not a full CRM dashboard nav). */
+/** Primary products shown in the compact switcher (WhatsApp Automation journey). */
 const PRODUCT_SWITCHER_IDS = [
-  'onboarding', 'setup', 'inbox', 'campaigns', 'ads', 'bots', 'automation', 'calling', 'ai_agents',
-  'templates', 'contacts', 'results', 'commerce', 'integrations',
-  'capabilities', 'team', 'billing', 'security', 'unsubscribes'
+  'onboarding',
+  'setup',
+  'contacts',
+  'templates',
+  'bots',
+  'automation',
+  'ai_agents',
+  'campaigns',
+  'inbox',
+  'results',
+  'integrations',
+  'team',
+  'billing',
+  'security',
+  'unsubscribes'
 ];
 
 
@@ -643,8 +646,8 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
     .filter(Boolean)
+    .filter((item) => isReleaseViewAllowed(item.id))
     .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
-    .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups)
     .filter((item) => item.id !== 'bots' || state.featureFlags?.reply_bots || state.featureFlags?.sheets_bot)
     .filter((item) => item.id !== 'onboarding' || state.featureFlags?.assisted_onboarding)
     .filter((item) => !simpleMode || allowedSimple.has(item.id) || item.id === activeView);
@@ -652,8 +655,8 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
   const secondaryItems = (activeGroup?.items || [])
     .map((item) => navItems.find((entry) => entry.id === item.id))
     .filter(Boolean)
+    .filter((item) => isReleaseViewAllowed(item.id))
     .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
-    .filter((item) => item.id !== 'groups' || state.featureFlags?.whatsapp_groups)
     .filter((item) => item.id !== 'bots' || state.featureFlags?.reply_bots || state.featureFlags?.sheets_bot)
     .filter((item) => item.id !== 'onboarding' || state.featureFlags?.assisted_onboarding)
     .filter((item) => !simpleMode || allowedSimple.has(item.id) || item.id === activeView);
@@ -893,7 +896,7 @@ function AuthScreen({ onDone, platform, initialMode = "signin", onModeChange }) 
         {!googleMfaPending && (
           <ul className="authBenefits" aria-label="Platform benefits">
             <li>Official WhatsApp Business API workspace for your team</li>
-            <li>Broadcasts, inbox, automation, and ads in one place</li>
+            <li>Broadcasts, inbox, bots, and automation in one place</li>
             <li>Connect your own WhatsApp number after signup</li>
           </ul>
         )}
@@ -979,16 +982,18 @@ function SecuritySettings() {
 }
 
 function Screens({ activeView, setupSection = null, ...props }) {
+  if (!isReleaseViewAllowed(activeView)) {
+    return (
+      <Panel title="Not available in this product">
+        <p>This module is not included in MathStrat WhatsApp Automation. Use Connection, Audience, Templates, Bots, Automation, Broadcasts, or Inbox instead.</p>
+      </Panel>
+    );
+  }
   if (!canOpenWorkspaceView(props.role, activeView)) {
     return <Panel title="Workspace access"><p>This section is available to workspace owners{activeView === "billing" ? "" : " and managers"}.</p></Panel>;
   }
   const setupViews = new Set(Object.keys(setupSectionByView));
   const screens = {
-    ads: <WhatsAppAds api={api} postJson={postJson} uploadForm={uploadForm} role={props.role} />,
-    calling: <WhatsAppCalling api={api} postJson={postJson} role={props.role} />,
-    conversions: <WhatsAppConversions api={api} postJson={postJson} role={props.role} />,
-    commerce: <><CommerceOpsPanel api={api} role={props.role} onOpenOrders={() => props.setActiveView?.('commerce')} />{props.state?.featureFlags?.ecommerce_playbooks && <EcommercePlaybooksPanel api={api} postJson={postJson} role={props.role} />}<WhatsAppCommerce api={api} postJson={postJson} role={props.role} automationEnabled={Boolean(props.state?.featureFlags?.automation)} /></>,
-    catalog: <><WhatsAppCommerce api={api} postJson={postJson} role={props.role} automationEnabled={Boolean(props.state?.featureFlags?.automation)} initialView="catalogs" /><Setup {...props} forcedSection="commerce" hideSectionTabs onNavigateSection={props.setActiveView} /></>,
     // Overview dashboard retired from navigation; keep alias → Workspace/Meta setup.
     overview: <Setup {...props} forcedSection="connection" hideSectionTabs={false} onNavigateSection={props.setActiveView} />,
     setup: <Setup {...props} forcedSection={setupSection || 'connection'} hideSectionTabs={Boolean(setupSection && activeView !== 'setup')} onNavigateSection={props.setActiveView} />,
@@ -1435,16 +1440,12 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
     {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={accountRole}/>}
     {section === 'flows' && <WhatsAppFlowDesigner api={api} postJson={postJson} flows={operations.nativeFlows} onUploaded={()=>mutate(Promise.resolve({ok:true}), 'Flow uploaded')}/>}
     {section === 'flows' && <NativeFlowWorkspace api={api} postJson={postJson} role={accountRole}/>}
-    {section === 'journeys' && <WhatsAppJourneyAnalytics api={api}/>}
-    {section === 'groups' && <WhatsAppGroups api={api} postJson={postJson} enabled={state.featureFlags?.whatsapp_groups} />}
     {section === 'integrations' && isWorkspaceManager(accountRole) && <>
-      {accountRole !== 'Owner' && <p className="wa-module-note" role="status">Managers can review connector status. Connecting stores, CRM sync, API keys, and webhooks require the workspace Owner.</p>}
+      {accountRole !== 'Owner' && <p className="wa-module-note" role="status">Managers can review connector status. API keys, webhooks, and calendar connectors require the workspace Owner.</p>}
       <ConnectorMarketplacePanel api={api} postJson={postJson} role={accountRole} setActiveView={onNavigateSection} />
-      <details className="techDetails"><summary>Legacy catalog recipes</summary><IntegrationMarketplace api={api} /></details>
-      {state.featureFlags?.connectors && <ProviderConnectors api={api} postJson={postJson} canEdit={accountRole === 'Owner'} recoveryAllowed={Boolean(state.featureFlags?.checkout_recovery && state.featureFlags?.automation)} />}
+      <details className="techDetails"><summary>Webhook automation recipes</summary><IntegrationMarketplace api={api} /></details>
       {state.featureFlags?.segments && <TrackedLinks api={api} postJson={postJson} role={accountRole}/>}
-      {state.featureFlags?.webviews&&<WhatsAppWebviews api={api} postJson={postJson}/>}
-      {state.featureFlags?.crm_sync&&accountRole==='Owner'&&<><HubSpotConnection api={api} postJson={postJson} role={accountRole}/><HubSpotConnection provider="salesforce" api={api} postJson={postJson} role={accountRole}/></>}
+      {state.featureFlags?.webviews && <WhatsAppWebviews api={api} postJson={postJson}/>}
       {accountRole === 'Owner' && <details className="techDetails saasAdvancedBlock"><summary>Developer API · keys and signed webhooks</summary><WorkspaceIntegrations api={api} postJson={postJson}/></details>}
     </>}
     {section === "connection" && <>
@@ -1524,7 +1525,7 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
 {section === "flows" && <div className="contentGrid twoColumns whatsappFlowsScreen"><Panel title="Create WhatsApp Flow" subtitle="Meta in-chat forms — separate from Automation reply workflows"><form className="formGrid" onSubmit={(event) => { event.preventDefault(); runOperation({ action: "create_flow", ...Object.fromEntries(new FormData(event.currentTarget)), accountId: activeAccount?.id, phoneId: activePhone?.id }, "WhatsApp Flow created"); event.currentTarget.reset(); }}><Input name="name" label="Flow name" required /><label>Category<select name="category"><option value="LEAD_GENERATION">Lead generation</option><option value="APPOINTMENT_BOOKING">Appointment booking</option><option value="SIGN_UP">Sign up</option><option value="CONTACT_US">Contact us</option><option value="OTHER">Other</option></select></label><label className="checkRow"><input name="managedEndpoint" type="checkbox" disabled={!activePhone?.flowEncryption?.configured || activePhone?.flowEncryption?.signatureStatus !== "VALID"} /> Use CRM data endpoint</label><label>CRM endpoint mode<select name="managedEndpointMode"><option value="preset">Saved responses</option><option value="transactional">Live booking or order runtime</option></select></label><Input name="endpointUri" label="External data endpoint (optional)" type="url" /><button className="primaryAction" disabled={!accountHasLiveToken(activeAccount)}><Plus size={17} /> Create in Meta</button></form></Panel><Panel title="Meta Flow library" subtitle="Published Flows are immutable; clone in Meta before changing a published Flow"><div className="flowAssetList">{operations.nativeFlows.map((flow) => <article key={flow.id}><header><div><strong>{flow.name}</strong><span>{flow.category} | {flow.metaFlowId || "Local"}</span></div><Badge kind={flow.status === "published" ? "good" : flow.validationErrors.length ? "bad" : "warn"}>{flow.status}</Badge></header>{flow.managedEndpoint && !flow.transactionalEndpoint && <details><summary>Data responses</summary><form onSubmit={(event) => { event.preventDefault(); try { runOperation({ action: "set_flow_responses", flowId: flow.id, responses: JSON.parse(new FormData(event.currentTarget).get("responses")) }, "Flow responses saved"); } catch { mutate(Promise.reject(new Error("Enter valid response JSON."))); } }}><textarea name="responses" rows="8" defaultValue={JSON.stringify(flow.endpointResponses || {}, null, 2)} required /><button className="secondaryAction"><Save size={16} /> Save responses</button></form><small>{flow.endpointUri}</small></details>}<details><summary>Flow JSON</summary><form onSubmit={(event) => { event.preventDefault(); runOperation({ action: "upload_flow", flowId: flow.id, flowJson: new FormData(event.currentTarget).get("flowJson") }, "Flow definition uploaded"); }}><textarea name="flowJson" rows="8" defaultValue={JSON.stringify(flow.flowJson || {}, null, 2)} required /><button className="secondaryAction"><Upload size={16} /> Validate and upload</button></form></details><div className="assetActions"><button className="secondaryAction" type="button" disabled={flow.status === "published"} onClick={() => runOperation({ action: "publish_flow", flowId: flow.id }, "WhatsApp Flow published")}><Play size={16} /> Publish</button></div>{flow.validationErrors.map((error, index) => <small className="errorLine" key={index}>{error.error_user_msg || error.error || error.message || 'Fix the Flow JSON and upload again.'}</small>)}</article>)}</div><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync_flows", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "WhatsApp Flows synchronized")} disabled={!accountHasLiveToken(activeAccount)}><RefreshCcw size={17} /> Sync from Meta</button>{!operations.nativeFlows.length && <EmptyState text="No native WhatsApp Flows yet" />}</Panel></div>}
     {section === "flows" && activePhone && <Panel title="Flow encryption" subtitle={activePhone.displayPhoneNumber}><div className="connectionActions"><Badge kind={activePhone.flowEncryption?.signatureStatus === "VALID" ? "good" : "warn"}>{activePhone.flowEncryption?.signatureStatus || "Not configured"}</Badge><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "configure_flow_encryption", phoneId: activePhone.id }, "Flow encryption configured")}><KeyRound size={17} /> Configure in Meta</button></div></Panel>}
     {section === "media" && <div className="contentGrid twoColumns mediaLibraryScreen"><Panel title="Upload" subtitle={activePhone ? `Uploads to Meta for ${activePhone.displayPhoneNumber || "this number"}` : "Connect a WhatsApp number first"}><form className="formGrid" onSubmit={uploadMedia}><label className="fileDrop"><input name="file" type="file" accept="image/jpeg,image/png,video/mp4,video/3gpp,audio/aac,audio/mp4,audio/mpeg,audio/amr,audio/ogg,application/pdf,text/plain" required /><Upload size={22} /><strong>Choose media</strong><span>Images, video, audio, PDF, or plain text within Meta Cloud API limits</span></label>{!activePhone && <p className="formError" role="status">No active WhatsApp number is selected for this workspace.</p>}{!accountHasLiveToken(activeAccount) && activePhone && <p className="formError" role="status">Reconnect WhatsApp before uploading media to Meta.</p>}<button className="primaryAction" disabled={!activePhone || !accountHasLiveToken(activeAccount)}><Upload size={16} /> Upload to Meta</button></form></Panel><Panel title="Library" subtitle={`${operations.mediaAssets.length} asset${operations.mediaAssets.length === 1 ? "" : "s"} · Meta media IDs are workspace-scoped`}><div className="mediaAssetList">{operations.mediaAssets.map((asset) => <article key={asset.id}><div><Image size={18} /><span><strong>{asset.filename || asset.metaMediaId}</strong><small>{asset.mimeType} · {Math.ceil((asset.byteSize || 0) / 1024)} KB · {asset.metaMediaId}</small></span></div><button className="iconButton dangerSoft" type="button" title="Delete media" aria-label={`Delete ${asset.filename || asset.metaMediaId}`} onClick={() => { if (window.confirm("Delete this media asset from the workspace library?")) mutate(api(`/api/whatsapp/media?id=${encodeURIComponent(asset.id)}`, { method: "DELETE" }), "Media deleted"); }}><Trash2 size={16} /></button></article>)}</div>{!operations.mediaAssets.length && <EmptyState text="No media uploaded yet. Uploaded files can be reused in templates and supported automation actions." />}</Panel></div>}
-    {section === "commerce" && <div className="contentGrid twoColumns"><Panel title="Commerce settings" subtitle={activePhone ? `Catalog visibility for ${activePhone.displayPhoneNumber}` : "Connect a phone number first"}>{activePhone ? <form className="formGrid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); runOperation({ action: "update_commerce", phoneId: activePhone.id, isCartEnabled: form.get("isCartEnabled") === "on", isCatalogVisible: form.get("isCatalogVisible") === "on" }, "Commerce settings updated"); }}><label className="checkRow"><input name="isCatalogVisible" type="checkbox" defaultChecked={Boolean(activePhone.commerceSettings.is_catalog_visible)} /> Catalog visible in WhatsApp</label><label className="checkRow"><input name="isCartEnabled" type="checkbox" defaultChecked={Boolean(activePhone.commerceSettings.is_cart_enabled)} /> Shopping cart enabled</label><p className="pageIntro">WhatsApp Connected status does not by itself mean a Meta product catalog is linked. Browse linked catalogs and products from the Catalogs tab on Commerce, or open Catalog in the product switcher.</p><div className="formActions"><button className="primaryAction"><Save size={17} /> Save settings</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync_commerce", phoneId: activePhone.id }, "Commerce settings synchronized")}><RefreshCcw size={17} /> Sync from Meta</button>{onNavigateSection ? <button className="secondaryAction" type="button" onClick={() => onNavigateSection('catalog')}>Open Catalog</button> : null}</div></form> : <EmptyState text="No active WhatsApp number" />}</Panel><Panel title="Send product message" subtitle="Available only to an existing contact inside the customer service window"><form className="formGrid" onSubmit={(event) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); runOperation({ action: "send_commerce_message", phoneId: activePhone?.id, ...values }, "Product message sent"); event.currentTarget.reset(); }}><Input name="recipient" label="Contact phone" required /><Input name="catalogId" label="Meta catalog ID" required /><label>Message type<select name="mode"><option value="product">Single product</option><option value="product_list">Product list</option></select></label><Input name="header" label="Header" /><label className="wideField">Message<textarea name="body" rows="3" required /></label><Input name="sectionTitle" label="Section title" /><label className="wideField">Product retailer IDs<textarea name="products" rows="4" required /></label><button className="primaryAction" disabled={!activePhone}><ShoppingBag size={17} /> Send product message</button></form></Panel></div>}
+    
     {section === "analytics" && <Panel title="Meta WhatsApp analytics" subtitle="Account-level messaging and conversation analytics from Meta Graph for this workspace.">
       <div className="assetToolbar whatsappReferralToolbar">
         <span>{operations.analytics.length} recent snapshot{operations.analytics.length === 1 ? "" : "s"}</span>
@@ -2390,7 +2391,6 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
   const currentUserId = state.account?.user?.id || "";
   const [search, setSearch] = useState(serverQ);
   const [inboxFilter, setInboxFilter] = useState(serverFilter || state?.pagination?.inbox?.appliedFilter || "all");
-  const [inboxSurface, setInboxSurface] = useState("direct");
   const [replyDrafts, setReplyDrafts] = useState({});
   const [suggesting, setSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState('');
@@ -2517,7 +2517,6 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
     finally { setSuggesting(false); }
   };
   const note = (event) => { event.preventDefault(); const form = event.currentTarget; const value = new FormData(form).get("note"); if (!value?.trim()) return; workflowAction("note", { note: value }); form.reset(); };
-  const groupsEnabled = Boolean(state.featureFlags?.whatsapp_groups);
   const whatsappConnected = (state?.setup?.status || 'Needs setup') === 'Connected' && Boolean(state?.meta?.liveMetaReady);
   const webhookSubscribed = state?.setup?.webhookSubscribed === true
     || state?.whatsappAccounts?.some?.((account) => account.webhookSubscribed === true);
@@ -2560,11 +2559,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
         <button className="secondaryAction" type="button" onClick={() => (setActiveView ? setActiveView('setup') : window.location.assign('/app/settings/whatsapp'))}>Check connection</button>
       </div>
     )}
-    {groupsEnabled && <div className="wa-inbox-modes" role="tablist" aria-label="Inbox surface">
-      <button type="button" role="tab" aria-selected={inboxSurface === "direct"} className={inboxSurface === "direct" ? "active" : ""} onClick={() => setInboxSurface("direct")}>1:1 conversations</button>
-      <button type="button" role="tab" aria-selected={inboxSurface === "groups"} className={inboxSurface === "groups" ? "active" : ""} onClick={() => setInboxSurface("groups")}>Groups</button>
-    </div>}
-    {inboxSurface === "groups" ? <WhatsAppGroups api={api} postJson={postJson} enabled={groupsEnabled} embedded /> : <><section className={`inboxShell${activeConversation && activeContact && !profileOpen ? ' inboxShellProfileCollapsed' : ''}`}>
+    <><section className={`inboxShell${activeConversation && activeContact && !profileOpen ? ' inboxShellProfileCollapsed' : ''}`}>
     <aside className="threadList"><div className="threadTools"><label className="searchBox"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or phone" aria-label="Search conversations" /></label><select value={inboxFilter} aria-label="Filter conversations" onChange={(event) => { const value = event.target.value; setInboxFilter(value); reloadInbox?.({ inboxFilter: value, inboxQ: search.trim(), page: 1 }); }}><option value="all">All conversations</option><option value="requesting">Awaiting agent reply</option><option value="active">Active (open)</option><option value="intervened">Human intervened</option><option value="unread">Unread</option><option value="mine">Assigned to me</option><option value="unassigned">Unassigned</option><option value="human">Human takeover</option><option value="replyable">Reply window open</option><option value="closed">Closed</option></select></div>{inboxSyncing && <p className="inboxSyncStatus" role="status">Refreshing conversations…</p>}{inboxSyncError ? <div className="inboxSectionErrorWrap"><SectionError error={inboxSyncError} operation="inbox" onRetry={() => reloadInbox?.({ inboxFilter, inboxQ: search.trim(), page: 1 })} /></div> : null}{!inboxSyncError && filteredConversations.map((conversation) => { const contact = contacts.find((item) => item.id === conversation.contactId) || {}; const latest = conversation.messages?.at?.(-1); return <button key={conversation.id} type="button" className={conversation.id === activeConversation?.id ? "active" : ""} onClick={() => selectConversation(conversation)}><span className="threadTitle"><strong>{contact.name || contact.phone || 'Unknown contact'}</strong>{conversation.unreadCount > 0 && <b>{conversation.unreadCount}</b>}</span><span>{latest?.body || "No messages yet"}</span><em>{formatTime(conversation.updatedAt)}</em><small>{conversation.status === "closed" ? "Closed" : conversation.automationPaused ? "Human takeover" : conversation.assignedUserId ? "Assigned" : "Unassigned"}</small></button>; })}{!inboxSyncError && listIsEmpty && <div className="inboxEmptyHero" role="status"><strong>{emptyTitle}</strong><p>{emptyBody}</p></div>}</aside>
     <div className="threadPane">{activeConversation && activeContact ? <>
       <header><div><strong>{activeContact.name}</strong><small>{activeContact.phone} | {assignedUser ? `Assigned to ${assignedUser.name || assignedUser.email}` : "Unassigned"}</small></div><div className="threadPaneHeaderActions"><button className="secondaryAction compactAction" type="button" onClick={() => setProfileOpen((open) => !open)}>{profileOpen ? 'Hide profile' : 'Show profile'}</button><Badge kind={activeConversation.status === "closed" ? "neutral" : activeConversation.automationPaused ? "warn" : activeConversation.canReply ? "good" : "neutral"}>{activeConversation.status === "closed" ? "Closed" : activeConversation.automationPaused ? "Human" : activeConversation.canReply ? "24h open" : "Template only"}</Badge></div></header>
@@ -2587,7 +2582,7 @@ function InboxView({ state, activeConversation, activeContact, approvedTemplates
       <aside className="conversationNotes"><header><div><StickyNote size={17} /><strong>Internal notes</strong></div><span>{activeConversation.notes?.length || 0}</span></header><div className="noteList">{(activeConversation.notes || []).map((item) => <article key={item.id}><p>{item.body}</p><small>{item.author} | {formatTime(item.createdAt)}</small></article>)}{!activeConversation.notes?.length && <span>No internal notes yet</span>}</div><form onSubmit={note}><input name="note" placeholder="Add a note for your team" required /><button className="iconButton" title="Add note"><Plus size={17} /></button></form></aside>
     </> : <div className="threadPaneEmpty" role="status">{listIsEmpty ? 'Select a conversation when messages arrive.' : 'Select a conversation to start messaging.'}</div>}</div>
     {profileOpen ? <InboxContact360 contactId={activeContact?.id || null} api={api} /> : null}
-  </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</>}</>;
+  </section>{activeConversation?.status !== "closed" && activeConversation?.canReply && activeContact && <InteractiveReplyForm activeContact={activeContact} mutate={mutate} />}</></>;
 }
 function AiAgentsWorkspace({ state, role: roleProp }) {
   const role = roleProp || state?.account?.role;

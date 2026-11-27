@@ -736,7 +736,7 @@ function PlansBillingWorkspace({ plans, catalogue, onSave, onDelete, onEnsureDef
         </Panel>
       </section>
 
-      <Panel title="Entitlement matrix" subtitle="Which WORKSPACE_FEATURES each plan grants (keys stored in plan.features)">
+      <Panel title="Entitlement matrix" subtitle="WhatsApp Automation entitlements each plan grants (full-CRM keys are excluded from this release)">
         <div style={{ overflowX: "auto" }}>
           <table className="dataTable">
             <thead>
