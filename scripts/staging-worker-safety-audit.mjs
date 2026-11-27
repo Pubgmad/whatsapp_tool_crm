@@ -56,7 +56,13 @@ if (fs.existsSync(prodEnvPath)) {
   check('job_secret_distinct_from_prod', Boolean(jobSecret) && jobSecret !== prod.JOB_RUNNER_SECRET);
   check('database_distinct_from_prod', Boolean(databaseUrl) && databaseUrl !== prod.DATABASE_URL);
   check('auth_secret_distinct_from_prod', Boolean(process.env.AUTH_SECRET) && process.env.AUTH_SECRET !== prod.AUTH_SECRET);
-  check('webhook_verify_token_distinct_from_prod', Boolean(process.env.META_WEBHOOK_VERIFY_TOKEN) && process.env.META_WEBHOOK_VERIFY_TOKEN !== prod.META_WEBHOOK_VERIFY_TOKEN);
+  const stagingVerify = String(process.env.META_WEBHOOK_VERIFY_TOKEN || '').trim();
+  const prodVerify = String(prod.META_WEBHOOK_VERIFY_TOKEN || '').trim();
+  check(
+    'webhook_verify_token_not_shared_with_prod',
+    !(stagingVerify && prodVerify && stagingVerify === prodVerify),
+    stagingVerify ? (prodVerify ? 'distinct_or_checked' : 'staging_set_prod_empty') : 'staging_empty'
+  );
 }
 
 if (!/staging/i.test(db)) {
