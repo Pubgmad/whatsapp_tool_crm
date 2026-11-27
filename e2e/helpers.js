@@ -46,9 +46,17 @@ export function hasSessionE2ECredentials() {
   return Boolean(process.env.E2E_SESSION_COOKIE && process.env.E2E_CSRF_COOKIE) || Boolean(process.env.E2E_STORAGE_STATE);
 }
 
+export async function waitForWorkspaceReady(page, { timeout = 60000 } = {}) {
+  await page.getByText('Loading workspace').waitFor({ state: 'hidden', timeout }).catch(() => {});
+  await page.getByText('Unable to load this page').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+}
+
 export async function openWorkspaceApp(page) {
   const path = new URL(page.url()).pathname;
-  if (path.startsWith('/app/')) return;
+  if (path.startsWith('/app/')) {
+    await waitForWorkspaceReady(page);
+    return;
+  }
   const entry = postLoginConnectWhatsApp(page);
   if (await entry.count()) {
     await entry.click();
@@ -56,10 +64,11 @@ export async function openWorkspaceApp(page) {
     await page.goto('/app/dashboard');
   }
   await page.waitForURL(/\/app\//, { timeout: 60000 });
+  await waitForWorkspaceReady(page);
 }
 
 export async function gotoApp(page, path) {
   await page.goto(path);
   await page.waitForURL(new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), { timeout: 60000 });
-  await page.getByText('Unable to load this page').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  await waitForWorkspaceReady(page);
 }
