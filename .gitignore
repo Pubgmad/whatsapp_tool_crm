@@ -57,3 +57,6 @@ run-*-logs*.zip
 !/CONTEXT.md
 # Local/CI staging verification artifacts (do not commit)
 staging-*.txt
+.staging-e2e.env
+e2e/.auth/
+scripts/_remote-*.sh

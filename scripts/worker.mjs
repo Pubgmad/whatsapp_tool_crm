@@ -18,7 +18,10 @@ try {
 } catch {
   throw new Error(`JOB_RUNNER_URL or APP_URL is invalid: ${baseUrl}`);
 }
-if (process.env.NODE_ENV === 'production' && runnerUrl.protocol !== 'https:') {
+const allowLocalHttp = String(process.env.ALLOW_LOCAL_JOB_RUNNER || '').trim() === '1'
+  && ['127.0.0.1', 'localhost'].includes(runnerUrl.hostname)
+  && /staging/i.test(String(process.env.DATABASE_URL || ''));
+if (process.env.NODE_ENV === 'production' && runnerUrl.protocol !== 'https:' && !allowLocalHttp) {
   throw new Error('Production worker requires HTTPS APP_URL / JOB_RUNNER_URL for Meta webhooks and Flow endpoints.');
 }
 

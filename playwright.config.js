@@ -4,13 +4,21 @@ import nextEnv from '@next/env';
 nextEnv.loadEnvConfig(process.cwd());
 const e2ePort = Number(process.env.E2E_PORT || 3100);
 const e2eBase = process.env.E2E_BASE_URL || `http://localhost:${e2ePort}`;
+const basicAuth = process.env.BASIC_AUTH_USER && process.env.BASIC_AUTH_PASSWORD
+  ? { username: process.env.BASIC_AUTH_USER, password: process.env.BASIC_AUTH_PASSWORD }
+  : undefined;
 
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
-  use: { baseURL: e2eBase, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  use: {
+    baseURL: e2eBase,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    ...(basicAuth ? { httpCredentials: basicAuth } : {})
+  },
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {

@@ -29,7 +29,11 @@ module.exports = {
       args: 'run worker',
       env: {
         NODE_ENV: 'production',
-        JOB_RUNNER_URL: 'http://127.0.0.1:3001'
+        JOB_RUNNER_URL: 'http://127.0.0.1:3001',
+        // Loopback-only HTTP for isolated staging DB; mock Meta sends (no Graph traffic).
+        ALLOW_LOCAL_JOB_RUNNER: '1',
+        META_SEND_MODE: 'mock',
+        ALLOW_META_SEND_MOCK: '1'
       },
       autorestart: true,
       max_restarts: 10,
