@@ -699,6 +699,7 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
             const liveToken = accounts.some((account) => String(account?.status || '').toLowerCase() === 'connected' && account?.token?.status && account.token.status !== 'unknown' && account.token.status !== 'expired');
             if (setupConnected && (liveToken || !accounts.length)) return 'good';
             if (setupConnected && accounts.length && !liveToken) return 'warn';
+            if (state.meta?.platformIntegration?.status === 'staging_not_configured') return 'warn';
             return 'warn';
           })()}`}>{(() => {
             const setupConnected = (state.setup?.status || 'Needs setup') === 'Connected' && Boolean(state.meta?.liveMetaReady);
@@ -706,6 +707,8 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
             const liveToken = accounts.some((account) => String(account?.status || '').toLowerCase() === 'connected' && account?.token?.status && account.token.status !== 'unknown' && account.token.status !== 'expired');
             if (setupConnected && (liveToken || !accounts.length)) return 'Connected';
             if (setupConnected && accounts.length && !liveToken) return 'Action required';
+            if (state.meta?.platformIntegration?.status === 'staging_not_configured') return 'Staging integration not configured';
+            if (state.meta?.platformIntegration?.status === 'platform_not_configured') return 'Platform Meta not configured';
             return 'Needs setup';
           })()}</span>
           <button className="iconButton" type="button" title="Refresh" onClick={refresh}><RefreshCcw size={18} /></button>
@@ -1334,18 +1337,40 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
     });
     return undefined;
   }, [section, selectedPhone?.id, activeAccount?.id]);
+  const platformIntegration = meta.platformIntegration || {};
+  const metaSignupReady = Boolean(meta.embeddedSignupAvailable);
+  const integrationBlocked = !metaSignupReady;
+  const missingKeys = Array.isArray(platformIntegration.missingConfigKeys) ? platformIntegration.missingConfigKeys : [];
+  const integrationTitle = platformIntegration.status === 'staging_not_configured'
+    ? 'Integration unavailable in this staging environment'
+    : platformIntegration.reason || 'WhatsApp connection is not configured on this platform';
+  const integrationDetail = missingKeys.length
+    ? `Connect with Meta stays disabled until platform operators configure: ${missingKeys.join(', ')}. Values are never shown here.`
+    : 'Connect with Meta stays disabled until platform Meta Embedded Signup credentials are configured.';
   return <div className="screenGrid metaSetupScreen">
-    {showConnectHero && !connected && !reconnectRequired ? <section className="metaConnectHero" aria-labelledby="meta-connect-heading">
+    {showConnectHero && !connected && !reconnectRequired ? <section className={`metaConnectHero${integrationBlocked ? ' metaConnectHeroBlocked' : ''}`} aria-labelledby="meta-connect-heading">
       <div>
-        <p className="kicker">Meta</p>
-        <h2 id="meta-connect-heading">Connect your WhatsApp Business account</h2>
-        <span>Securely connect your WhatsApp Business account through Meta to start using messaging tools in this workspace.</span>
+        <p className="kicker">WhatsApp</p>
+        <h2 id="meta-connect-heading">{integrationBlocked ? integrationTitle : 'Connect your WhatsApp Business account'}</h2>
+        <span>{integrationBlocked
+          ? integrationDetail
+          : 'Securely connect your WhatsApp Business account through Meta to unlock live messaging, template sync, and delivery events.'}</span>
       </div>
       <div className="metaConnectActions">
-        <button className={`primaryAction metaConnectButton${connecting ? ' isPending' : ''}`} type="button" onClick={() => connectMeta('standard')} disabled={connecting || !meta.embeddedSignupAvailable} aria-busy={connecting ? 'true' : undefined}>{connecting ? <Loader2 className="spin" size={18} aria-hidden="true" /> : <Link2 size={18} />}<span>{connecting ? 'Connecting…' : 'Connect with Meta'}</span></button>
-        <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !coexistenceAvailable} title="For eligible WhatsApp Business App numbers that keep the Business App while linking Cloud API"><Smartphone size={18} /> Existing Business App number</button>
+        <button
+          className={`primaryAction metaConnectButton${connecting ? ' isPending' : ''}`}
+          type="button"
+          onClick={() => connectMeta('standard')}
+          disabled={connecting || integrationBlocked}
+          aria-busy={connecting ? 'true' : undefined}
+          title={integrationBlocked ? integrationTitle : undefined}
+        >
+          {connecting ? <Loader2 className="spin" size={18} aria-hidden="true" /> : <Link2 size={18} />}
+          <span>{connecting ? 'Connecting…' : 'Connect with Meta'}</span>
+        </button>
+        <button className="secondaryAction" type="button" onClick={() => connectMeta('coexistence')} disabled={connecting || !coexistenceAvailable || integrationBlocked} title="For eligible WhatsApp Business App numbers that keep the Business App while linking Cloud API"><Smartphone size={18} /> Existing Business App number</button>
       </div>
-      {!coexistenceAvailable && meta.embeddedSignupAvailable ? <p className="formHint" role="status">Business App coexistence is not configured for this platform yet. Use Connect with Meta for Cloud API numbers.</p> : null}
+      {!coexistenceAvailable && metaSignupReady ? <p className="formHint" role="status">Business App coexistence is not configured for this platform yet. Use Connect with Meta for Cloud API numbers.</p> : null}
     </section> : null}
     {showConnectHero && reconnectRequired ? <section className="metaConnectHero metaConnectHeroWarn" aria-labelledby="meta-connect-heading">
       <div>
@@ -1382,7 +1407,11 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
         </details>
       </div>
     </section> : null}
-    {!meta.embeddedSignupAvailable && <div className="formError">WhatsApp connection isn&apos;t available yet. Contact support.</div>}
+    {integrationBlocked && showConnectHero && !connected ? (
+      <div className="formHint connectionOfflineHint" role="status">
+        Live Meta connect, sync, submit, and send stay disabled here. You can still use Contacts, draft Templates, Reply Bots, Automation drafts, Campaign drafts, and local logs from the product menu.
+      </div>
+    ) : null}
     {signupError && <div className="formError" role="alert">{signupError}</div>}
     <CoexistenceProgress phones={operations.phoneNumbers.filter(phone=>phone.coexistence)} api={api} postJson={postJson}/>
     {showInnerTabs && !hideSectionTabs && <nav className="operationsTabs" aria-label="WhatsApp connection">
@@ -1393,7 +1422,15 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
       ].map(([id, Icon, label, viewId]) => <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => { setSection(id); if (onNavigateSection && viewId) onNavigateSection(viewId); }}><Icon size={16} /><span>{label}</span></button>)}
     </nav>}
     {section === 'connection' && !connected && (
-      <p className="pageIntro" style={{ margin: '0 0 8px' }}>After you connect, inbox, broadcasts, automation, and other WhatsApp tools unlock from the product menu.</p>
+      <div className="connectionNextSteps" aria-label="Recommended next steps">
+        <strong>Continue offline setup</strong>
+        <div className="connectionNextStepActions">
+          <button className="secondaryAction" type="button" onClick={() => onNavigateSection?.('contacts') || (typeof window !== 'undefined' && (window.location.href = '/app/contacts'))}>Add contacts</button>
+          <button className="secondaryAction" type="button" onClick={() => onNavigateSection?.('templates') || (typeof window !== 'undefined' && (window.location.href = '/app/templates'))}>Draft templates</button>
+          <button className="secondaryAction" type="button" onClick={() => onNavigateSection?.('bots') || (typeof window !== 'undefined' && (window.location.href = '/app/bots'))}>Create reply bot</button>
+          <button className="secondaryAction" type="button" onClick={() => onNavigateSection?.('automation') || (typeof window !== 'undefined' && (window.location.href = '/app/automations'))}>Build automation</button>
+        </div>
+      </div>
     )}
     {section === 'entry_points' && <WhatsAppEntryPoints key={activePhone?.id} phone={activePhone} api={api} postJson={postJson} role={accountRole}/>}
     {section === 'flows' && <WhatsAppFlowDesigner api={api} postJson={postJson} flows={operations.nativeFlows} onUploaded={()=>mutate(Promise.resolve({ok:true}), 'Flow uploaded')}/>}
@@ -1411,14 +1448,14 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
       {accountRole === 'Owner' && <details className="techDetails saasAdvancedBlock"><summary>Developer API · keys and signed webhooks</summary><WorkspaceIntegrations api={api} postJson={postJson}/></details>}
     </>}
     {section === "connection" && <>
-      <Panel title="Connection status" subtitle="Verified readiness for this workspace">
-        <div className="connectionSummary connectionSummaryEssential">
-          <div><span>Account</span><Badge kind={metaLinked ? "good" : reconnectRequired ? "warn" : "warn"}>{metaLinked ? "Connected" : reconnectRequired ? "Reconnect needed" : "Needs setup"}</Badge></div>
+      <Panel title="Connection status" subtitle="Compact readiness for this workspace">
+        <div className="connectionSummary connectionSummaryCompact">
+          <div><span>Account</span><Badge kind={metaLinked ? "good" : "warn"}>{metaLinked ? "Connected" : integrationBlocked ? (platformIntegration.status === 'staging_not_configured' ? "Staging not configured" : "Platform not configured") : reconnectRequired ? "Reconnect needed" : "Needs setup"}</Badge></div>
           <div><span>Messaging</span><Badge kind={messagingReadyLabel.kind}>{messagingReadyLabel.text}</Badge></div>
           <div><span>Events</span><Badge kind={webhookEventsLabel.kind}>{webhookEventsLabel.text}</Badge></div>
           <div><span>Business number</span><strong>{setup.whatsappNumber || activePhone?.displayPhoneNumber || "Not connected"}</strong></div>
         </div>
-        <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={!setupMarkedConnected && !metaLinked}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "WhatsApp assets synchronized")} disabled={!accountHasLiveToken(activeAccount)}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={() => { if (window.confirm('Disconnect WhatsApp for this workspace? Numbers and messages stay in Meta; this removes local credentials.')) disconnect(); }} disabled={!metaLinked && !setupMarkedConnected}><Unplug size={17} /> Disconnect</button></div>
+        <div className="connectionActions"><button className="secondaryAction" type="button" onClick={checkConnection} disabled={!setupMarkedConnected && !metaLinked} title={!setupMarkedConnected && !metaLinked ? 'Connect WhatsApp before verifying live status' : undefined}><Activity size={17} /> Verify</button><button className="secondaryAction" type="button" onClick={() => runOperation({ action: "sync", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "WhatsApp assets synchronized")} disabled={!accountHasLiveToken(activeAccount)} title={!accountHasLiveToken(activeAccount) ? 'Requires a live connected WhatsApp token' : undefined}><RefreshCcw size={17} /> Sync assets</button><button className="secondaryAction dangerSoft" type="button" onClick={() => { if (window.confirm('Disconnect WhatsApp for this workspace? Numbers and messages stay in Meta; this removes local credentials.')) disconnect(); }} disabled={!metaLinked && !setupMarkedConnected}><Unplug size={17} /> Disconnect</button></div>
       </Panel>
       <details className="techDetails saasAdvancedBlock metaDiagnostics">
         <summary>Advanced diagnostics</summary>

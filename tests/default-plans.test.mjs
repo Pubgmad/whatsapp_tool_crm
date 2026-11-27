@@ -13,48 +13,41 @@ function annualCents(monthlyInr) {
   return Math.round(monthlyInr * 12 * 0.88) * 100;
 }
 
-test('built-in catalogue publishes Free Forever and paid tiers with a 12% annual discount', () => {
+test('built-in catalogue publishes Free/Pro/Custom and archives legacy tiers', () => {
   const plans = builtInSubscriptionPlans();
   const free = plans.find((plan) => plan.code === DEFAULT_FREE_PLAN_CODE);
   assert.ok(free);
+  assert.equal(free.name, 'Free');
   assert.equal(free.visible, true);
   assert.equal(free.monthly_price_cents, 0);
   assert.equal(free.commercial_status, 'published');
+  assert.equal(free.contact_limit, 250);
+  assert.equal(free.automation_flow_limit, 2);
 
-  const starter = plans.find((plan) => plan.code === 'starter');
-  assert.ok(starter);
-  assert.equal(starter.visible, true);
-  assert.equal(starter.commercial_status, 'published');
-  assert.equal(starter.monthly_price_cents, PROPOSED_PLAN_PRICES_INR.starter * 100);
-  assert.equal(starter.yearly_price_cents, annualCents(PROPOSED_PLAN_PRICES_INR.starter));
-  assert.equal(starter.yearly_price_cents, 1054900);
+  const pro = plans.find((plan) => plan.code === 'pro');
+  assert.ok(pro);
+  assert.equal(pro.visible, true);
+  assert.equal(pro.is_popular, true);
+  assert.equal(pro.monthly_price_cents, PROPOSED_PLAN_PRICES_INR.pro * 100);
+  assert.equal(pro.yearly_price_cents, annualCents(PROPOSED_PLAN_PRICES_INR.pro));
+  assert.ok(planAllowsFeature(pro.features, 'campaigns'));
 
-  const growth = plans.find((plan) => plan.code === 'growth');
-  assert.equal(growth.monthly_price_cents, PROPOSED_PLAN_PRICES_INR.growth * 100);
-  assert.equal(growth.yearly_price_cents, annualCents(PROPOSED_PLAN_PRICES_INR.growth));
-  assert.equal(growth.yearly_price_cents, 2638900);
-  assert.equal(growth.is_popular, true);
-  assert.equal(growth.visible, true);
-  assert.equal(growth.commercial_status, 'published');
+  const custom = plans.find((plan) => plan.code === 'custom');
+  assert.ok(custom);
+  assert.equal(custom.visible, true);
+  assert.equal(custom.contact_limit, null);
+  assert.ok(planAllowsFeature(custom.features, 'automation'));
 
-  const professional = plans.find((plan) => plan.code === 'professional');
-  assert.equal(professional.monthly_price_cents, PROPOSED_PLAN_PRICES_INR.professional * 100);
-  assert.equal(professional.yearly_price_cents, annualCents(PROPOSED_PLAN_PRICES_INR.professional));
-  assert.equal(professional.yearly_price_cents, 6334900);
-  assert.equal(professional.visible, true);
-  assert.equal(professional.commercial_status, 'published');
-
-  const enterprise = plans.find((plan) => plan.code === 'enterprise');
-  assert.equal(enterprise.visible, true);
-  assert.equal(enterprise.commercial_status, 'published');
-  assert.equal(enterprise.monthly_price_cents, PROPOSED_PLAN_PRICES_INR.enterprise * 100);
-  assert.equal(enterprise.yearly_price_cents, annualCents(PROPOSED_PLAN_PRICES_INR.enterprise));
-  assert.equal(enterprise.yearly_price_cents, 15840000);
+  for (const code of ['starter', 'growth', 'professional', 'enterprise']) {
+    const legacy = plans.find((plan) => plan.code === code);
+    assert.ok(legacy, code);
+    assert.equal(legacy.visible, false);
+    assert.equal(legacy.commercial_status, 'archived');
+  }
 
   assert.ok(free.features.includes('inbox'));
-  assert.ok(free.features.some((item) => item.includes('Shared inbox')));
   assert.ok(!planAllowsFeature(free.features, 'campaigns'));
-  assert.ok(planAllowsFeature(starter.features, 'campaigns'));
+  assert.ok(planAllowsFeature(pro.features, 'campaigns'));
 });
 
 test('plan entitlement helpers separate keys from marketing bullets', () => {
@@ -65,7 +58,7 @@ test('plan entitlement helpers separate keys from marketing bullets', () => {
   assert.ok(planMarketingFeatures(free.features).length > 0);
 });
 
-test('subscriptionFieldsForPlan provisions Free Forever as active without trial expiry', () => {
+test('subscriptionFieldsForPlan provisions Free as active without trial expiry', () => {
   const free = builtInSubscriptionPlans().find((plan) => plan.code === 'free');
   const fields = subscriptionFieldsForPlan({ ...free, id: 'plan_free' });
   assert.equal(fields.status, 'active');
@@ -79,8 +72,9 @@ test('subscriptionFieldsForPlan keeps pending when no plan exists', () => {
 });
 
 test('paid plans include trial days for activation', () => {
-  const starter = builtInSubscriptionPlans().find((plan) => plan.code === 'starter');
-  const fields = subscriptionFieldsForPlan({ ...starter, id: 'plan_starter' });
+  const pro = builtInSubscriptionPlans().find((plan) => plan.code === 'pro');
+  assert.ok(pro.trial_days > 0);
+  const fields = subscriptionFieldsForPlan({ ...pro, id: 'plan_pro' });
   assert.equal(fields.status, 'trialing');
   assert.ok(fields.trialEndsAt);
 });

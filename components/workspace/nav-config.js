@@ -59,9 +59,7 @@ export const SIMPLE_MODE_VIEWS = Object.freeze([
   'bots',
   'automation',
   'campaigns',
-  'ads',
   'results',
-  'unsubscribes',
   'billing',
   'team',
   'security'
@@ -153,7 +151,7 @@ export const pageTitles = {
 /** One-line captions under page titles (keep short for premium density). */
 export const pageIntros = {
   overview: 'Workspace identity and WhatsApp connection status.',
-  setup: 'Securely connect your WhatsApp Business account through Meta to start messaging.',
+  setup: 'Connect Meta when platform credentials are configured, or continue with offline drafts and setup.',
 
   numbers: 'Phone numbers linked to this workspace.',
   profile: 'Public WhatsApp business profile.',
@@ -164,13 +162,13 @@ export const pageIntros = {
   capabilities: 'Meta permission, asset, and feature readiness for this workspace.',
   groups: 'Group messaging when eligible.',
   integrations: 'API keys and partner connectors.',
-  contacts: 'Audiences, consent, and segments.',
+  contacts: 'Audiences, consent, and segments — works without a live Meta connection.',
   team: 'Invite agents and manage workspace roles.',
   billing: 'Current plan, usage limits, and subscription billing.',
   security: 'Account multi-factor authentication and recovery codes.',
-  templates: 'Meta-approved message templates for broadcasts and automation.',
-  automation: 'Keyword-triggered reply workflows — canvas editor, drafts, and activation.',
-  campaigns: 'Template campaigns and scheduling.',
+  templates: 'Draft and manage templates. Live Meta submit/sync requires a connected WhatsApp account.',
+  automation: 'Build and save automation drafts offline. Live sends require a connected WhatsApp account.',
+  campaigns: 'Draft and preview broadcasts offline. Live send/schedule requires Meta connection.',
   commerce: 'Catalogs and commerce settings.',
   catalog: 'Meta product catalogs, products, and catalog messaging settings.',
   meta_analytics: 'Meta Graph messaging and conversation snapshots.',
