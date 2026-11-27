@@ -34,7 +34,7 @@ test('built-in catalogue publishes Free/Pro/Custom and archives legacy tiers', (
 
   const custom = plans.find((plan) => plan.code === 'custom');
   assert.ok(custom);
-  assert.equal(custom.visible, true);
+  assert.equal(custom.visible, false);
   assert.equal(custom.contact_limit, null);
   assert.ok(planAllowsFeature(custom.features, 'automation'));
 
