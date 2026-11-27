@@ -16,9 +16,11 @@ test('default plans include SMB entitlement keys by tier', () => {
     assert.ok(keys.includes('assisted_onboarding'), `${code} missing assisted_onboarding`);
     assert.ok(keys.includes('simple_mode'), `${code} missing simple_mode`);
   }
-  assert.equal(planAllowsFeature(byCode.growth.features, 'ecommerce_playbooks'), true);
+  // Automation-only release: ecommerce/checkout CRM entitlements stay excluded from Free/Pro.
   assert.equal(planAllowsFeature(byCode.free.features, 'ecommerce_playbooks'), false);
-  assert.equal(planAllowsFeature(byCode.enterprise.features, 'checkout_recovery'), true);
+  assert.equal(planAllowsFeature(byCode.pro.features, 'ecommerce_playbooks'), false);
+  assert.equal(planAllowsFeature(byCode.free.features, 'segments'), true);
+  assert.equal(planAllowsFeature(byCode.pro.features, 'campaigns'), true);
 });
 
 test('marketplace providers expose guided connectors without fake OAuth for Zapier/Pabbly', () => {
@@ -39,6 +41,7 @@ test('simple mode default destinations are WhatsApp automation-first', () => {
   assert.ok(SIMPLE_MODE_VIEWS.includes('setup'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('inbox'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('contacts'));
+  assert.ok(SIMPLE_MODE_VIEWS.includes('segments'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('templates'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('bots'));
   assert.ok(SIMPLE_MODE_VIEWS.includes('automation'));

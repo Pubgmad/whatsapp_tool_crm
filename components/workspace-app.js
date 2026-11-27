@@ -73,12 +73,12 @@ import {
   BadgeCheck, Ban, BarChart3, Bot, ChevronRight, CircleAlert, Download, FileText, Image, Inbox, LayoutDashboard,
   Eye, EyeOff, LineChart, Loader2, LogOut, MessageSquare, MessageSquareText, PhoneCall, Plus, RefreshCcw, Route, Send, Settings2,
   ShieldCheck, Sparkles, Trash2, Upload, UsersRound, X, Search, Clock3, Activity, CheckCheck, Copy, Link2, Pause, Play, Pencil, Save, StickyNote, Unplug, UserPlus, WalletCards,
-  Smartphone, Workflow, RadioTower, Building2, KeyRound, ShoppingBag, Paperclip
+  Smartphone, Workflow, RadioTower, Building2, KeyRound, ShoppingBag, Paperclip, Filter
 } from "lucide-react";
 const NAV_ICONS = {
   LayoutDashboard, Settings2, UsersRound, UserPlus, WalletCards, ShieldCheck, MessageSquareText, Bot, Send,
   ShoppingBag, Activity, PhoneCall, RadioTower, BarChart3, LineChart, Route, Inbox, Ban, Workflow, Paperclip, Link2, Smartphone,
-  Building2, KeyRound, MessageSquare, Sparkles
+  Building2, KeyRound, MessageSquare, Sparkles, Filter
 };
 
 const navItems = flatNavItems.map((item) => ({ ...item, icon: NAV_ICONS[item.icon] || LayoutDashboard }));
@@ -88,6 +88,7 @@ const PRODUCT_SWITCHER_IDS = [
   'onboarding',
   'setup',
   'contacts',
+  'segments',
   'templates',
   'bots',
   'automation',
@@ -643,22 +644,22 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
       ? state.simpleNav.map(String)
       : SIMPLE_MODE_VIEWS
   );
+  // Keep plan-gated destinations visible so UpgradeRequiredPanel can explain Free/Pro limits
+  // instead of silently removing Audience/Broadcast modules from the UI.
   const productOptions = PRODUCT_SWITCHER_IDS
     .map((id) => navItems.find((item) => item.id === id))
     .filter(Boolean)
     .filter((item) => isReleaseViewAllowed(item.id))
-    .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
+    .filter((item) => canOpenWorkspaceView(account.role, item.id))
     .filter((item) => item.id !== 'bots' || state.featureFlags?.reply_bots || state.featureFlags?.sheets_bot)
-    .filter((item) => item.id !== 'onboarding' || state.featureFlags?.assisted_onboarding)
     .filter((item) => !simpleMode || allowedSimple.has(item.id) || item.id === activeView);
   const activeGroup = navGroups.find((group) => group.items.some((item) => item.id === activeView));
   const secondaryItems = (activeGroup?.items || [])
     .map((item) => navItems.find((entry) => entry.id === item.id))
     .filter(Boolean)
     .filter((item) => isReleaseViewAllowed(item.id))
-    .filter((item) => canOpenWorkspaceView(account.role, item.id) && (!featureForView[item.id] || state.featureFlags?.[featureForView[item.id]] !== false))
+    .filter((item) => canOpenWorkspaceView(account.role, item.id))
     .filter((item) => item.id !== 'bots' || state.featureFlags?.reply_bots || state.featureFlags?.sheets_bot)
-    .filter((item) => item.id !== 'onboarding' || state.featureFlags?.assisted_onboarding)
     .filter((item) => !simpleMode || allowedSimple.has(item.id) || item.id === activeView);
   const isMetaSetup = activeView === 'setup' || Boolean(setupSectionByView[activeView]);
   const pageHeading = activeView === 'setup' ? 'WhatsApp connection' : workspacePageTitle(activeView);
@@ -730,8 +731,9 @@ export default function WorkspaceApp({ initialView = "setup", initialConversatio
         <nav className="productSecondaryNav" aria-label={`${activeGroup?.label || 'Feature'} sections`}>
           {secondaryItems.map((item) => {
             const Icon = item.icon;
+            const locked = Boolean(featureForView[item.id] && state.featureFlags?.[featureForView[item.id]] === false);
             return (
-              <button key={item.id} type="button" className={activeView === item.id ? 'active' : ''} onClick={() => navigate(item.id)}>
+              <button key={item.id} type="button" className={`${activeView === item.id ? 'active' : ''}${locked ? ' isLocked' : ''}`} onClick={() => navigate(item.id)} title={locked ? `${item.label} requires a plan upgrade` : item.label} aria-label={locked ? `${item.label} (upgrade required)` : item.label}>
                 <Icon size={16} /><span>{item.label}</span>
               </button>
             );
@@ -998,6 +1000,7 @@ function Screens({ activeView, setupSection = null, ...props }) {
     overview: <Setup {...props} forcedSection="connection" hideSectionTabs={false} onNavigateSection={props.setActiveView} />,
     setup: <Setup {...props} forcedSection={setupSection || 'connection'} hideSectionTabs={Boolean(setupSection && activeView !== 'setup')} onNavigateSection={props.setActiveView} />,
     contacts: <Contacts {...props} />,
+    segments: <Segments {...props} />,
     team: <Team {...props} />,
     ai_agents: <AiAgentsWorkspace {...props} />,
     bots: <SmbBotsWorkspace api={api} postJson={postJson} role={props.role} featureFlags={props.state?.featureFlags} setActiveView={props.setActiveView} />,
@@ -1546,13 +1549,14 @@ function Setup({ state, mutate, notify, reloadSetup, applyWhatsAppConnection, cl
     {section === "capabilities" && <div className="contentGrid twoColumns"><Panel title="WhatsApp capabilities" subtitle="Refresh entitlements after Meta enables new features"><div className="assetToolbar"><Badge kind={operations.activationChecklist?.readyForMessaging ? "good" : "warn"}>{operations.activationChecklist?.readyForMessaging ? "Ready for messaging" : `${operations.activationChecklist?.blockerCount || 0} blocker(s)`}</Badge><button className="primaryAction" type="button" disabled={!accountHasLiveToken(activeAccount)} onClick={() => runOperation({ action: "refresh_entitlements", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "Meta entitlements refreshed")}><RefreshCcw size={17} /> Refresh entitlements</button></div><div className="readinessList">{operations.activationChecklist?.steps?.map((step) => <div key={step.id} className={step.status === "pass" ? "ready" : ""}><span>{step.label}</span><Badge kind={step.status === "pass" ? "good" : step.status === "warn" ? "warn" : "bad"}>{step.status === "pass" ? "OK" : step.status === "warn" ? "Review" : "Blocked"}</Badge><small>{step.detail}</small></div>)}</div><MetaBillingVisibility capability={operations.capabilities?.find((item) => item.key === 'billing_visibility')} onRefresh={() => runOperation({ action: "refresh_entitlements", ...(activeAccount?.id ? { accountId: activeAccount.id } : {}) }, "Meta entitlements refreshed")} /></Panel><Panel title="WhatsApp capability readiness" subtitle="Inferred from your connected WABA and synced Meta data"><div className="capabilityGrid">{operations.capabilities.map((capability) => <article key={capability.key}><div className="capabilityIcon"><RadioTower size={18} /></div><div><strong>{capability.name}</strong><span>{capability.detail || capability.prerequisite}</span></div><Badge kind={capability.status === "available" ? "good" : capability.status === "setup" ? "warn" : "neutral"}>{capability.status === "available" ? "Configured" : capability.status === "setup" ? "Setup needed" : "Not integrated"}</Badge></article>)}</div><MmLiteOptimizerPanel api={api} /></Panel></div>}
   </div>;
 }
-function SavedSegments({ initialSegments, canManage, mutate }) {
+function SavedSegments({ initialSegments, canManage, mutate, onOpenCampaigns }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [segments, setSegments] = useState(initialSegments);
   const [hasMore, setHasMore] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(null);
   useEffect(() => {
     let active = true;
     const timer = setTimeout(() => {
@@ -1568,16 +1572,47 @@ function SavedSegments({ initialSegments, canManage, mutate }) {
   const reload = async (promise, message) => {
     const ok = await mutate(promise, message);
     if (ok) setRefresh(current => current + 1);
+    return ok;
   };
-  return <Panel title="Saved segments" subtitle="Reusable audiences recalculated from current contact data">
-    {canManage && <AudienceSegmentComposer api={api} postJson={postJson} onSaved={() => reload(Promise.resolve(), 'Segment saved')} />}
-    <label className="searchBox"><Search size={17} /><input type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="Find a segment" maxLength={120} /></label>
+  return <Panel title="Saved segments" subtitle="Reusable audiences recalculated from current contact data — use them in Broadcasts">
+    {canManage && <AudienceSegmentComposer
+      api={api}
+      postJson={postJson}
+      initialSegment={editing}
+      onCancel={() => setEditing(null)}
+      onSaved={async () => {
+        setEditing(null);
+        await reload(Promise.resolve(), editing ? 'Segment updated' : 'Segment saved');
+      }}
+    />}
+    <div className="dataToolbar contactToolbar">
+      <label className="searchBox"><Search size={17} /><input type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="Find a segment" maxLength={120} aria-label="Search segments" /></label>
+      {onOpenCampaigns ? <button className="secondaryAction" type="button" onClick={onOpenCampaigns}><Send size={16} /> Use in Broadcasts</button> : null}
+    </div>
     {error && <small className="errorLine" role="alert">{error}</small>}
-    <div className="segmentList">{segments.map(segment => <article key={segment.id} className={segment.isRetargetAudience ? 'segmentRetargetCard' : ''}><div><strong>{segment.name}</strong>{segment.isRetargetAudience && <Badge kind="neutral">Retarget</Badge>}<span>{segment.description || 'Dynamic audience'}</span></div><Badge kind={segment.isActive ? 'good' : 'neutral'}>{segment.contactCount} contacts</Badge>{canManage && <div className="segmentRowActions">{segment.isRetargetAudience && <button className="secondaryAction compactAction" type="button" title="Refresh live retarget rules" onClick={() => reload(postJson(`/api/segments/${segment.id}/refresh`, {}), 'Retarget audience refreshed')}><RefreshCcw size={15} /> Refresh</button>}<AudienceBulkTagsPanel segment={segment} api={api} onApplied={() => reload(Promise.resolve(), 'Segment tags updated')} /><button className="iconButton dangerSoft" type="button" title="Delete segment" onClick={() => reload(api(`/api/segments/${segment.id}`, { method: 'DELETE' }), 'Segment removed')}><Trash2 size={16} /></button></div>}</article>)}{!segments.length && <EmptyState text="No saved segments match" />}</div>
+    <div className="segmentList">{segments.map(segment => <article key={segment.id} className={segment.isRetargetAudience ? 'segmentRetargetCard' : ''}><div><strong>{segment.name}</strong>{segment.isRetargetAudience && <Badge kind="neutral">Retarget</Badge>}<span>{segment.description || 'Dynamic audience'}</span></div><Badge kind={segment.isActive ? 'good' : 'neutral'}>{segment.contactCount} contacts</Badge>{canManage && <div className="segmentRowActions">{!segment.isRetargetAudience && <button className="secondaryAction compactAction" type="button" title="Edit segment" onClick={() => setEditing(segment)}><Pencil size={15} /> Edit</button>}{segment.isRetargetAudience && <button className="secondaryAction compactAction" type="button" title="Refresh live retarget rules" onClick={() => reload(postJson(`/api/segments/${segment.id}/refresh`, {}), 'Retarget audience refreshed')}><RefreshCcw size={15} /> Refresh</button>}<AudienceBulkTagsPanel segment={segment} api={api} onApplied={() => reload(Promise.resolve(), 'Segment tags updated')} /><button className="iconButton dangerSoft" type="button" title="Delete segment" onClick={() => reload(api(`/api/segments/${segment.id}`, { method: 'DELETE' }), 'Segment removed')}><Trash2 size={16} /></button></div>}</article>)}{!segments.length && <EmptyState text="No saved segments match" />}</div>
     {(page > 1 || hasMore) && <nav className="pagination" aria-label="Saved segments pagination"><span>Page {page}</span><div><button className="secondaryAction" type="button" disabled={page === 1} onClick={() => setPage(current => current - 1)}>Previous</button><button className="secondaryAction" type="button" disabled={!hasMore} onClick={() => setPage(current => current + 1)}>Next</button></div></nav>}
   </Panel>;
 }
-function Contacts({ state, mutate, actionPending = false }) {
+function Segments({ state, mutate, setActiveView }) {
+  const canManage = isWorkspaceManager(state?.account?.role);
+  return <div className="screenGrid">
+    <section className="actionBand automationTopbar compactAutomationTopbar">
+      <div>
+        <strong>Audience segments</strong>
+        <span>Combine consent, tags, sources, and campaign engagement into reusable audiences for automation and broadcasts.</span>
+      </div>
+      <button className="secondaryAction" type="button" onClick={() => setActiveView?.('contacts')}><UsersRound size={17} /> Contacts</button>
+    </section>
+    <SavedSegments
+      initialSegments={state.audienceSegments || []}
+      canManage={canManage}
+      mutate={mutate}
+      onOpenCampaigns={() => setActiveView?.('campaigns')}
+    />
+  </div>;
+}
+function Contacts({ state, mutate, actionPending = false, setActiveView }) {
   const [csvText, setCsvText] = useState("");
   const [fileName, setFileName] = useState("");
   const [search, setSearch] = useState("");
@@ -1626,7 +1661,13 @@ function Contacts({ state, mutate, actionPending = false }) {
       {canManage && <Panel title="Add contact" subtitle="Create a permission-aware WhatsApp contact"><form className="formGrid" onSubmit={add}><Input name="name" label="Name" required /><Input name="phone" label="Phone with country code" required /><Input name="tags" label="Tags" placeholder="lead, customer" /><Input name="optInSource" label="Opt-in source" /><Input name="consentEvidence" label="Consent evidence (when allowed)" placeholder="When and how this contact opted in" /><label className="checkRow"><input name="marketingPermission" type="checkbox" /> Marketing permission recorded</label><button className={`primaryAction${actionPending ? ' isPending' : ''}`} type="submit" disabled={actionPending} aria-busy={actionPending ? 'true' : undefined}>{actionPending ? <Loader2 className="spin" size={18} aria-hidden="true" /> : <Plus size={18} />}<span>{actionPending ? 'Saving…' : 'Add contact'}</span></button></form></Panel>}
       {canManage && <Panel title="Import contacts" subtitle="CSV: name, phone, permission, tags, opt_in_source, consent_evidence"><form className="formGrid importForm" onSubmit={importRows}><label className="fileDrop"><input type="file" accept=".csv,text/csv" onChange={chooseFile} /><Upload size={22} /><strong>{fileName || "Choose CSV file"}</strong><span>{fileName ? "Ready to import" : "or paste CSV rows below"}</span></label><label>CSV rows<textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder="name,phone,permission,tags,opt_in_source,consent_evidence" /></label><div className="importMeta"><span>{csvText.trim() ? `${csvText.trim().split(/\r?\n/).length} rows ready` : "No rows loaded"}</span><button className={`secondaryAction${actionPending ? ' isPending' : ''}`} type="submit" disabled={!csvText.trim() || actionPending} aria-busy={actionPending ? 'true' : undefined}>{actionPending ? <Loader2 className="spin" size={18} aria-hidden="true" /> : <Upload size={18} />}<span>{actionPending ? 'Importing…' : 'Import'}</span></button></div></form></Panel>}
     </div>
-    {state.featureFlags?.segments && <SavedSegments initialSegments={state.audienceSegments || []} canManage={canManage} mutate={mutate} />}
+    <section className="actionBand automationTopbar compactAutomationTopbar">
+      <div>
+        <strong>Contacts</strong>
+        <span>Import and manage people, then build reusable Segments for broadcasts.</span>
+      </div>
+      <button className="secondaryAction" type="button" onClick={() => setActiveView?.('segments')}><Filter size={17} /> Open Segments</button>
+    </section>
     <Panel title="Contacts" subtitle={loadingContacts && contacts.length ? 'Refreshing…' : loadingContacts ? 'Loading…' : `${contacts.length} on page · ${pagination.total ?? 0} total`}><div className="dataToolbar contactToolbar"><label className="searchBox"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search contacts" aria-label="Search contacts" /></label><select value={permissionFilter} aria-label="Filter contacts by consent" onChange={(event) => { setPermissionFilter(event.target.value); setPage(1); }}><option value="all">All contacts</option><option value="allowed">Marketable</option><option value="blocked">Suppressed</option></select>{canManage && <a className="secondaryAction exportAction" href="/api/contacts/export"><Download size={18} /> Export CSV</a>}</div>{contactsError ? <SectionError error={contactsError} operation="contacts" onRetry={refreshContacts} onDismiss={() => setContactsError(null)} /> : null}{loadingContacts && !contacts.length ? <SkeletonTable rows={6} /> : <DataTable headers={["Name", "Phone", "Permission", "Last activity", "Actions"]}>{contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong><div className="chipRow compact">{(contact.tags || []).map((tag) => <span key={tag}>{tag}</span>)}</div></td><td>{contact.phone}</td><td><Badge kind={contact.unsubscribed ? "bad" : contact.marketingPermission ? "good" : "bad"}>{contact.unsubscribed ? "Suppressed" : contact.marketingPermission ? "Allowed" : "Blocked"}</Badge></td><td>{formatTime(contact.lastMessageAt)}</td><td className="rowActions">{canManage && <><button onClick={() => setEditContact(contact)}><Pencil size={15} /> Edit</button><button className="dangerText" onClick={() => mutate(postJson(`/api/contacts/${contact.id}`, {}, "DELETE").then(() => refreshContacts()), "Contact removed")}><Trash2 size={15} /> Remove</button></>}</td></tr>)}</DataTable>}{!contacts.length && !loadingContacts && !contactsError && <EmptyState text={search.trim() ? 'No contacts match this search' : permissionFilter !== 'all' ? 'No contacts match this filter' : 'No contacts yet'} />}{(pagination.pages > 1 || page > 1) && <nav className="pagination" aria-label="Contacts pagination"><span>Page {pagination.page} of {pagination.pages}</span><div><button className="secondaryAction" type="button" disabled={page <= 1 || loadingContacts} onClick={() => setPage((p) => p - 1)}>Previous</button><button className="secondaryAction" type="button" disabled={page >= pagination.pages || loadingContacts} onClick={() => setPage((p) => p + 1)}>Next</button></div></nav>}</Panel>
     {editContact && <div className="modalBackdrop" role="presentation" onMouseDown={() => setEditContact(null)}><section className="editModal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header><div><p className="kicker">Contact profile</p><h2>Edit contact</h2></div><button className="iconButton" type="button" onClick={() => setEditContact(null)} aria-label="Close"><X size={18} /></button></header><form className="formGrid" onSubmit={saveContact}><Input name="name" label="Name" defaultValue={editContact.name} required /><Input name="phone" label="Phone" defaultValue={editContact.phone} required /><Input name="tags" label="Tags" defaultValue={(editContact.tags || []).join(", ")} /><Input name="optInSource" label="Opt-in source" defaultValue={editContact.optInSource || ""} /><Input name="consentEvidence" label="New consent evidence (if restoring permission)" /><label>Marketing permission<select name="marketingPermission" defaultValue={editContact.marketingPermission && !editContact.unsubscribed ? "allowed" : "blocked"}><option value="allowed">Allowed</option><option value="blocked">Suppressed</option></select></label><label>Custom fields<textarea name="customAttributes" defaultValue={attributesToText(editContact.customAttributes)} placeholder={"company=Example\ninterest=Pricing"} /></label><button className="primaryAction" type="submit"><Save size={18} /> Save changes</button></form></section></div>}
   </div>;

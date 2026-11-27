@@ -31,6 +31,22 @@ function payload(node) {
   if (['tags', 'source'].includes(node.type)) result.values = String(node.values || '').split(',').map(value => value.trim()).filter(Boolean);
   return result;
 }
+function hydrate(node) {
+  if (!node || typeof node !== 'object') return group('and', [condition('permission')]);
+  if (node.type === 'group') {
+    const children = Array.isArray(node.children) && node.children.length
+      ? node.children.map(hydrate)
+      : [condition('permission')];
+    return { rowId: uid(), type: 'group', operator: node.operator === 'or' ? 'or' : 'and', children };
+  }
+  const base = condition(TYPES.some(([value]) => value === node.type) ? node.type : 'tags');
+  const next = { ...base, ...node, rowId: uid() };
+  if (['tags', 'source'].includes(next.type) && Array.isArray(node.values)) next.values = node.values.join(', ');
+  return next;
+}
+function blankComposer() {
+  return group('and', [condition('permission')]);
+}
 
 function ConditionFields({ node, campaigns, known, onChange }) {
   if (node.type === 'permission') return <label>Audience permission<select value={node.value} onChange={event=>onChange({value:event.target.value})}><option value="marketable">Marketable only</option><option value="blocked">Suppressed only</option><option value="all">All contacts</option></select></label>;
@@ -53,11 +69,25 @@ function RuleGroup({ node, depth, campaigns, known, edit, remove, total }) {
   </div>;
 }
 
-export default function AudienceSegmentComposer({ api, postJson, onSaved }) {
-  const [root, setRoot] = useState(()=>group('and',[condition('permission')]));
+export default function AudienceSegmentComposer({ api, postJson, onSaved, initialSegment = null, onCancel }) {
+  const editingId = initialSegment?.id || '';
+  const [root, setRoot] = useState(() => blankComposer());
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [search, setSearch] = useState(''), [page, setPage] = useState(1);
   const [campaigns, setCampaigns] = useState([]), [known, setKnown] = useState({}), [hasMore, setHasMore] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  useEffect(() => {
+    if (!initialSegment) {
+      setRoot(blankComposer());
+      setName('');
+      setDescription('');
+      return;
+    }
+    setName(initialSegment.name || '');
+    setDescription(initialSegment.description || '');
+    setRoot(hydrate(initialSegment.rules?.root || initialSegment.rules));
+  }, [initialSegment]);
   useEffect(() => {
     let active = true;
     const timer = setTimeout(() => {
@@ -71,22 +101,32 @@ export default function AudienceSegmentComposer({ api, postJson, onSaved }) {
   }, [api, search, page]);
   function edit(id, change) { setRoot(current=>updateTree(current,id,change)); }
   async function save(event) {
-    event.preventDefault(); const form = event.currentTarget, data = new FormData(form);
+    event.preventDefault();
     setBusy(true); setError('');
     try {
-      await postJson('/api/segments', { name: data.get('name'), description: data.get('description'), rules: { version: 2, root: payload(root) } });
-      form.reset(); setRoot(group('and',[condition('permission')])); await onSaved();
+      const body = { name, description, rules: { version: 2, root: payload(root) } };
+      if (editingId) await postJson(`/api/segments/${editingId}`, body, 'PUT');
+      else await postJson('/api/segments', body);
+      setRoot(blankComposer());
+      setName('');
+      setDescription('');
+      await onSaved();
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
   }
   return <form className="audienceComposer" onSubmit={save}>
-    <fieldset disabled={busy}><legend>Audience details</legend><div className="audienceFields">
-      <label>Name<input name="name" required maxLength={255}/></label><label>Description<input name="description" maxLength={2000}/></label>
+    <fieldset disabled={busy}><legend>{editingId ? 'Edit audience' : 'Audience details'}</legend><div className="audienceFields">
+      <label>Name<input name="name" required maxLength={255} value={name} onChange={(event) => setName(event.target.value)} /></label>
+      <label>Description<input name="description" maxLength={2000} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
     </div></fieldset>
     <fieldset disabled={busy}><legend>Campaign finder</legend><div className="audienceFields">
       <label>Find campaign<input value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} maxLength={120}/></label>
       <div className="audienceButtons"><button type="button" title="Previous campaigns" aria-label="Previous campaigns" disabled={page===1} onClick={()=>setPage(page-1)}><ChevronLeft size={16}/></button><span>{page}</span><button type="button" title="Next campaigns" aria-label="Next campaigns" disabled={!hasMore} onClick={()=>setPage(page+1)}><ChevronRight size={16}/></button></div>
     </div></fieldset>
     <fieldset disabled={busy}><legend>Audience rules</legend><RuleGroup node={root} depth={1} campaigns={campaigns} known={known} edit={edit} total={countNodes(root)}/></fieldset>
-    {error&&<p className="formError" role="alert">{error}</p>}<button className="primaryAction" disabled={busy}><Save size={18}/>{busy?'Saving':'Save segment'}</button>
+    {error&&<p className="formError" role="alert">{error}</p>}
+    <div className="audienceButtons">
+      {editingId && onCancel ? <button className="secondaryAction" type="button" disabled={busy} onClick={onCancel}>Cancel edit</button> : null}
+      <button className="primaryAction" disabled={busy}><Save size={18}/>{busy ? 'Saving' : editingId ? 'Update segment' : 'Save segment'}</button>
+    </div>
   </form>;
 }
