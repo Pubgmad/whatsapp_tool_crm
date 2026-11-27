@@ -1,3 +1,4 @@
+/* global process */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -24,11 +25,24 @@ test('Page leadgen webhooks are accepted and resolve via ads Page connection', {
     }]
   };
   try {
+    const accountId = `meta_lead_wa_${crypto.randomBytes(4).toString('hex')}`;
+    const phoneRowId = `meta_lead_wp_${crypto.randomBytes(4).toString('hex')}`;
+    const phoneNumberId = `pn_${crypto.randomBytes(4).toString('hex')}`;
     await query('INSERT INTO businesses (id,name,slug) VALUES ($1,$1,$1)', [businessId]);
     await query(
+      `INSERT INTO whatsapp_accounts (id,business_id,waba_id,access_token_encrypted,status,is_default)
+       VALUES ($1,$2,$3,'encrypted-token','connected',TRUE)`,
+      [accountId, businessId, `waba_${crypto.randomBytes(4).toString('hex')}`]
+    );
+    await query(
+      `INSERT INTO whatsapp_phone_numbers (id,business_id,whatsapp_account_id,phone_number_id,is_default,registration_state)
+       VALUES ($1,$2,$3,$4,TRUE,'registered')`,
+      [phoneRowId, businessId, accountId, phoneNumberId]
+    );
+    await query(
       `INSERT INTO whatsapp_ads_connections (business_id,ad_account_id,page_id,phone_number_id,currency,access_token_encrypted,authorization_status)
-       VALUES ($1,'act_1',$2,'pn_1','USD','',$3)`,
-      [businessId, pageId, 'active']
+       VALUES ($1,'act_1',$2,$3,'USD','',$4)`,
+      [businessId, pageId, phoneNumberId, 'active']
     );
     const resolve = async () => ({ id: 'should-not-be-used-for-page' });
     assert.equal(await enqueueMetaWebhookChanges(payload, resolve), 1);
@@ -46,6 +60,8 @@ test('Page leadgen webhooks are accepted and resolve via ads Page connection', {
     enterSystemContext();
     await query('DELETE FROM meta_webhook_queue WHERE business_id=$1', [businessId]);
     await query('DELETE FROM whatsapp_ads_connections WHERE business_id=$1', [businessId]);
+    await query('DELETE FROM whatsapp_phone_numbers WHERE business_id=$1', [businessId]);
+    await query('DELETE FROM whatsapp_accounts WHERE business_id=$1', [businessId]);
     await query('DELETE FROM businesses WHERE id=$1', [businessId]);
   }
 });

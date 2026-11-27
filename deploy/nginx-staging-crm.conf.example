@@ -1,0 +1,23 @@
+# Isolated staging vhost — do not replace the production crm.mathstrat-sites.com server block.
+# Point DNS for staging-crm.mathstrat-sites.com here, then enable TLS separately.
+
+upstream whatsapp_crm_staging {
+  server 127.0.0.1:3001;
+  keepalive 32;
+}
+
+server {
+  listen 80;
+  server_name staging-crm.mathstrat-sites.com;
+
+  location / {
+    proxy_pass http://whatsapp_crm_staging;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+  }
+}

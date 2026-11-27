@@ -75,7 +75,21 @@ test('drip API validates tenancy and consent, audits lifecycle, and queues every
     return result;
   };
   try {
+    const account = `drip_wa_${suffix}`;
+    const phoneRow = `drip_wp_${suffix}`;
+    const phoneNumberId = `drip_pn_${suffix}`;
     await query('INSERT INTO businesses (id,name,slug,review_access) VALUES ($1,$1,$1,TRUE),($2,$2,$2,TRUE)', [business, other]);
+    await query(
+      `INSERT INTO whatsapp_accounts (id,business_id,waba_id,access_token_encrypted,status,is_default)
+       VALUES ($1,$2,$3,'encrypted-token','connected',TRUE)`,
+      [account, business, `drip_waba_${suffix}`]
+    );
+    await query(
+      `INSERT INTO whatsapp_phone_numbers (id,business_id,whatsapp_account_id,phone_number_id,is_default,registration_state)
+       VALUES ($1,$2,$3,$4,TRUE,'registered')`,
+      [phoneRow, business, account, phoneNumberId]
+    );
+    await query('UPDATE businesses SET phone_number_id=$2 WHERE id=$1', [business, phoneNumberId]);
     await query("INSERT INTO users (id,name,email,password_hash,email_verified_at) VALUES ($1,$1,$2,'unused',NOW())", [user, `${user}@example.test`]);
     await query("INSERT INTO memberships (id,user_id,business_id,role) VALUES ($1,$2,$3,'Manager')", [`drip_m_${suffix}`, user, business]);
     await query(
