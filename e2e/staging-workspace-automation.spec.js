@@ -7,21 +7,22 @@ import { expect, test } from '@playwright/test';
 import {
   assertNoHorizontalOverflow,
   gotoApp,
+  hasSessionE2ECredentials,
   hasWorkspaceE2ECredentials,
   openWorkspaceApp,
   signInWorkspace
 } from './helpers.js';
 
-const hasAuth = hasWorkspaceE2ECredentials();
+const hasAuth = hasWorkspaceE2ECredentials() || hasSessionE2ECredentials();
 const suffix = Date.now().toString(36);
 
 test.describe('Staging WhatsApp Automation workspace', () => {
-  test.skip(!hasAuth, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated staging coverage');
+  test.skip(!hasAuth, 'Set E2E_EMAIL/E2E_PASSWORD or E2E_SESSION_COOKIE/E2E_CSRF_COOKIE');
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(180_000);
 
-  test.beforeEach(async ({ page }) => {
-    await signInWorkspace(page);
+  test.beforeEach(async ({ page, context }) => {
+    await signInWorkspace(page, context);
     await openWorkspaceApp(page);
   });
 
@@ -35,21 +36,24 @@ test.describe('Staging WhatsApp Automation workspace', () => {
 
   test('Contacts create and CSV import UI', async ({ page }) => {
     await gotoApp(page, '/app/contacts');
-    await expect(page.getByRole('heading', { name: /Audience|Contacts/i }).first()).toBeVisible({ timeout: 30000 });
+    const addForm = page.locator('form').filter({ hasText: /Phone with country code/i }).first();
+    await expect(addForm).toBeVisible({ timeout: 30000 });
     const phone = `1555${String(Date.now()).slice(-7)}`;
-    await page.getByLabel('Name', { exact: true }).fill(`E2E Contact ${suffix}`);
-    await page.getByLabel(/Phone with country code/i).fill(phone);
-    await page.getByLabel(/Opt-in source/i).fill('e2e');
-    await page.getByLabel(/Consent evidence/i).fill('Staging Playwright recorded consent');
-    await page.getByLabel(/Marketing permission recorded/i).check();
-    await page.getByRole('button', { name: /Add contact/i }).click();
-    await expect(page.getByText(new RegExp(`E2E Contact ${suffix}`))).toBeVisible({ timeout: 30000 });
+    await addForm.getByLabel('Name', { exact: true }).fill(`E2E Contact ${suffix}`);
+    await addForm.getByLabel(/Phone with country code/i).fill(phone);
+    await addForm.getByLabel(/Opt-in source/i).fill('e2e');
+    await addForm.getByLabel(/Consent evidence/i).fill('Staging Playwright recorded consent');
+    await addForm.getByLabel(/Marketing permission recorded/i).check();
+    await addForm.getByRole('button', { name: /Add contact/i }).click();
+    await expect(page.getByText(`E2E Contact ${suffix}`).first()).toBeVisible({ timeout: 30000 });
 
-    await page.locator('textarea').filter({ hasText: '' }).or(page.getByLabel(/CSV rows/i)).first().fill(
+    const importForm = page.locator('form.importForm, form').filter({ hasText: /CSV|Import contacts|Choose CSV/i }).first();
+    await expect(importForm.locator('textarea')).toBeVisible({ timeout: 30000 });
+    await importForm.locator('textarea').fill(
       `name,phone,permission,tags,opt_in_source,consent_evidence\nImport ${suffix},1555${String(Date.now() + 1).slice(-7)},true,e2e,import,Playwright CSV`
     );
-    await page.getByRole('button', { name: /Import/i }).click();
-    await expect(page.getByText(/imported|Import|contact/i).first()).toBeVisible({ timeout: 30000 });
+    await importForm.getByRole('button', { name: /Import/i }).click();
+    await expect(page.getByText(new RegExp(`Import ${suffix}|imported|rows ready|contact`, 'i')).first()).toBeVisible({ timeout: 30000 });
   });
 
   test('Templates management page loads with clear empty/error states', async ({ page }) => {
@@ -127,12 +131,12 @@ test.describe('Staging WhatsApp Automation workspace', () => {
 });
 
 test.describe('Staging workspace mobile', () => {
-  test.skip(!hasAuth, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated staging coverage');
+  test.skip(!hasAuth, 'Set E2E_EMAIL/E2E_PASSWORD or E2E_SESSION_COOKIE/E2E_CSRF_COOKIE');
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('core automation routes fit mobile viewport', async ({ page }) => {
+  test('core automation routes fit mobile viewport', async ({ page, context }) => {
     test.setTimeout(180_000);
-    await signInWorkspace(page);
+    await signInWorkspace(page, context);
     await openWorkspaceApp(page);
     for (const path of ['/app/contacts', '/app/bots', '/app/automations', '/app/campaigns', '/app/templates']) {
       await gotoApp(page, path);
