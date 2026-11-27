@@ -1,4 +1,4 @@
-/* global __dirname, module, require */
+/* global __dirname */
 /**
  * Isolated staging PM2 profile — separate from production whatsapp-crm / whatsapp-crm-worker.
  * Deploy path: /var/www/whatsapp-crm-staging (never reuse /var/www/whatsapp-crm).
